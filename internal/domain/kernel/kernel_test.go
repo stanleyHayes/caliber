@@ -87,6 +87,21 @@ func TestNewPageClamps(t *testing.T) {
 	}
 }
 
+func TestConfidence(t *testing.T) {
+	if ConfidenceUnknown.Valid() {
+		t.Error("ConfidenceUnknown should be invalid")
+	}
+	if !ConfidenceHigh.Valid() {
+		t.Error("ConfidenceHigh should be valid")
+	}
+	if ConfidenceMedium.String() != "medium" {
+		t.Errorf("String() = %q, want medium", ConfidenceMedium.String())
+	}
+	if ConfidenceUnknown.String() != "unknown" {
+		t.Errorf("String() = %q, want unknown", ConfidenceUnknown.String())
+	}
+}
+
 func TestTotalPages(t *testing.T) {
 	cases := []struct {
 		total int64
