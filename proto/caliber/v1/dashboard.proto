@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package caliber.v1;
+
+import "caliber/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Talent Radar — the god-view dashboard that frames the demo (EPIC-11).
+service DashboardService {
+  rpc GetPool(GetPoolRequest) returns (GetPoolResponse) {
+    option (google.api.http) = {get: "/v1/radar/pool"};
+  }
+  rpc GetSupplyDemand(GetSupplyDemandRequest) returns (GetSupplyDemandResponse) {
+    option (google.api.http) = {get: "/v1/radar/supply-demand"};
+  }
+  rpc GetAlerts(GetAlertsRequest) returns (GetAlertsResponse) {
+    option (google.api.http) = {get: "/v1/radar/alerts"};
+  }
+  // Headline metric: time-to-shortlist collapsing weeks -> hours (the closing visual).
+  rpc GetTimeToShortlist(GetTimeToShortlistRequest) returns (GetTimeToShortlistResponse) {
+    option (google.api.http) = {get: "/v1/radar/time-to-shortlist"};
+  }
+}
+
+message PoolCandidate {
+  string candidate_id = 1;
+  string name = 2;
+  PassportStatus passport_status = 3;
+  double headline_score = 4;
+}
+
+message SupplyDemandItem {
+  string role_family = 1;
+  int32 open_roles = 2;
+  int32 available_candidates = 3;
+  int32 gap = 4;
+}
+
+message MatchAlert {
+  string id = 1;
+  AlertType type = 2;
+  string role_id = 3;
+  string candidate_id = 4;
+  string message = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message TimeToShortlist {
+  double baseline_hours = 1;     // the manual "weeks"
+  double current_hours = 2;      // the platform "hours"
+  double improvement_factor = 3; // baseline / current
+}
+
+message GetPoolRequest {
+  PageRequest page = 1;
+}
+message GetPoolResponse {
+  repeated PoolCandidate candidates = 1;
+  PageResponse page = 2;
+}
+
+message GetSupplyDemandRequest {}
+message GetSupplyDemandResponse {
+  repeated SupplyDemandItem items = 1;
+}
+
+message GetAlertsRequest {
+  PageRequest page = 1;
+}
+message GetAlertsResponse {
+  repeated MatchAlert alerts = 1;
+  PageResponse page = 2;
+}
+
+message GetTimeToShortlistRequest {}
+message GetTimeToShortlistResponse {
+  TimeToShortlist metric = 1;
+}

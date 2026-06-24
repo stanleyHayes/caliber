@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package caliber.v1;
+
+import "caliber/v1/common.proto";
+import "caliber/v1/role.proto";
+import "google/api/annotations.proto";
+
+// Matching & ranking — recall -> precision -> hard filters (EPIC-07).
+// Match shape mirrors Appendix A.2. Ranking is rubric-driven and bias-safe.
+service MatchingService {
+  // Produce an explainable, paginated ranked shortlist for a role (Flow A).
+  rpc GenerateShortlist(GenerateShortlistRequest) returns (GenerateShortlistResponse) {
+    option (google.api.http) = {get: "/v1/roles/{role_id}/shortlist"};
+  }
+  // Re-rank live after the employer tightens criteria (CAL-057).
+  rpc RefineShortlist(RefineShortlistRequest) returns (RefineShortlistResponse) {
+    option (google.api.http) = {
+      post: "/v1/roles/{role_id}/shortlist:refine"
+      body: "*"
+    };
+  }
+}
+
+// Per-competency contribution to a match (Appendix A.2 breakdown item).
+message MatchBreakdownItem {
+  string competency = 1;
+  double score = 2;     // 0..5
+  string evidence = 3;  // short quote supporting the score
+}
+
+message Match {
+  string id = 1;
+  string role_id = 2;
+  string candidate_id = 3;
+  double overall_score = 4;       // 0..1
+  Confidence confidence = 5;
+  repeated MatchBreakdownItem breakdown = 6;
+  string rationale = 7;           // plain-English "why this person"
+  repeated string watch_outs = 8;
+  bool thin_evidence = 9;         // "recommend screening interview" flag
+}
+
+// A page of ranked matches plus the live pool depth.
+message Shortlist {
+  repeated Match matches = 1;
+  PageResponse page = 2;
+  int32 pool_depth = 3;
+}
+
+message GenerateShortlistRequest {
+  string role_id = 1;
+  PageRequest page = 2;
+}
+message GenerateShortlistResponse {
+  Shortlist shortlist = 1;
+}
+
+message RefineShortlistRequest {
+  string role_id = 1;
+  // Overrides to apply before re-ranking (raise a must-have, change location, etc.).
+  RoleSpec spec = 2;
+  Rubric rubric = 3;
+  PageRequest page = 4;
+}
+message RefineShortlistResponse {
+  Shortlist shortlist = 1;
+}

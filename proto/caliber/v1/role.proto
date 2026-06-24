@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package caliber.v1;
+
+import "caliber/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Role Spec + Rubric generation and editing — Flow A.1 (EPIC-05).
+// Messages mirror Appendix A.1; field names are the locked contract.
+service RoleService {
+  // Messy free-text hiring need -> structured Role Spec + weighted Rubric,
+  // plus an instant pool-depth availability signal (CAL-055).
+  rpc GenerateRoleSpec(GenerateRoleSpecRequest) returns (GenerateRoleSpecResponse) {
+    option (google.api.http) = {
+      post: "/v1/roles:generate"
+      body: "*"
+    };
+  }
+  rpc GetRole(GetRoleRequest) returns (GetRoleResponse) {
+    option (google.api.http) = {get: "/v1/roles/{role_id}"};
+  }
+  // Edit any field / re-weight the rubric; triggers a live re-rank (CAL-040).
+  rpc UpdateRoleSpec(UpdateRoleSpecRequest) returns (UpdateRoleSpecResponse) {
+    option (google.api.http) = {
+      patch: "/v1/roles/{role_id}"
+      body: "*"
+    };
+  }
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse) {
+    option (google.api.http) = {get: "/v1/roles"};
+  }
+}
+
+// A single weighted, scoreable competency (Appendix A.1 rubric item).
+message Competency {
+  string name = 1;
+  double weight = 2;   // normalized across the rubric
+  bool must_have = 3;
+}
+
+message Rubric {
+  repeated Competency competencies = 1;
+}
+
+message RoleSpec {
+  string title = 1;
+  string location = 2;
+  Seniority seniority = 3;
+  string availability = 4; // e.g. "within 1 month"
+  repeated string responsibilities = 5;
+  repeated string must_haves = 6;
+  repeated string nice_to_haves = 7;
+  SalaryBand salary_band = 8;
+}
+
+message Role {
+  string id = 1;
+  string employer_id = 2;
+  string title = 3;
+  RoleStatus status = 4;
+  RoleSpec spec = 5;
+  Rubric rubric = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message GenerateRoleSpecRequest {
+  string employer_id = 1;
+  string free_text = 2; // typed or transcribed hiring need
+}
+message GenerateRoleSpecResponse {
+  Role role = 1;
+  int32 available_matches = 2; // "N strong matches already in your pool"
+}
+
+message GetRoleRequest {
+  string role_id = 1;
+}
+message GetRoleResponse {
+  Role role = 1;
+}
+
+message UpdateRoleSpecRequest {
+  string role_id = 1;
+  RoleSpec spec = 2;
+  Rubric rubric = 3;
+}
+message UpdateRoleSpecResponse {
+  Role role = 1;
+}
+
+message ListRolesRequest {
+  string employer_id = 1;
+  PageRequest page = 2;
+}
+message ListRolesResponse {
+  repeated Role roles = 1;
+  PageResponse page = 2;
+}

@@ -1,0 +1,13 @@
+# buf module + lint/breaking config (buf v2)
+# Run `buf dep update` to resolve deps and write buf.lock, then `buf generate`.
+version: v2
+modules:
+  - path: proto
+deps:
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

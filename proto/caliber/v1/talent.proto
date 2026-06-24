@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package caliber.v1;
+
+import "caliber/v1/common.proto";
+import "google/api/annotations.proto";
+
+// Profile parsing + the Talent Passport (EPIC-06).
+// Every extracted competency carries evidence traceable to the CV (CAL-044).
+service TalentService {
+  // Parse a CV (+ guided intake) into a structured, evidence-linked profile.
+  rpc CreateProfileFromCV(CreateProfileFromCVRequest) returns (CreateProfileFromCVResponse) {
+    option (google.api.http) = {
+      post: "/v1/candidates/{candidate_id}/profile:fromCv"
+      body: "*"
+    };
+  }
+  rpc GetTalentProfile(GetTalentProfileRequest) returns (GetTalentProfileResponse) {
+    option (google.api.http) = {get: "/v1/candidates/{candidate_id}/profile"};
+  }
+}
+
+// A competency extracted from the CV, with its source evidence (CAL-044).
+message ProfileCompetency {
+  string name = 1;
+  double level = 2;          // 0..5 indicative strength from the CV
+  string evidence_quote = 3; // verbatim supporting text
+  string source_span = 4;    // locator back into the CV
+}
+
+message TalentProfile {
+  string id = 1;
+  string candidate_id = 2;
+  string summary = 3;
+  repeated ProfileCompetency competencies = 4;
+  PassportStatus passport_status = 5;
+}
+
+// Guided intake answers captured alongside the CV (CAL-046).
+message CandidateIntake {
+  repeated string target_titles = 1;
+  string location = 2;
+  double salary_floor = 3;
+  repeated string deal_breakers = 4;
+}
+
+message CreateProfileFromCVRequest {
+  string candidate_id = 1;
+  // Provide one of: raw cv_text, or an uploaded file (base64 over REST gateway).
+  string cv_text = 2;
+  bytes cv_file = 3;
+  string cv_filename = 4;
+  CandidateIntake intake = 5;
+}
+message CreateProfileFromCVResponse {
+  TalentProfile profile = 1;
+}
+
+message GetTalentProfileRequest {
+  string candidate_id = 1;
+}
+message GetTalentProfileResponse {
+  TalentProfile profile = 1;
+}

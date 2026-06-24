@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+// Project Caliber — Talent Intelligence Platform API contracts.
+// Shared types, enums, and pagination primitives used across services.
+package caliber.v1;
+
+// ---------------------------------------------------------------------------
+// Pagination (UX standard: every collection endpoint is paginated).
+// ---------------------------------------------------------------------------
+
+message PageRequest {
+  // 1-based page number. Defaults to 1 when zero.
+  int32 page = 1;
+  // Items per page. Server clamps to a sane max. Defaults to 20 when zero.
+  int32 page_size = 2;
+}
+
+message PageResponse {
+  int32 page = 1;
+  int32 page_size = 2;
+  int64 total_items = 3;
+  int32 total_pages = 4;
+}
+
+// ---------------------------------------------------------------------------
+// Value objects
+// ---------------------------------------------------------------------------
+
+// Suggested salary band for a role (Appendix A.1).
+message SalaryBand {
+  string currency = 1; // e.g. "GHS"
+  double low = 2;
+  double high = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Enums (buf STANDARD: zero value is *_UNSPECIFIED, values prefixed by name)
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_EMPLOYER = 1;
+  USER_ROLE_RECRUITER = 2;
+  USER_ROLE_CANDIDATE = 3;
+}
+
+enum Seniority {
+  SENIORITY_UNSPECIFIED = 0;
+  SENIORITY_JUNIOR = 1;
+  SENIORITY_MID = 2;
+  SENIORITY_SENIOR = 3;
+  SENIORITY_LEAD = 4;
+}
+
+enum RoleStatus {
+  ROLE_STATUS_UNSPECIFIED = 0;
+  ROLE_STATUS_DRAFT = 1;
+  ROLE_STATUS_OPEN = 2;
+  ROLE_STATUS_CLOSED = 3;
+}
+
+// Confidence level attached to matches and report cards.
+enum Confidence {
+  CONFIDENCE_UNSPECIFIED = 0;
+  CONFIDENCE_LOW = 1;
+  CONFIDENCE_MEDIUM = 2;
+  CONFIDENCE_HIGH = 3;
+}
+
+enum PassportStatus {
+  PASSPORT_STATUS_UNSPECIFIED = 0;
+  PASSPORT_STATUS_CV_ONLY = 1;       // parsed CV, not yet interviewed
+  PASSPORT_STATUS_SCREENED = 2;      // screening interview completed
+  PASSPORT_STATUS_VERIFIED = 3;      // full Talent Passport
+}
+
+enum InterviewMode {
+  INTERVIEW_MODE_UNSPECIFIED = 0;
+  INTERVIEW_MODE_TEXT = 1;           // must-have, reliable default
+  INTERVIEW_MODE_VOICE = 2;          // post-win build; degrades to text
+}
+
+enum InterviewVerdict {
+  INTERVIEW_VERDICT_UNSPECIFIED = 0;
+  INTERVIEW_VERDICT_ADVANCE = 1;
+  INTERVIEW_VERDICT_HOLD = 2;
+  INTERVIEW_VERDICT_DECLINE = 3;     // never auto-applied; human approves (CAL-081)
+}
+
+enum ApplicationSource {
+  APPLICATION_SOURCE_UNSPECIFIED = 0;
+  APPLICATION_SOURCE_MANUAL = 1;
+  APPLICATION_SOURCE_AGENT = 2;
+}
+
+enum ApplicationStatus {
+  APPLICATION_STATUS_UNSPECIFIED = 0;
+  APPLICATION_STATUS_DRAFTED = 1;
+  APPLICATION_STATUS_SUBMITTED = 2;
+  APPLICATION_STATUS_SCREENING = 3;
+  APPLICATION_STATUS_SCREENED = 4;
+}
+
+enum AlertType {
+  ALERT_TYPE_UNSPECIFIED = 0;
+  ALERT_TYPE_CANDIDATE_FOR_ROLE = 1; // new strong candidate for an open role
+  ALERT_TYPE_ROLE_FOR_CANDIDATE = 2; // new role fits a passive candidate
+}
