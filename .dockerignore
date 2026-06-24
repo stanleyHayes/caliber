@@ -1,0 +1,11 @@
+.git
+.github
+bin
+docs/openapi
+*.md
+*.docx
+*.pdf
+.env
+.env.*
+!.env.example
+coverage.out
