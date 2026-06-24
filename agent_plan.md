@@ -212,7 +212,7 @@ caliber/
 
 | Milestone | Epic | Title | Stories | Pts | Status | % |
 |---|---|---|---|---|---|---|
-| **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~30% |
+| **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~45% |
 | | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | TODO | 0% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | TODO | 0% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
@@ -253,10 +253,10 @@ We deliver **sprint by sprint**. This board is the live cursor over the epics ab
 | 4 | CAL-006 | Dockerization & local dev stack | TODO |
 | 5 | CAL-007 | Structured logging & error baseline | **WIP** — slog JSON + recovery middleware done; typed domain errors pending |
 | 6 | CAL-008 | Health, readiness & server bootstrap | **WIP** — `/healthz` `/readyz` + graceful shutdown done; readiness→DB/Redis pending |
-| 7 | CAL-002 | CLAUDE.md & AGENTS.md | TODO |
-| 8 | CAL-003 | CI pipeline (lint/test/coverage gate) | TODO |
-| 9 | CAL-004 | SonarQube quality gate | TODO |
-| 10 | CAL-009 | Branch protection & repo policy | TODO |
+| 7 | CAL-002 | CLAUDE.md & AGENTS.md | **DONE** |
+| 8 | CAL-003 | CI pipeline (lint/test/coverage gate) | **DONE** — workflow authored; all gates reproduced locally; first GitHub run pending remote |
+| 9 | CAL-004 | SonarQube quality gate | **WIP** — `sonar-project.properties` + CI step done; needs SonarCloud project + `SONAR_TOKEN` secret |
+| 10 | CAL-009 | Branch protection & repo policy | TODO — needs GitHub remote |
 
 **Sprint 2 (next)** — EPIC-01 (domain + schema + pgvector), EPIC-02 (auth), EPIC-03 (queue), EPIC-04 (AI orchestration): the intelligence substrate becomes callable.
 
@@ -272,10 +272,10 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 **Goal:** A clean, hexagonal Go repo with protobuf contracts, CI, quality gates, and conventions so every later story merges through the same disciplined pipeline.
 
 - **CAL-001** `[DONE]` · 3 pts — **Initialize Go monorepo & hexagonal skeleton.** Scaffold `cmd/`, `internal/{domain,app,adapters,platform}`, `db/`, `prompts/`, `proto/`, `web/` per §5.1. *AC:* `go build ./...` passes; import-lint enforces domain imports no adapters. *Deps:* —
-- **CAL-002** `[TODO]` · 2 pts — **CLAUDE.md & AGENTS.md.** Author required AI-governance files (coding standards, hexagonal rules, no-fabrication guardrail, UX standards §4.5, Jira-less workflow, git conventions). *AC:* both present, referenced in README. *Deps:* CAL-001
+- **CAL-002** `[DONE]` · 2 pts — **CLAUDE.md & AGENTS.md.** Author required AI-governance files (coding standards, hexagonal rules, no-fabrication guardrail, UX standards §4.5, Jira-less workflow, git conventions). *AC:* both present, referenced in README. *Deps:* CAL-001
 - **CAL-164** `[DONE]` · 5 pts — **Protobuf contracts + buf + gRPC/grpc-gateway scaffold.** `proto/` services & messages; `buf lint`/`generate` producing Go stubs + TS types; gRPC server with grpc-gateway mux mounted on chi; OpenAPI emitted. *AC:* a sample RPC is reachable via gRPC and REST; codegen runs in CI. *Done 2026-06-24:* 9 protos (all flows) generated to `internal/gen` (Go+gRPC+gateway+OpenAPI); API server wired & verified live (gateway→gRPC returns Unimplemented/501, health 200). CI codegen check lands with CAL-003. *Deps:* CAL-001
-- **CAL-003** `[TODO]` · 5 pts — **CI pipeline (GitHub Actions).** Stages: format/lint (Go + web) → buf lint → `go test -race -coverprofile` + web tests → **coverage ≥ 80% gate** → build. *AC:* PR cannot merge if any stage fails or coverage < 80%. *Deps:* CAL-001
-- **CAL-004** `[TODO]` · 5 pts — **SonarQube/SonarCloud integration.** Wire scanner into CI; configure quality gate (bugs, vulns, hotspots, duplication, coverage import for Go + TS). *AC:* gate status blocks merge. *Deps:* CAL-003
+- **CAL-003** `[DONE]` · 5 pts — **CI pipeline (GitHub Actions).** Stages: format/lint (Go + web) → buf lint → `go test -race -coverprofile` + web tests → **coverage ≥ 80% gate** → build. *AC:* PR cannot merge if any stage fails or coverage < 80%. *Deps:* CAL-001
+- **CAL-004** `[WIP]` · 5 pts — **SonarQube/SonarCloud integration.** Wire scanner into CI; configure quality gate (bugs, vulns, hotspots, duplication, coverage import for Go + TS). *AC:* gate status blocks merge. *Deps:* CAL-003
 - **CAL-005** `[WIP]` · 3 pts — **Configuration & secrets management.** Typed config loader (env-driven), `.env.example`, no secrets in VCS; fail-fast on missing required vars; gitleaks in CI. *AC:* config validated at boot. *Deps:* CAL-001
 - **CAL-006** `[TODO]` · 5 pts — **Dockerization & local dev stack.** Multi-stage Dockerfiles for `api`/`worker`; `docker-compose` with Postgres+pgvector and Redis; Vite dev server wired. *AC:* `docker compose up` boots the full local stack. *Deps:* CAL-001
 - **CAL-007** `[WIP]` · 3 pts — **Structured logging & error handling baseline.** `slog` JSON logger, request-scoped logger, typed domain errors, panic-recovery middleware/interceptor. *AC:* every request logs a correlation/request id. *Deps:* CAL-001
