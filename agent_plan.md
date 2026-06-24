@@ -213,7 +213,7 @@ caliber/
 | Milestone | Epic | Title | Stories | Pts | Status | % |
 |---|---|---|---|---|---|---|
 | **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~45% |
-| | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | TODO | 0% |
+| | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~40% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | TODO | 0% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | TODO | 0% |
@@ -285,8 +285,8 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-01 · Domain Model & Database Foundation
 **Goal:** The entities of spec §9 as a pure domain plus a migrated Postgres schema with pgvector.
 
-- **CAL-010** `[TODO]` · 5 pts — **Domain entities & value objects.** `User, Employer, Role, RoleSpec, Rubric, Candidate, TalentProfile/Passport, Match, Application, Interview, InterviewTurn, AuditLog` as pure Go types with invariants. *AC:* no infra imports; unit-tested invariants. *Deps:* CAL-001
-- **CAL-011** `[TODO]` · 3 pts — **Repository ports.** Define `*Repository` interfaces in `domain`. *AC:* application layer depends only on ports. *Deps:* CAL-010
+- **CAL-010** `[DONE]` · 5 pts — **Domain entities & value objects.** `User, Employer, Role, RoleSpec, Rubric, Candidate, TalentProfile/Passport, Match, Application, Interview, InterviewTurn, AuditLog` as pure Go types with invariants. *AC:* no infra imports; unit-tested invariants. *Deps:* CAL-001
+- **CAL-011** `[DONE]` · 3 pts — **Repository ports.** Define `*Repository` interfaces in `domain`. *AC:* application layer depends only on ports. *Deps:* CAL-010
 - **CAL-012** `[TODO]` · 5 pts — **goose migration tooling & base schema.** goose migrations; relational schema; JSON columns for `role_spec`, `rubric`, `report_card`, `breakdown`. *AC:* up/down migrations run in CI. *Deps:* CAL-006
 - **CAL-013** `[TODO]` · 3 pts — **Enable pgvector & embedding columns.** `vector` extension; `role_embedding`, `profile_embedding`; ivfflat/hnsw index. *AC:* vector similarity query returns ordered results. *Deps:* CAL-012
 - **CAL-014** `[TODO]` · 5 pts — **sqlc queries & Postgres repository adapters.** Implement ports with sqlc+pgx; transactions via a `UnitOfWork`. *AC:* repository integration tests against real Postgres (testcontainers). *Deps:* CAL-011, CAL-012
