@@ -1,0 +1,23 @@
+# Binaries
+/bin/
+*.exe
+*.test
+*.out
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Go
+/vendor/
+
+# buf.lock IS committed (pins proto deps) — not ignored.
+
+# Generated OpenAPI (regenerated from proto)
+/docs/openapi/
+
+# OS / editor
+.DS_Store
+.idea/
+*.swp
