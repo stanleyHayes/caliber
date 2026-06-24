@@ -212,7 +212,7 @@ caliber/
 
 | Milestone | Epic | Title | Stories | Pts | Status | % |
 |---|---|---|---|---|---|---|
-| **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | TODO | 0% |
+| **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~30% |
 | | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | TODO | 0% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | TODO | 0% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
@@ -247,12 +247,12 @@ We deliver **sprint by sprint**. This board is the live cursor over the epics ab
 
 | # | Story | Title | Status |
 |---|---|---|---|
-| 1 | CAL-164 | Protobuf contracts + buf + gRPC/gateway scaffold | **WIP** — contracts drafted (`proto/caliber/v1/*`, `buf.yaml`, `buf.gen.yaml`) 2026-06-24; pending: go.mod + `buf dep update` + `buf generate` + gateway wiring |
-| 2 | CAL-001 | Go monorepo & hexagonal skeleton | TODO |
-| 3 | CAL-005 | Configuration & secrets management | TODO |
+| 1 | CAL-164 | Protobuf contracts + buf + gRPC/gateway scaffold | **DONE** — 9 protos → `internal/gen` (Go+gRPC+gateway+OpenAPI); API server wired; routes verified live |
+| 2 | CAL-001 | Go monorepo & hexagonal skeleton | **DONE** — hexagon layout, depguard boundaries, build/vet/test green |
+| 3 | CAL-005 | Configuration & secrets management | **WIP** — typed env config + `.env.example` done; gitleaks secret-scan pending (CI) |
 | 4 | CAL-006 | Dockerization & local dev stack | TODO |
-| 5 | CAL-007 | Structured logging & error baseline | TODO |
-| 6 | CAL-008 | Health, readiness & server bootstrap | TODO |
+| 5 | CAL-007 | Structured logging & error baseline | **WIP** — slog JSON + recovery middleware done; typed domain errors pending |
+| 6 | CAL-008 | Health, readiness & server bootstrap | **WIP** — `/healthz` `/readyz` + graceful shutdown done; readiness→DB/Redis pending |
 | 7 | CAL-002 | CLAUDE.md & AGENTS.md | TODO |
 | 8 | CAL-003 | CI pipeline (lint/test/coverage gate) | TODO |
 | 9 | CAL-004 | SonarQube quality gate | TODO |
@@ -271,15 +271,15 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-00 · Engineering Foundations & Project Setup
 **Goal:** A clean, hexagonal Go repo with protobuf contracts, CI, quality gates, and conventions so every later story merges through the same disciplined pipeline.
 
-- **CAL-001** `[TODO]` · 3 pts — **Initialize Go monorepo & hexagonal skeleton.** Scaffold `cmd/`, `internal/{domain,app,adapters,platform}`, `db/`, `prompts/`, `proto/`, `web/` per §5.1. *AC:* `go build ./...` passes; import-lint enforces domain imports no adapters. *Deps:* —
+- **CAL-001** `[DONE]` · 3 pts — **Initialize Go monorepo & hexagonal skeleton.** Scaffold `cmd/`, `internal/{domain,app,adapters,platform}`, `db/`, `prompts/`, `proto/`, `web/` per §5.1. *AC:* `go build ./...` passes; import-lint enforces domain imports no adapters. *Deps:* —
 - **CAL-002** `[TODO]` · 2 pts — **CLAUDE.md & AGENTS.md.** Author required AI-governance files (coding standards, hexagonal rules, no-fabrication guardrail, UX standards §4.5, Jira-less workflow, git conventions). *AC:* both present, referenced in README. *Deps:* CAL-001
-- **CAL-164** `[WIP]` · 5 pts — **Protobuf contracts + buf + gRPC/grpc-gateway scaffold.** `proto/` services & messages; `buf lint`/`generate` producing Go stubs + TS types; gRPC server with grpc-gateway mux mounted on chi; OpenAPI emitted. *AC:* a sample RPC is reachable via gRPC and REST; codegen runs in CI. *Progress:* contracts drafted 2026-06-24 (9 protos covering all flows + buf config); remaining = go.mod + codegen + gateway wiring (after CAL-001). *Deps:* CAL-001
+- **CAL-164** `[DONE]` · 5 pts — **Protobuf contracts + buf + gRPC/grpc-gateway scaffold.** `proto/` services & messages; `buf lint`/`generate` producing Go stubs + TS types; gRPC server with grpc-gateway mux mounted on chi; OpenAPI emitted. *AC:* a sample RPC is reachable via gRPC and REST; codegen runs in CI. *Done 2026-06-24:* 9 protos (all flows) generated to `internal/gen` (Go+gRPC+gateway+OpenAPI); API server wired & verified live (gateway→gRPC returns Unimplemented/501, health 200). CI codegen check lands with CAL-003. *Deps:* CAL-001
 - **CAL-003** `[TODO]` · 5 pts — **CI pipeline (GitHub Actions).** Stages: format/lint (Go + web) → buf lint → `go test -race -coverprofile` + web tests → **coverage ≥ 80% gate** → build. *AC:* PR cannot merge if any stage fails or coverage < 80%. *Deps:* CAL-001
 - **CAL-004** `[TODO]` · 5 pts — **SonarQube/SonarCloud integration.** Wire scanner into CI; configure quality gate (bugs, vulns, hotspots, duplication, coverage import for Go + TS). *AC:* gate status blocks merge. *Deps:* CAL-003
-- **CAL-005** `[TODO]` · 3 pts — **Configuration & secrets management.** Typed config loader (env-driven), `.env.example`, no secrets in VCS; fail-fast on missing required vars; gitleaks in CI. *AC:* config validated at boot. *Deps:* CAL-001
+- **CAL-005** `[WIP]` · 3 pts — **Configuration & secrets management.** Typed config loader (env-driven), `.env.example`, no secrets in VCS; fail-fast on missing required vars; gitleaks in CI. *AC:* config validated at boot. *Deps:* CAL-001
 - **CAL-006** `[TODO]` · 5 pts — **Dockerization & local dev stack.** Multi-stage Dockerfiles for `api`/`worker`; `docker-compose` with Postgres+pgvector and Redis; Vite dev server wired. *AC:* `docker compose up` boots the full local stack. *Deps:* CAL-001
-- **CAL-007** `[TODO]` · 3 pts — **Structured logging & error handling baseline.** `slog` JSON logger, request-scoped logger, typed domain errors, panic-recovery middleware/interceptor. *AC:* every request logs a correlation/request id. *Deps:* CAL-001
-- **CAL-008** `[TODO]` · 5 pts — **Health, readiness & server bootstrap.** chi server with `/healthz`, `/readyz`, graceful shutdown, timeouts, DI wiring in `platform`. *AC:* readiness reflects DB+Redis connectivity. *Deps:* CAL-006
+- **CAL-007** `[WIP]` · 3 pts — **Structured logging & error handling baseline.** `slog` JSON logger, request-scoped logger, typed domain errors, panic-recovery middleware/interceptor. *AC:* every request logs a correlation/request id. *Deps:* CAL-001
+- **CAL-008** `[WIP]` · 5 pts — **Health, readiness & server bootstrap.** chi server with `/healthz`, `/readyz`, graceful shutdown, timeouts, DI wiring in `platform`. *AC:* readiness reflects DB+Redis connectivity. *Deps:* CAL-006
 - **CAL-009** `[TODO]` · 3 pts — **Branch protection & repo policy.** Protect `main`; require CI + Sonar + 1 review; CODEOWNERS; PR template embedding the DoD checklist. *AC:* direct pushes blocked. *Deps:* CAL-003, CAL-004
 
 ## EPIC-01 · Domain Model & Database Foundation
