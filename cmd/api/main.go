@@ -13,6 +13,7 @@ import (
 	grpcadapter "github.com/xcreativs/caliber/internal/adapters/inbound/grpc"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
+	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/app/roles"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
@@ -39,6 +40,15 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	roleSrv := grpcadapter.NewRoleServer(roles.NewSpecGenerator(llm.NewDev(), memory.NewRoleRepo(), time.Now))
+	var model app.LLMClient
+	if cfg.AnthropicAPIKey != "" {
+		model = llm.NewClaude(llm.WithAPIKey(cfg.AnthropicAPIKey), llm.WithModel(cfg.AnthropicModel))
+		log.Info("llm provider selected", "provider", "claude", "model", cfg.AnthropicModel)
+	} else {
+		model = llm.NewDev()
+		log.Warn("ANTHROPIC_API_KEY not set; using deterministic dev LLM")
+	}
+
+	roleSrv := grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, memory.NewRoleRepo(), time.Now))
 	return server.Run(ctx, cfg, log, grpcadapter.Services{Role: roleSrv})
 }

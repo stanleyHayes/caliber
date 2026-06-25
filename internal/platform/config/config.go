@@ -20,6 +20,7 @@ type Config struct {
 	RedisURL    string // Redis (Asynq) URL
 
 	AnthropicAPIKey string // Claude
+	AnthropicModel  string // Claude model id (default claude-opus-4-8)
 	OpenAIAPIKey    string // embeddings
 	JWTSecret       string // access/refresh token signing
 }
@@ -36,6 +37,7 @@ func Load() (Config, error) {
 		DatabaseURL:     os.Getenv("CALIBER_DATABASE_URL"),
 		RedisURL:        os.Getenv("CALIBER_REDIS_URL"),
 		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
+		AnthropicModel:  getenv("CALIBER_ANTHROPIC_MODEL", "claude-opus-4-8"),
 		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
 		JWTSecret:       os.Getenv("CALIBER_JWT_SECRET"),
 	}
