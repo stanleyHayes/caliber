@@ -1,6 +1,6 @@
 module github.com/xcreativs/caliber
 
-go 1.25.7
+go 1.25.10
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.52.0

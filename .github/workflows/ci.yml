@@ -12,6 +12,10 @@ jobs:
   backend:
     name: Backend (lint · proto · test · coverage · sonar)
     runs-on: ubuntu-latest
+    env:
+      # Allow `go install <tool>@latest` to fetch a newer Go toolchain on demand
+      # when a tool (e.g. buf) requires one beyond the version pinned in go.mod.
+      GOTOOLCHAIN: auto
     steps:
       # All actions pinned to latest majors (Node 24 runtime; no Node 20).
       - uses: actions/checkout@v7
