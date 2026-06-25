@@ -225,7 +225,7 @@ caliber/
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | TODO | 0% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | TODO | 0% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
-| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~7% |
+| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~25% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | TODO | 0% |
 | | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | TODO | 0% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | TODO | 0% |
@@ -412,13 +412,13 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 **Goal:** Brandable React (Vite) SPA with MUI v9, employer & candidate views, the streamed interview UI, and the Talent Radar dashboard. Skeleton loading and pagination throughout; SEO-ready public pages via prerender (EPIC-17).
 
 - **CAL-088** `[DONE]` · 5 pts — **React+Vite scaffold + MUI v9 theme + typography.** Vite app, react-router, **MUI v9** themed design system with brandable tokens (Primary Blue #0066CC, Ink #111418, Slate #6B7280); typography wired to **Fraunces** (titles), **Outfit** (body), **JetBrains Mono** (statuses), self-hosted with `font-display: swap`; light/dark color modes ready. *AC:* design tokens + fonts centralized; no Tailwind. *Deps:* CAL-164
-- **CAL-167** `[TODO]` · 3 pts — **App shell, routing & Zustand stores.** Layout, role-aware routes, Zustand stores for UI/auth/wizard state. *AC:* navigation + protected routes work. *Deps:* CAL-088
-- **CAL-095** `[TODO]` · 5 pts — **API client (gRPC-web/REST) + TanStack Query + streaming.** Typed client from proto; TanStack Query setup; stream handling for the interview; resilient error states. *AC:* resilient to slow/failed calls. *Deps:* CAL-058
+- **CAL-167** `[DONE]` · 3 pts — **App shell, routing & Zustand stores.** Layout, role-aware routes, Zustand stores for UI/auth/wizard state. *AC:* navigation + protected routes work. *Deps:* CAL-088
+- **CAL-095** `[WIP]` · 5 pts — **API client (gRPC-web/REST) + TanStack Query + streaming.** Typed client from proto; TanStack Query setup; stream handling for the interview; resilient error states. *AC:* resilient to slow/failed calls. *Deps:* CAL-058
 - **CAL-165** `[TODO]` · 3 pts — **Skeleton-loading system (content).** Reusable MUI `Skeleton` components shaped per surface (list rows, cards, dashboard tiles, report card, interview turns). *AC:* no spinners/"Loading…" text for content; lint/check guards against them. *Deps:* CAL-088
 - **CAL-168** `[TODO]` · 5 pts — **Animation system (Motion): layout transitions + animated-dots buttons.** Install Motion (Framer Motion); app-wide layout/route/list transitions (incl. live shortlist re-rank); reusable **animated-dots** button-loading component (width-stable, no spinners); all gated behind `prefers-reduced-motion`. *AC:* buttons show dots when busy; layout changes animate; reduced-motion respected. *Deps:* CAL-088
 - **CAL-169** `[TODO]` · 3 pts — **Circular-reveal light/dark theme toggle.** MUI color-mode toggle animated as a circular reveal from the control (View Transitions API + clip-path fallback); persisted preference. *AC:* theme switches with circular reveal; falls back cleanly; reduced-motion respected. *Deps:* CAL-088
 - **CAL-166** `[TODO]` · 3 pts — **Pagination system (standard).** Reusable paginated-query hooks (TanStack Query, `keepPreviousData`) + MUI pagination controls, applied to every list. *AC:* no unbounded lists; pages map to server pages. *Deps:* CAL-095
-- **CAL-089** `[TODO]` · 5 pts — **Auth UI & session handling.** Login/register, role-aware routing, secure token storage, refresh. *AC:* both roles reach their views behind login. *Deps:* CAL-167
+- **CAL-089** `[DONE]` · 5 pts — **Auth UI & session handling.** Login/register, role-aware routing, secure token storage, refresh. *AC:* both roles reach their views behind login. *Deps:* CAL-167
 - **CAL-090** `[TODO]` · 8 pts — **Employer view — Flow A UI.** Plain-language intake, editable spec/rubric, instant availability, explainable **paginated** ranked shortlist with live refine. *AC:* §15.1 visible end-to-end. *Deps:* CAL-058, CAL-166
 - **CAL-091** `[TODO]` · 8 pts — **Interview UI — Flow B (centrepiece).** Streamed adaptive Q&A (skeletons between turns), evidence-tagged report card reveal; graceful, low-latency. *AC:* live adaptive interview renders + scored card. *Deps:* CAL-065, CAL-165
 - **CAL-092** `[TODO]` · 8 pts — **Candidate view — Flow C UI.** One-time setup, time-advance ("run overnight"), wake-up view. *AC:* §15.3 visible end-to-end. *Deps:* CAL-073

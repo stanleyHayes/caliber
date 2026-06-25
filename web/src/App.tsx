@@ -1,44 +1,33 @@
-import { Box, Button, Chip, Container, Paper, Stack, Typography, useColorScheme } from '@mui/material';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
-import { fonts } from './theme/tokens';
-
-function ModeToggle() {
-  const { mode, setMode } = useColorScheme();
-  const next = mode === 'dark' ? 'light' : 'dark';
-  return (
-    <Button variant="outlined" onClick={() => setMode(next)}>
-      Switch to {next} mode
-    </Button>
-  );
-}
+import { AppShell } from './components/AppShell';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { SessionBootstrap } from './components/SessionBootstrap';
+import { DashboardPage } from './pages/DashboardPage';
+import { LoginPage } from './pages/LoginPage';
+import { NotFoundPage } from './pages/NotFoundPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { queryClient } from './query/client';
 
 export function App() {
   return (
-    <Container maxWidth="md" sx={{ py: { xs: 6, md: 10 } }}>
-      <Stack spacing={4}>
-        <Stack spacing={1}>
-          <Chip label="POC" color="primary" size="small" sx={{ alignSelf: 'flex-start' }} />
-          <Typography variant="h1" sx={{ fontSize: { xs: 40, md: 64 } }}>
-            Project Caliber
-          </Typography>
-          <Typography variant="h5" color="text.secondary">
-            Explainable, bias-safe talent intelligence.
-          </Typography>
-        </Stack>
-
-        <Typography color="text.secondary">
-          The design system is live: Fraunces for titles, Outfit for body, and JetBrains Mono for
-          statuses. Colors and typography come from centralized tokens, themed for light and dark.
-        </Typography>
-
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Box sx={{ fontFamily: fonts.mono, fontSize: 14, letterSpacing: '0.02em' }}>
-            STATUS: SCAFFOLD_READY · API: /v1 · AUTH: JWT
-          </Box>
-        </Paper>
-
-        <ModeToggle />
-      </Stack>
-    </Container>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <SessionBootstrap>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route element={<ProtectedRoute />}>
+                <Route path="/" element={<DashboardPage />} />
+              </Route>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/404" element={<NotFoundPage />} />
+              <Route path="*" element={<Navigate to="/404" replace />} />
+            </Route>
+          </Routes>
+        </SessionBootstrap>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
