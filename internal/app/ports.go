@@ -26,4 +26,10 @@ type LLMResponse struct {
 // Clock returns the current time; injectable for deterministic tests.
 type Clock func() time.Time
 
+// Embedder is the application port for producing vector embeddings (matching
+// recall). The concrete provider (OpenAI today) is swappable.
+type Embedder interface {
+	Embed(ctx context.Context, text string) ([]float32, error)
+}
+
 //go:generate mockgen -source=ports.go -destination=../mocks/llm.go -package=mocks
