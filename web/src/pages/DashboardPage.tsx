@@ -1,4 +1,5 @@
-import { Box, Card, CardContent, Chip, Skeleton, Stack, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Chip, Skeleton, Stack, Typography } from '@mui/material';
+import { Link } from 'react-router-dom';
 
 import type { UserRole } from '../api/types';
 import { useMe } from '../query/auth';
@@ -40,12 +41,21 @@ export function DashboardPage() {
       </Box>
       <Card variant="outlined">
         <CardContent>
-          <Typography variant="overline" color="text.secondary">
-            Next step
-          </Typography>
-          <Typography variant="h6" sx={{ mt: 0.5 }}>
-            {NEXT_BY_ROLE[role]}
-          </Typography>
+          <Stack spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+            <Box>
+              <Typography variant="overline" color="text.secondary">
+                Next step
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 0.5 }}>
+                {NEXT_BY_ROLE[role]}
+              </Typography>
+            </Box>
+            {(role === 'USER_ROLE_EMPLOYER' || role === 'USER_ROLE_RECRUITER') && (
+              <Button component={Link} to="/roles/new" variant="contained">
+                Describe a role
+              </Button>
+            )}
+          </Stack>
         </CardContent>
       </Card>
     </Stack>
