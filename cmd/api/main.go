@@ -70,6 +70,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 
 	var roleRepo role.RoleRepository = memory.NewRoleRepo()
 	var userRepo identity.UserRepository = memory.NewUserRepo()
+	var refreshStore app.RefreshTokenStore = memory.NewRefreshStore()
 	if cfg.DatabaseURL != "" {
 		pool, perr := pgxpool.New(ctx, cfg.DatabaseURL)
 		if perr != nil {
@@ -82,6 +83,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 		cleanup = pool.Close
 		roleRepo = postgres.NewRoleRepo(pool)
 		userRepo = postgres.NewUserRepo(pool)
+		refreshStore = postgres.NewRefreshStore(pool)
 		shortlister := matchingapp.NewShortlister(
 			roleRepo, postgres.NewCandidateRepo(pool), postgres.NewTalentProfileRepo(pool),
 			postgres.NewRecaller(pool), embedder, model, postgres.NewMatchRepo(pool),
@@ -96,7 +98,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	if terr != nil {
 		return svc, cleanup, terr
 	}
-	identitySvc := identityapp.NewService(userRepo, authadapter.NewArgon2idHasher(), tokens, memory.NewRefreshStore(), time.Now)
+	identitySvc := identityapp.NewService(userRepo, authadapter.NewArgon2idHasher(), tokens, refreshStore, time.Now)
 	svc.Identity = grpcadapter.NewIdentityServer(identitySvc)
 	svc.AccessVerifier = tokens
 

@@ -68,6 +68,14 @@ type Match struct {
 	CreatedAt        pgtype.Timestamptz
 }
 
+type RefreshToken struct {
+	ID        string
+	UserID    string
+	ExpiresAt pgtype.Timestamptz
+	Revoked   bool
+	CreatedAt pgtype.Timestamptz
+}
+
 type Role struct {
 	ID            string
 	EmployerID    string
