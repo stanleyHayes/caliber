@@ -13,3 +13,5 @@ type RoleRepository interface { //nolint:revive // domain name fixed by the role
 	Update(ctx context.Context, r *Role) error
 	ListByEmployer(ctx context.Context, employerID kernel.ID, page kernel.Page) ([]*Role, int64, error)
 }
+
+//go:generate mockgen -source=repository.go -destination=../../mocks/role_repository.go -package=mocks

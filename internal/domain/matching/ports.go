@@ -6,6 +6,8 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
 
+//go:generate mockgen -source=ports.go -destination=../../mocks/matching.go -package=mocks
+
 // MatchRepository is the persistence port for Match aggregates. List methods
 // are paginated via kernel.Page and return the page slice together with the
 // total count of matching records.

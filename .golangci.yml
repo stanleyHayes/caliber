@@ -1,16 +1,25 @@
-# golangci-lint v2 config. Enforces the hexagonal dependency rule via depguard:
-# the domain core may not import application, adapter, or platform code.
+# golangci-lint v2 — ALL linters enabled (default: all). The short disable list
+# below covers only linters that are deprecated, mutually conflicting, or
+# fundamentally at odds with this codebase's intentional choices; each has a
+# one-line justification. Everything else is enforced.
 version: "2"
 
 linters:
-  enable:
-    - depguard
-    - revive
-    - govet
-    - errcheck
-    - staticcheck
-    - ineffassign
-    - unused
+  default: all
+  disable:
+    - exhaustruct   # requires every struct field set at every literal — impractical
+    - varnamelen    # idiomatic short names (i, r, ctx, tt) are intentional
+    - wsl           # whitespace pedantry, conflicts with gofmt-style blocks
+    - wsl_v5        # same, newer variant
+    - nlreturn      # mandatory blank line before every return — noise
+    - mnd           # domain has many legitimate numeric literals (score ranges, weights, dims)
+    - tagliatelle   # JSON tags are snake_case on purpose (API/LLM contract)
+    - testpackage   # white-box tests need access to unexported helpers
+    - err113        # we use a typed kernel.Error model, not sentinel errors
+    - paralleltest  # tests are fast + deterministic; parallel adds flakiness for shared fixtures
+    - noinlineerr   # flags idiomatic `if err := f(); err != nil` — conflicts with standard Go style
+    - wrapcheck     # typed kernel.Error model classifies errors; over-wrapping hides the Kind
+
   settings:
     depguard:
       rules:
@@ -30,19 +39,19 @@ linters:
           deny:
             - pkg: github.com/xcreativs/caliber/internal/adapters
               desc: "use-cases depend on domain ports, not concrete adapters"
+    exhaustive:
+      default-signifies-exhaustive: true
+    lll:
+      line-length: 140
+    goconst:
+      min-occurrences: 4
 
   exclusions:
+    generated: lax
     rules:
-      - path: internal/gen/
-        linters:
-          - depguard
-          - revive
-          - govet
-          - errcheck
-          - staticcheck
-          - ineffassign
-          - unused
-
-issues:
-  max-issues-per-linter: 0
-  max-same-issues: 0
+      - path: 'internal/gen/'
+        linters: [depguard]
+      - path: 'internal/adapters/outbound/postgres/'
+        linters: [musttag, goconst]
+      - path: '_test\.go'
+        linters: [funlen, gocyclo, gocognit, cyclop, dupl, gosec, errcheck, maintidx, lll, nilnil]

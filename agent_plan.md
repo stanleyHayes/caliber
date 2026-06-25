@@ -213,14 +213,14 @@ caliber/
 | Milestone | Epic | Title | Stories | Pts | Status | % |
 |---|---|---|---|---|---|---|
 | **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~45% |
-| | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~55% |
+| | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~85% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | TODO | 0% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
-| | EPIC-04 | AI Orchestration Layer | 8 | 39 | TODO | 0% |
+| | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~40% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
 | | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | TODO | 0% |
-| | EPIC-07 | Matching & Ranking Engine | 7 | 37 | TODO | 0% |
-| | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | TODO | 0% |
+| | EPIC-07 | Matching & Ranking Engine | 7 | 37 | WIP | ~60% |
+| | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~20% |
 | | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | TODO | 0% |
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | TODO | 0% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | TODO | 0% |
@@ -289,8 +289,8 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-011** `[DONE]` · 3 pts — **Repository ports.** Define `*Repository` interfaces in `domain`. *AC:* application layer depends only on ports. *Deps:* CAL-010
 - **CAL-012** `[WIP]` · 5 pts — **goose migration tooling & base schema.** goose migrations; relational schema; JSON columns for `role_spec`, `rubric`, `report_card`, `breakdown`. *AC:* up/down migrations run in CI. *Deps:* CAL-006
 - **CAL-013** `[WIP]` · 3 pts — **Enable pgvector & embedding columns.** `vector` extension; `role_embedding`, `profile_embedding`; ivfflat/hnsw index. *AC:* vector similarity query returns ordered results. *Deps:* CAL-012
-- **CAL-014** `[TODO]` · 5 pts — **sqlc queries & Postgres repository adapters.** Implement ports with sqlc+pgx; transactions via a `UnitOfWork`. *AC:* repository integration tests against real Postgres (testcontainers). *Deps:* CAL-011, CAL-012
-- **CAL-015** `[TODO]` · 3 pts — **Audit log persistence.** Append-only `audit_log` (actor, action, entity, before/after, timestamp). *AC:* writes immutable; covered by tests. *Deps:* CAL-014
+- **CAL-014** `[DONE]` · 5 pts — **sqlc queries & Postgres repository adapters.** Implement ports with sqlc+pgx; transactions via a `UnitOfWork`. *AC:* repository integration tests against real Postgres (testcontainers). *Deps:* CAL-011, CAL-012
+- **CAL-015** `[DONE]` · 3 pts — **Audit log persistence.** Append-only `audit_log` (actor, action, entity, before/after, timestamp). *AC:* writes immutable; covered by tests. *Deps:* CAL-014
 - **CAL-016** `[TODO]` · 5 pts — **Seed-ready fixtures & factory helpers.** Deterministic data factories for every entity. *AC:* reused by integration tests and EPIC-14. *Deps:* CAL-014
 
 ## EPIC-02 · Identity, Authentication & RBAC
@@ -316,11 +316,11 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-04 · AI Orchestration Layer
 **Goal:** All model interaction behind one clean module: prompt assembly, the Claude gateway, schema-validated structured outputs, embeddings, cost/latency controls. Prompts & rubrics are versioned product, not config.
 
-- **CAL-029** `[TODO]` · 3 pts — **`LLMClient` port & message types.** Provider-agnostic interface (complete, stream, tool/JSON modes). *AC:* domain/app depend only on the port. *Deps:* CAL-001
-- **CAL-030** `[TODO]` · 5 pts — **Anthropic Claude gateway adapter.** Implement `LLMClient` with the Anthropic Go SDK; timeouts, retries, context cancellation. *AC:* live + mocked tests; configurable model. *Deps:* CAL-029
+- **CAL-029** `[DONE]` · 3 pts — **`LLMClient` port & message types.** Provider-agnostic interface (complete, stream, tool/JSON modes). *AC:* domain/app depend only on the port. *Deps:* CAL-001
+- **CAL-030** `[DONE]` · 5 pts — **Anthropic Claude gateway adapter.** Implement `LLMClient` with the Anthropic Go SDK; timeouts, retries, context cancellation. *AC:* live + mocked tests; configurable model. *Deps:* CAL-029
 - **CAL-031** `[TODO]` · 5 pts — **Structured-output enforcement.** Strict JSON-schema validation of model output with bounded re-ask on violation. *AC:* malformed output retried, then typed error. *Deps:* CAL-030
 - **CAL-032** `[TODO]` · 3 pts — **Versioned prompt registry.** `prompts/` loaded with version tags; prompts in VCS, referenced by id. *AC:* prompt version recorded on each call. *Deps:* CAL-030
-- **CAL-033** `[TODO]` · 3 pts — **`Embedder` port + OpenAI adapter.** text-embedding-3-small behind the port; batch support. *AC:* embeddings stored in pgvector; provider swappable. *Deps:* CAL-013, CAL-029
+- **CAL-033** `[DONE]` · 3 pts — **`Embedder` port + OpenAI adapter.** text-embedding-3-small behind the port; batch support. *AC:* embeddings stored in pgvector; provider swappable. *Deps:* CAL-013, CAL-029
 - **CAL-034** `[TODO]` · 5 pts — **Streaming support.** Token/event streaming surfaced to inbound (gRPC server-stream / SSE) for the interview. *AC:* stream cancellable; backpressure handled. *Deps:* CAL-030
 - **CAL-035** `[TODO]` · 5 pts — **Cost, rate-limit & guardrail controls.** Per-call token caps, request budgets, concurrency limits, prompt-injection-aware input handling. *AC:* limits enforced; usage metered. *Deps:* CAL-030
 - **CAL-036** `[TODO]` · 5 pts — **AI call audit & observability.** Persist prompt id/version, model, latency, tokens, redacted I/O for explainability & debugging. *AC:* every model call traceable. *Deps:* CAL-030, CAL-015
@@ -346,19 +346,19 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-07 · Matching & Ranking Engine
 **Goal:** Rank candidates against a Role Spec with scores a human can trust — recall → precision → hard filters. (Spec §8.3, Appendix A.2.)
 
-- **CAL-047** `[TODO]` · 5 pts — **Stage 1: vector recall.** pgvector cosine similarity role↔candidate top-N. *AC:* top-N returned, ordered, paged. *Deps:* CAL-041, CAL-045
-- **CAL-048** `[TODO]` · 8 pts — **Stage 2: rubric-based LLM scoring.** Per candidate, 0–5 per competency with evidence quote, overall fit, confidence. *AC:* output matches Appendix A.2 `breakdown`. *Deps:* CAL-047, CAL-031
+- **CAL-047** `[DONE]` · 5 pts — **Stage 1: vector recall.** pgvector cosine similarity role↔candidate top-N (`Recaller` raw `$1::vector` query, testcontainers ordering test). *AC:* top-N returned, ordered, paged. *Deps:* CAL-041, CAL-045
+- **CAL-048** `[DONE]` · 8 pts — **Stage 2: rubric-based LLM scoring.** Per candidate, 0–5 per competency with evidence quote, overall fit, confidence. *AC:* output matches Appendix A.2 `breakdown`. *Deps:* CAL-047, CAL-031
 - **CAL-049** `[TODO]` · 5 pts — **Stage 3: hard filters as gates.** Must-haves (location, work authorization, min years) as pass/fail gates. *AC:* gated-out candidates excluded with reason. *Deps:* CAL-048
-- **CAL-050** `[TODO]` · 5 pts — **Match assembly & persistence.** Build `Match` (overall_score, breakdown, rationale, watch_outs, thin_evidence_flag). *AC:* matches Appendix A.2; persisted. *Deps:* CAL-049, CAL-014
+- **CAL-050** `[DONE]` · 5 pts — **Match assembly & persistence.** Build `Match` (overall_score, breakdown, rationale, watch_outs, thin_evidence_flag). *AC:* matches Appendix A.2; persisted. *Deps:* CAL-049, CAL-014
 - **CAL-051** `[TODO]` · 5 pts — **Live re-ranking on criteria change.** Editing must-have/weight/location re-ranks the shortlist. *AC:* re-rank ≤ acceptable latency; correct order. *Deps:* CAL-050, CAL-040
-- **CAL-052** `[TODO]` · 5 pts — **Bias-safe ranking guard.** Rubric-driven only; protected attributes excluded from scoring inputs. *AC:* automated test asserts protected fields never reach the scorer. *Deps:* CAL-048
+- **CAL-052** `[DONE]` · 5 pts — **Bias-safe ranking guard.** Rubric-driven only; protected attributes excluded from scoring inputs. *AC:* automated test asserts protected fields never reach the scorer. *Deps:* CAL-048
 - **CAL-053** `[TODO]` · 4 pts — **Two-way matching (role↔candidate).** Surface roles fitting a passive candidate (feeds Radar alerts). *AC:* both directions queryable. *Deps:* CAL-047
 
 ## EPIC-08 · Employer Intake & Explainable Shortlisting (Flow A)
 **Goal:** End-to-end Flow A: messy sentence in → structured spec, rubric, explainable ranked shortlist out, in seconds. (Spec §6.1.)
 
-- **CAL-054** `[TODO]` · 5 pts — **Flow A orchestration use-case.** Wire intake → spec/rubric → recall → score → filter → ranked Matches. *AC:* single call produces a shortlist. *Deps:* CAL-040, CAL-050
-- **CAL-055** `[TODO]` · 3 pts — **Instant availability signal.** "N strong matches already in your pool." *AC:* pool depth returned immediately after spec. *Deps:* CAL-047
+- **CAL-054** `[WIP]` · 5 pts — **Flow A orchestration use-case.** `Shortlister` wires spec/rubric → recall → score → ranked Matches; exposed via `MatchingService.GenerateShortlist` (gRPC + REST) and wired in `main` when a DB is configured. Hard filters (CAL-049) still pending. *AC:* single call produces a shortlist. *Deps:* CAL-040, CAL-050
+- **CAL-055** `[WIP]` · 3 pts — **Instant availability signal.** "N strong matches already in your pool." `Shortlist.pool_depth` returned in the response. *AC:* pool depth returned immediately after spec. *Deps:* CAL-047
 - **CAL-056** `[TODO]` · 5 pts — **Explainable, paginated shortlist response.** Each candidate: fit score, per-competency breakdown, plain-English "why," watch-outs, thin-evidence flag; results paginated. *AC:* contract locked; no black-box fields. *Deps:* CAL-050, CAL-082
 - **CAL-057** `[TODO]` · 3 pts — **Refine RPC.** Tighten criteria / add skill → live re-rank. *AC:* shortlist updates correctly. *Deps:* CAL-051
 - **CAL-058** `[TODO]` · 5 pts — **Flow A proto contract & gateway.** gRPC service + REST gateway + OpenAPI; field names locked from Appendix A. *AC:* documented, validated, versioned. *Deps:* CAL-054, CAL-164

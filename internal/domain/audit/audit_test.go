@@ -181,14 +181,8 @@ func (s *stubRepo) List(_ context.Context, entity string, entityID kernel.ID, pa
 		}
 	}
 	total := int64(len(matched))
-	start := page.Offset()
-	if start > len(matched) {
-		start = len(matched)
-	}
-	end := start + page.Limit()
-	if end > len(matched) {
-		end = len(matched)
-	}
+	start := min(page.Offset(), len(matched))
+	end := min(start+page.Limit(), len(matched))
 	return matched[start:end], total, nil
 }
 
@@ -199,7 +193,7 @@ func TestAuditRepositoryPort(t *testing.T) {
 	entityID := kernel.NewID()
 	ts := time.Now()
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		e, err := NewAuditEntry(actor, ActionOverrideScore, "Candidate", entityID, "", "", ts)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)

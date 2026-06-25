@@ -1,35 +1,43 @@
-// Command api runs the Caliber backend: a gRPC server fronted by a
-// grpc-gateway REST/JSON layer (mounted on chi alongside health checks).
-// Service handlers are stubbed (Unimplemented) here; real implementations land
-// in their respective epics. This proves the contract pipeline end-to-end.
+// Command api runs the Caliber backend (gRPC + REST gateway). Wiring only;
+// lifecycle lives in internal/platform/server and routing in httpserver.
 package main
 
 import (
 	"context"
-	"errors"
-	"net"
-	"net/http"
+	"fmt"
+	"log/slog"
+	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/reflection"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
+	grpcadapter "github.com/xcreativs/caliber/internal/adapters/inbound/grpc"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/embeddings"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
+	"github.com/xcreativs/caliber/internal/app"
+	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
+	"github.com/xcreativs/caliber/internal/app/roles"
+	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
+	"github.com/xcreativs/caliber/internal/platform/server"
 )
 
 func main() {
+	if err := run(); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "fatal:", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	cfg, err := config.Load()
 	if err != nil {
-		panic(err)
+		return err
 	}
 	log := logging.New(cfg.LogLevel)
 	if missing := cfg.Validate(); len(missing) > 0 {
@@ -39,105 +47,63 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// gRPC server with all services registered (stub implementations for now).
-	grpcSrv := grpc.NewServer()
-	registerServices(grpcSrv)
-	reflection.Register(grpcSrv)
-
-	lis, err := net.Listen("tcp", cfg.GRPCAddr)
+	svc, cleanup, err := buildServices(ctx, cfg, log)
 	if err != nil {
-		log.Error("grpc listen failed", "addr", cfg.GRPCAddr, "err", err)
-		panic(err)
+		return err
 	}
-	go func() {
-		log.Info("grpc server listening", "addr", cfg.GRPCAddr)
-		if err := grpcSrv.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-			log.Error("grpc serve failed", "err", err)
+	defer cleanup()
+
+	return server.Run(ctx, cfg, log, svc)
+}
+
+func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (grpcadapter.Services, func(), error) {
+	model := buildLLM(cfg, log)
+	embedder := buildEmbedder(cfg, log)
+	cleanup := func() {}
+	svc := grpcadapter.Services{}
+
+	var roleRepo role.RoleRepository = memory.NewRoleRepo()
+	if cfg.DatabaseURL != "" {
+		pool, perr := pgxpool.New(ctx, cfg.DatabaseURL)
+		if perr != nil {
+			return svc, cleanup, perr
 		}
-	}()
-
-	// REST gateway mounted on chi, plus health/readiness.
-	gw, err := newGateway(ctx, dialTarget(cfg.GRPCAddr))
-	if err != nil {
-		log.Error("gateway init failed", "err", err)
-		panic(err)
-	}
-
-	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.Recoverer)
-	r.Get("/healthz", health("ok"))
-	r.Get("/readyz", health("ready"))
-	r.Handle("/v1/*", gw)
-
-	httpSrv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           r,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-	go func() {
-		log.Info("http gateway listening", "addr", cfg.HTTPAddr)
-		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("http serve failed", "err", err)
+		if perr = pool.Ping(ctx); perr != nil {
+			pool.Close()
+			return svc, cleanup, perr
 		}
-	}()
-
-	<-ctx.Done()
-	log.Info("shutdown signal received")
-	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := httpSrv.Shutdown(shutCtx); err != nil {
-		log.Warn("http shutdown", "err", err)
+		cleanup = pool.Close
+		roleRepo = postgres.NewRoleRepo(pool)
+		shortlister := matchingapp.NewShortlister(
+			roleRepo, postgres.NewTalentProfileRepo(pool), postgres.NewRecaller(pool),
+			embedder, model, postgres.NewMatchRepo(pool),
+		)
+		svc.Match = grpcadapter.NewMatchServer(shortlister)
+		log.Info("persistence selected", "provider", "postgres")
+	} else {
+		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories (matching disabled)")
 	}
-	grpcSrv.GracefulStop()
-	log.Info("stopped cleanly")
+
+	svc.Role = grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, roleRepo, time.Now))
+	return svc, cleanup, nil
 }
 
-func registerServices(s *grpc.Server) {
-	caliberv1.RegisterIdentityServiceServer(s, caliberv1.UnimplementedIdentityServiceServer{})
-	caliberv1.RegisterRoleServiceServer(s, caliberv1.UnimplementedRoleServiceServer{})
-	caliberv1.RegisterTalentServiceServer(s, caliberv1.UnimplementedTalentServiceServer{})
-	caliberv1.RegisterMatchingServiceServer(s, caliberv1.UnimplementedMatchingServiceServer{})
-	caliberv1.RegisterInterviewServiceServer(s, caliberv1.UnimplementedInterviewServiceServer{})
-	caliberv1.RegisterCandidateAgentServiceServer(s, caliberv1.UnimplementedCandidateAgentServiceServer{})
-	caliberv1.RegisterDashboardServiceServer(s, caliberv1.UnimplementedDashboardServiceServer{})
-	caliberv1.RegisterAuditServiceServer(s, caliberv1.UnimplementedAuditServiceServer{})
+//nolint:ireturn // selects a concrete LLM implementation from config; interface return is intentional.
+func buildLLM(cfg config.Config, log *slog.Logger) app.LLMClient {
+	if cfg.AnthropicAPIKey != "" {
+		log.Info("llm provider selected", "provider", "claude", "model", cfg.AnthropicModel)
+		return llm.NewClaude(llm.WithAPIKey(cfg.AnthropicAPIKey), llm.WithModel(cfg.AnthropicModel))
+	}
+	log.Warn("ANTHROPIC_API_KEY not set; using deterministic dev LLM")
+	return llm.NewDev()
 }
 
-type gatewayRegistrar func(context.Context, *runtime.ServeMux, string, []grpc.DialOption) error
-
-func newGateway(ctx context.Context, target string) (*runtime.ServeMux, error) {
-	mux := runtime.NewServeMux()
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
-	for _, reg := range []gatewayRegistrar{
-		caliberv1.RegisterIdentityServiceHandlerFromEndpoint,
-		caliberv1.RegisterRoleServiceHandlerFromEndpoint,
-		caliberv1.RegisterTalentServiceHandlerFromEndpoint,
-		caliberv1.RegisterMatchingServiceHandlerFromEndpoint,
-		caliberv1.RegisterInterviewServiceHandlerFromEndpoint,
-		caliberv1.RegisterCandidateAgentServiceHandlerFromEndpoint,
-		caliberv1.RegisterDashboardServiceHandlerFromEndpoint,
-		caliberv1.RegisterAuditServiceHandlerFromEndpoint,
-	} {
-		if err := reg(ctx, mux, target, opts); err != nil {
-			return nil, err
-		}
+//nolint:ireturn // selects a concrete embedder implementation from config; interface return is intentional.
+func buildEmbedder(cfg config.Config, log *slog.Logger) app.Embedder {
+	if cfg.OpenAIAPIKey != "" {
+		log.Info("embedder selected", "provider", "openai", "model", cfg.OpenAIEmbeddingModel)
+		return embeddings.NewOpenAI(embeddings.WithOpenAIKey(cfg.OpenAIAPIKey), embeddings.WithOpenAIModel(cfg.OpenAIEmbeddingModel))
 	}
-	return mux, nil
-}
-
-func health(status string) http.HandlerFunc {
-	body := []byte(`{"status":"` + status + `"}`)
-	return func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(body)
-	}
-}
-
-func dialTarget(addr string) string {
-	if strings.HasPrefix(addr, ":") {
-		return "localhost" + addr
-	}
-	return addr
+	log.Warn("OPENAI_API_KEY not set; using deterministic dev embedder")
+	return embeddings.NewDev()
 }

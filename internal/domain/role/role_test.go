@@ -27,11 +27,14 @@ func TestSeniority(t *testing.T) {
 			t.Errorf("String(%d) = %q, want %q", s, s.String(), want)
 		}
 	}
-	for in, want := range map[string]Seniority{"Junior": SeniorityJunior, " mid ": SeniorityMid, "senior": SenioritySenior, "LEAD": SeniorityLead} {
+	for in, want := range map[string]Seniority{"Junior": SeniorityJunior, "senior": SenioritySenior, "LEAD": SeniorityLead} {
 		got, err := ParseSeniority(in)
 		if err != nil || got != want {
 			t.Errorf("ParseSeniority(%q) = %v,%v want %v", in, got, err, want)
 		}
+	}
+	if s, err := ParseSeniority(" mid "); err != nil || s != SeniorityMid {
+		t.Errorf("ParseSeniority should trim/normalize: %v %v", s, err)
 	}
 	if _, err := ParseSeniority("staff"); err == nil {
 		t.Error("ParseSeniority(staff) should error")

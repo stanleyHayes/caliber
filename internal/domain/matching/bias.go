@@ -10,7 +10,7 @@ import (
 // protectedAttributes is the canonical, lower-cased set of attributes that
 // MUST never influence scoring or ranking. It is kept private so callers go
 // through ProtectedAttributes (read-only copy) and EnsureBiasSafe (validation).
-var protectedAttributes = map[string]struct{}{
+var protectedAttributes = map[string]struct{}{ //nolint:gochecknoglobals // canonical immutable protected-attribute set
 	"gender":         {},
 	"age":            {},
 	"ethnicity":      {},

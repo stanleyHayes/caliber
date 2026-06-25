@@ -1,15 +1,21 @@
 MODULE := github.com/xcreativs/caliber
 GOBIN  := $(shell go env GOPATH)/bin
 
-.PHONY: help tools proto lint test cover build run-api run-worker tidy
+.PHONY: help mocks tools proto sqlc lint test cover build run-api run-worker tidy
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+
+mocks: ## (re)generate gomock mocks (go.uber.org/mock)
+	go generate ./...
 
 tools: ## install codegen plugins (latest stable)
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 	go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@latest
 	go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest
+
+sqlc: ## generate type-safe db access from SQL (sqlc)
+	sqlc generate
 
 proto: ## resolve deps, lint, and generate from proto (needs PATH=$$PATH:$(GOBIN))
 	buf dep update

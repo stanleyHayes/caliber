@@ -3,7 +3,7 @@
 package config
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"strings"
 )
@@ -19,9 +19,11 @@ type Config struct {
 	DatabaseURL string // Postgres + pgvector DSN
 	RedisURL    string // Redis (Asynq) URL
 
-	AnthropicAPIKey string // Claude
-	OpenAIAPIKey    string // embeddings
-	JWTSecret       string // access/refresh token signing
+	AnthropicAPIKey      string // Claude
+	AnthropicModel       string // Claude model id (default claude-opus-4-8)
+	OpenAIAPIKey         string // embeddings
+	OpenAIEmbeddingModel string // embedding model (default text-embedding-3-small)
+	JWTSecret            string // access/refresh token signing
 }
 
 // Load reads configuration from the environment, applying sane defaults.
@@ -29,18 +31,20 @@ type Config struct {
 // reported by Validate so a bare server can still boot in local/dev.
 func Load() (Config, error) {
 	c := Config{
-		Env:             getenv("CALIBER_ENV", "dev"),
-		LogLevel:        getenv("CALIBER_LOG_LEVEL", "info"),
-		HTTPAddr:        getenv("CALIBER_HTTP_ADDR", ":8080"),
-		GRPCAddr:        getenv("CALIBER_GRPC_ADDR", ":9090"),
-		DatabaseURL:     os.Getenv("CALIBER_DATABASE_URL"),
-		RedisURL:        os.Getenv("CALIBER_REDIS_URL"),
-		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
-		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
-		JWTSecret:       os.Getenv("CALIBER_JWT_SECRET"),
+		Env:                  getenv("CALIBER_ENV", "dev"),
+		LogLevel:             getenv("CALIBER_LOG_LEVEL", "info"),
+		HTTPAddr:             getenv("CALIBER_HTTP_ADDR", ":8080"),
+		GRPCAddr:             getenv("CALIBER_GRPC_ADDR", ":9090"),
+		DatabaseURL:          os.Getenv("CALIBER_DATABASE_URL"),
+		RedisURL:             os.Getenv("CALIBER_REDIS_URL"),
+		AnthropicAPIKey:      os.Getenv("ANTHROPIC_API_KEY"),
+		AnthropicModel:       getenv("CALIBER_ANTHROPIC_MODEL", "claude-opus-4-8"),
+		OpenAIAPIKey:         os.Getenv("OPENAI_API_KEY"),
+		OpenAIEmbeddingModel: getenv("CALIBER_OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
+		JWTSecret:            os.Getenv("CALIBER_JWT_SECRET"),
 	}
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
-		return Config{}, fmt.Errorf("config: HTTP and gRPC addresses must be set")
+		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")
 	}
 	return c, nil
 }
