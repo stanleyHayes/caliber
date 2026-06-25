@@ -75,8 +75,8 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 		cleanup = pool.Close
 		roleRepo = postgres.NewRoleRepo(pool)
 		shortlister := matchingapp.NewShortlister(
-			roleRepo, postgres.NewTalentProfileRepo(pool), postgres.NewRecaller(pool),
-			embedder, model, postgres.NewMatchRepo(pool),
+			roleRepo, postgres.NewCandidateRepo(pool), postgres.NewTalentProfileRepo(pool),
+			postgres.NewRecaller(pool), embedder, model, postgres.NewMatchRepo(pool),
 		)
 		svc.Match = grpcadapter.NewMatchServer(shortlister)
 		log.Info("persistence selected", "provider", "postgres")

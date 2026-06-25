@@ -129,3 +129,12 @@ func matchToProto(m *matchingdom.Match) *caliberv1.Match {
 		ThinEvidence: m.ThinEvidence,
 	}
 }
+
+// exclusionToProto maps a domain hard-filter Exclusion to its proto form.
+func exclusionToProto(e matchingdom.Exclusion) *caliberv1.CandidateExclusion {
+	return &caliberv1.CandidateExclusion{
+		CandidateId: e.CandidateID.String(),
+		Gate:        e.Gate,
+		Reason:      e.Reason,
+	}
+}

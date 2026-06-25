@@ -22,20 +22,30 @@ const ScoringSystemPrompt = `You score a candidate against a role rubric. Respon
 "rationale":string,"watch_outs":[string],"thin_evidence":bool}. Score only on the rubric competencies and the
 candidate's evidence — never on protected attributes.`
 
+// ShortlistResult is the outcome of a shortlist run: the surviving ranked
+// matches and the candidates removed by hard filters, each with a reason.
+type ShortlistResult struct {
+	Matches    []*matchingdom.Match
+	Exclusions []matchingdom.Exclusion
+}
+
 // Shortlister produces an explainable ranked shortlist for a role (Flow A):
-// vector recall -> rubric-based LLM scoring -> ranked, persisted Matches.
+// vector recall -> hard filters -> rubric-based LLM scoring -> hard filters ->
+// ranked, persisted Matches.
 type Shortlister struct {
-	roles    role.RoleRepository
-	profiles talent.TalentProfileRepository
-	recaller CandidateRecaller
-	embedder app.Embedder
-	scorer   app.LLMClient
-	matches  matchingdom.MatchRepository
+	roles      role.RoleRepository
+	candidates talent.CandidateRepository
+	profiles   talent.TalentProfileRepository
+	recaller   CandidateRecaller
+	embedder   app.Embedder
+	scorer     app.LLMClient
+	matches    matchingdom.MatchRepository
 }
 
 // NewShortlister wires the use-case.
 func NewShortlister(
 	roles role.RoleRepository,
+	candidates talent.CandidateRepository,
 	profiles talent.TalentProfileRepository,
 	recaller CandidateRecaller,
 	embedder app.Embedder,
@@ -43,12 +53,13 @@ func NewShortlister(
 	matches matchingdom.MatchRepository,
 ) *Shortlister {
 	return &Shortlister{
-		roles:    roles,
-		profiles: profiles,
-		recaller: recaller,
-		embedder: embedder,
-		scorer:   scorer,
-		matches:  matches,
+		roles:      roles,
+		candidates: candidates,
+		profiles:   profiles,
+		recaller:   recaller,
+		embedder:   embedder,
+		scorer:     scorer,
+		matches:    matches,
 	}
 }
 
@@ -67,14 +78,15 @@ type llmScoreItem struct {
 	Evidence   string  `json:"evidence"`
 }
 
-// GenerateShortlist recalls candidates for the role, scores each against the
-// rubric, ranks by overall fit, persists, and returns the ranked Matches.
-func (s *Shortlister) GenerateShortlist(ctx context.Context, roleID kernel.ID, limit int) ([]*matchingdom.Match, error) {
+// GenerateShortlist recalls candidates for the role, applies the hard filters,
+// scores survivors against the rubric, ranks by overall fit, persists the
+// surviving matches, and returns them alongside any filter exclusions.
+func (s *Shortlister) GenerateShortlist(ctx context.Context, roleID kernel.ID, limit int) (*ShortlistResult, error) {
 	rl, err := s.roles.ByID(ctx, roleID)
 	if err != nil {
 		return nil, err
 	}
-	// Bias-safety: the ranking signals are the rubric competencies only.
+	// Bias-safety: the ranking and gating signals are the rubric competencies only.
 	if err := matchingdom.EnsureBiasSafe(competencyNames(rl.Rubric)); err != nil {
 		return nil, err
 	}
@@ -88,36 +100,76 @@ func (s *Shortlister) GenerateShortlist(ctx context.Context, roleID kernel.ID, l
 		return nil, err
 	}
 
-	out, err := s.scoreCandidates(ctx, rl, candidateIDs)
+	result, err := s.screenAndScore(ctx, rl, requirementsFor(rl), candidateIDs)
 	if err != nil {
 		return nil, err
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].OverallScore > out[j].OverallScore })
-	return out, s.persist(ctx, out)
+	sort.SliceStable(result.Matches, func(i, j int) bool {
+		return result.Matches[i].OverallScore > result.Matches[j].OverallScore
+	})
+	return result, s.persist(ctx, result.Matches)
 }
 
-// scoreCandidates loads and scores each recalled candidate, skipping any whose
-// profile has gone missing.
-func (s *Shortlister) scoreCandidates(ctx context.Context, rl *role.Role, candidateIDs []kernel.ID) ([]*matchingdom.Match, error) {
-	out := make([]*matchingdom.Match, 0, len(candidateIDs))
+// screenAndScore evaluates every recalled candidate through the hard filters
+// and scores the survivors, collecting matches and exclusions.
+func (s *Shortlister) screenAndScore(
+	ctx context.Context, rl *role.Role, req matchingdom.Requirements, candidateIDs []kernel.ID,
+) (*ShortlistResult, error) {
+	res := &ShortlistResult{Matches: make([]*matchingdom.Match, 0, len(candidateIDs))}
 	for _, cid := range candidateIDs {
-		profile, perr := s.profiles.ByCandidateID(ctx, cid)
-		if perr != nil {
-			if kernel.KindOf(perr) == kernel.KindNotFound {
-				continue
-			}
-			return nil, perr
+		m, excluded, err := s.evaluateCandidate(ctx, rl, req, cid)
+		if err != nil {
+			return nil, err
 		}
-		m, serr := s.score(ctx, rl, profile)
-		if serr != nil {
-			return nil, serr
+		switch {
+		case len(excluded) > 0:
+			res.Exclusions = append(res.Exclusions, excluded...)
+		case m != nil:
+			res.Matches = append(res.Matches, m)
 		}
-		out = append(out, m)
 	}
-	return out, nil
+	return res, nil
 }
 
-// persist upserts each match.
+// evaluateCandidate screens one recalled candidate through the pre-scoring
+// (logistical) gates and, if it clears them, scores it and applies the
+// post-scoring (must-have) gate. It returns the surviving match (nil when the
+// candidate is gated out or its data has gone missing) and any exclusions.
+func (s *Shortlister) evaluateCandidate(
+	ctx context.Context, rl *role.Role, req matchingdom.Requirements, cid kernel.ID,
+) (*matchingdom.Match, []matchingdom.Exclusion, error) {
+	cand, err := s.candidates.ByID(ctx, cid)
+	if err != nil {
+		return nil, nil, skipIfMissing(err)
+	}
+	if ex := req.ScreenLogistics(cid, cand.Location, cand.Intake.SalaryFloor, cand.Intake.SalaryCurrency); len(ex) > 0 {
+		return nil, ex, nil
+	}
+
+	profile, err := s.profiles.ByCandidateID(ctx, cid)
+	if err != nil {
+		return nil, nil, skipIfMissing(err)
+	}
+	m, err := s.score(ctx, rl, profile)
+	if err != nil {
+		return nil, nil, err
+	}
+	if ex := req.ScreenMatch(m); len(ex) > 0 {
+		return nil, ex, nil
+	}
+	return m, nil, nil
+}
+
+// skipIfMissing turns a NotFound into a nil error (the caller skips the
+// candidate) and propagates anything else.
+func skipIfMissing(err error) error {
+	if kernel.KindOf(err) == kernel.KindNotFound {
+		return nil
+	}
+	return err
+}
+
+// persist upserts each surviving match.
 func (s *Shortlister) persist(ctx context.Context, matches []*matchingdom.Match) error {
 	for _, m := range matches {
 		if err := s.matches.Upsert(ctx, m); err != nil {
@@ -146,6 +198,35 @@ func (s *Shortlister) score(ctx context.Context, rl *role.Role, profile *talent.
 	}
 	return matchingdom.NewMatch(rl.ID, profile.CandidateID, clamp01(parsed.OverallScore),
 		confidence(parsed.Confidence), breakdown, parsed.Rationale, parsed.WatchOuts, parsed.ThinEvidence)
+}
+
+// requirementsFor derives the bias-safe hard constraints from a role's spec and
+// rubric (location, salary ceiling, must-have competencies).
+func requirementsFor(rl *role.Role) matchingdom.Requirements {
+	return matchingdom.Requirements{
+		Location:       rl.Spec.Location,
+		RemoteAllowed:  isRemote(rl.Spec),
+		SalaryCeiling:  rl.Spec.SalaryBand.High,
+		SalaryCurrency: rl.Spec.SalaryBand.Currency,
+		MustHaves:      mustHaveNames(rl.Rubric),
+	}
+}
+
+// isRemote detects a remote-friendly role from the available free-text fields
+// (there is no structured work-arrangement field yet); a remote role disables
+// the location gate.
+func isRemote(spec role.RoleSpec) bool {
+	return strings.Contains(strings.ToLower(spec.Location+" "+spec.Availability), "remote")
+}
+
+func mustHaveNames(r role.Rubric) []string {
+	names := make([]string, 0, len(r.Competencies))
+	for _, c := range r.Competencies {
+		if c.MustHave {
+			names = append(names, c.Name)
+		}
+	}
+	return names
 }
 
 func roleText(rl *role.Role) string {
