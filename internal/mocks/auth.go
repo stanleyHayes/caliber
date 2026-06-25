@@ -10,7 +10,9 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
+	time "time"
 
 	app "github.com/xcreativs/caliber/internal/app"
 	gomock "go.uber.org/mock/gomock"
@@ -152,4 +154,71 @@ func (m *MockTokenService) VerifyRefresh(token string) (app.RefreshClaims, error
 func (mr *MockTokenServiceMockRecorder) VerifyRefresh(token any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VerifyRefresh", reflect.TypeOf((*MockTokenService)(nil).VerifyRefresh), token)
+}
+
+// MockRefreshTokenStore is a mock of RefreshTokenStore interface.
+type MockRefreshTokenStore struct {
+	ctrl     *gomock.Controller
+	recorder *MockRefreshTokenStoreMockRecorder
+	isgomock struct{}
+}
+
+// MockRefreshTokenStoreMockRecorder is the mock recorder for MockRefreshTokenStore.
+type MockRefreshTokenStoreMockRecorder struct {
+	mock *MockRefreshTokenStore
+}
+
+// NewMockRefreshTokenStore creates a new mock instance.
+func NewMockRefreshTokenStore(ctrl *gomock.Controller) *MockRefreshTokenStore {
+	mock := &MockRefreshTokenStore{ctrl: ctrl}
+	mock.recorder = &MockRefreshTokenStoreMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockRefreshTokenStore) EXPECT() *MockRefreshTokenStoreMockRecorder {
+	return m.recorder
+}
+
+// Consume mocks base method.
+func (m *MockRefreshTokenStore) Consume(ctx context.Context, jti string, now time.Time) (app.RefreshRecord, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Consume", ctx, jti, now)
+	ret0, _ := ret[0].(app.RefreshRecord)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Consume indicates an expected call of Consume.
+func (mr *MockRefreshTokenStoreMockRecorder) Consume(ctx, jti, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Consume", reflect.TypeOf((*MockRefreshTokenStore)(nil).Consume), ctx, jti, now)
+}
+
+// Revoke mocks base method.
+func (m *MockRefreshTokenStore) Revoke(ctx context.Context, jti string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Revoke", ctx, jti)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Revoke indicates an expected call of Revoke.
+func (mr *MockRefreshTokenStoreMockRecorder) Revoke(ctx, jti any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Revoke", reflect.TypeOf((*MockRefreshTokenStore)(nil).Revoke), ctx, jti)
+}
+
+// Save mocks base method.
+func (m *MockRefreshTokenStore) Save(ctx context.Context, rec app.RefreshRecord) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Save", ctx, rec)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Save indicates an expected call of Save.
+func (mr *MockRefreshTokenStoreMockRecorder) Save(ctx, rec any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockRefreshTokenStore)(nil).Save), ctx, rec)
 }

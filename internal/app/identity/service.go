@@ -1,0 +1,166 @@
+// Package identity holds the authentication use-cases: register, login, token
+// refresh (with rotation), and logout. It orchestrates the domain user
+// repository and the password/token/refresh-store ports.
+package identity
+
+import (
+	"context"
+	"time"
+
+	"github.com/xcreativs/caliber/internal/app"
+	identitydom "github.com/xcreativs/caliber/internal/domain/identity"
+	"github.com/xcreativs/caliber/internal/domain/kernel"
+)
+
+// Session is the result of an authentication: the user and a fresh token pair.
+type Session struct {
+	User    *identitydom.User
+	Access  app.AccessToken
+	Refresh app.RefreshToken
+}
+
+// RegisterInput is the input to Register.
+type RegisterInput struct {
+	Email    string
+	Password string
+	Name     string
+	Role     identitydom.Role
+}
+
+// Service implements the identity use-cases over the domain and security ports.
+type Service struct {
+	users   identitydom.UserRepository
+	hasher  app.PasswordHasher
+	tokens  app.TokenService
+	refresh app.RefreshTokenStore
+	now     app.Clock
+	policy  identitydom.PasswordPolicy
+}
+
+// NewService wires the use-case. A nil clock defaults to time.Now.
+func NewService(
+	users identitydom.UserRepository,
+	hasher app.PasswordHasher,
+	tokens app.TokenService,
+	refresh app.RefreshTokenStore,
+	now app.Clock,
+) *Service {
+	if now == nil {
+		now = time.Now
+	}
+	return &Service{
+		users: users, hasher: hasher, tokens: tokens, refresh: refresh,
+		now: now, policy: identitydom.DefaultPasswordPolicy(),
+	}
+}
+
+// Register validates the input, creates the user with a hashed password, and
+// issues a session. A duplicate email surfaces as a kernel.Conflict.
+func (s *Service) Register(ctx context.Context, in RegisterInput) (*Session, error) {
+	email, err := identitydom.NewEmail(in.Email)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.policy.Validate(in.Password); err != nil {
+		return nil, err
+	}
+	if !in.Role.Valid() {
+		return nil, kernel.Invalid("identity: a valid role is required")
+	}
+	hash, err := s.hasher.Hash(in.Password)
+	if err != nil {
+		return nil, err
+	}
+	user, err := identitydom.NewUser(email, in.Role, in.Name, hash, s.now())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.users.Create(ctx, user); err != nil {
+		return nil, err
+	}
+	return s.issue(ctx, user)
+}
+
+// Login verifies credentials and issues a session. To avoid account enumeration,
+// an unknown email, a wrong password, and an inactive account all return the
+// same generic unauthorized error.
+func (s *Service) Login(ctx context.Context, rawEmail, password string) (*Session, error) {
+	email, err := identitydom.NewEmail(rawEmail)
+	if err != nil {
+		return nil, invalidCredentials()
+	}
+	user, err := s.users.ByEmail(ctx, email)
+	if err != nil {
+		if kernel.KindOf(err) == kernel.KindNotFound {
+			return nil, invalidCredentials()
+		}
+		return nil, err
+	}
+	ok, err := s.hasher.Verify(user.PasswordHash, password)
+	if err != nil {
+		return nil, err
+	}
+	if !ok || !user.IsActive() {
+		return nil, invalidCredentials()
+	}
+	return s.issue(ctx, user)
+}
+
+// Refresh rotates a refresh token: it verifies the token, single-use-consumes
+// its grant (rejecting replays), and issues a fresh session.
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (*Session, error) {
+	claims, err := s.tokens.VerifyRefresh(refreshToken)
+	if err != nil {
+		return nil, err
+	}
+	rec, err := s.refresh.Consume(ctx, claims.ID, s.now())
+	if err != nil {
+		return nil, err
+	}
+	user, err := s.users.ByID(ctx, rec.UserID)
+	if err != nil {
+		if kernel.KindOf(err) == kernel.KindNotFound {
+			return nil, kernel.Unauthorized("identity: account no longer exists")
+		}
+		return nil, err
+	}
+	if !user.IsActive() {
+		return nil, kernel.Unauthorized("identity: account is not active")
+	}
+	return s.issue(ctx, user)
+}
+
+// Logout revokes the refresh grant. It is idempotent: an invalid or unknown
+// token is treated as already logged out.
+func (s *Service) Logout(ctx context.Context, refreshToken string) error {
+	claims, err := s.tokens.VerifyRefresh(refreshToken)
+	if err != nil {
+		return nil //nolint:nilerr // idempotent logout: an invalid token has nothing to revoke
+	}
+	return s.refresh.Revoke(ctx, claims.ID)
+}
+
+// Me returns the user behind an authenticated principal.
+func (s *Service) Me(ctx context.Context, userID kernel.ID) (*identitydom.User, error) {
+	return s.users.ByID(ctx, userID)
+}
+
+// issue mints an access + refresh pair and records the refresh grant.
+func (s *Service) issue(ctx context.Context, user *identitydom.User) (*Session, error) {
+	p := app.Principal{UserID: user.ID, Role: user.Role.String()}
+	access, err := s.tokens.IssueAccess(p)
+	if err != nil {
+		return nil, err
+	}
+	refresh, err := s.tokens.IssueRefresh(p)
+	if err != nil {
+		return nil, err
+	}
+	rec := app.RefreshRecord{ID: refresh.ID, UserID: user.ID, ExpiresAt: s.now().Add(refresh.ExpiresIn)}
+	if err := s.refresh.Save(ctx, rec); err != nil {
+		return nil, err
+	}
+	return &Session{User: user, Access: access, Refresh: refresh}, nil
+}
+
+func invalidCredentials() error { return kernel.Unauthorized("identity: invalid email or password") }

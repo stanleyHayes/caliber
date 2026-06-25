@@ -6,6 +6,8 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
 
+//go:generate mockgen -source=repository.go -destination=../../mocks/identity.go -package=mocks
+
 // UserRepository persists and retrieves users.
 type UserRepository interface {
 	Create(ctx context.Context, u *User) error

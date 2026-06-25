@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"time"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -52,4 +53,26 @@ type TokenService interface {
 	IssueRefresh(p Principal) (RefreshToken, error)
 	VerifyAccess(token string) (Principal, error)
 	VerifyRefresh(token string) (RefreshClaims, error)
+}
+
+// RefreshRecord is a persisted refresh-token grant, keyed by its jti.
+type RefreshRecord struct {
+	ID        string // jti
+	UserID    kernel.ID
+	ExpiresAt time.Time
+	Revoked   bool
+}
+
+// RefreshTokenStore tracks issued refresh tokens so they can be rotated and
+// revoked (CAL-019/020). Refresh tokens are single-use: a successful Consume
+// revokes the record, so a replayed token is rejected (replay detection).
+type RefreshTokenStore interface {
+	// Save records a freshly issued refresh grant.
+	Save(ctx context.Context, rec RefreshRecord) error
+	// Consume atomically validates and revokes a grant by jti. It returns the
+	// record on success, or a kernel.KindUnauthorized error when the jti is
+	// unknown, already consumed/revoked, or expired.
+	Consume(ctx context.Context, jti string, now time.Time) (RefreshRecord, error)
+	// Revoke marks a grant revoked (logout). Revoking an unknown jti is a no-op.
+	Revoke(ctx context.Context, jti string) error
 }
