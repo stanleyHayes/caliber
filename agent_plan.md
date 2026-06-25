@@ -216,7 +216,7 @@ caliber/
 | | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~55% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | TODO | 0% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
-| | EPIC-04 | AI Orchestration Layer | 8 | 39 | TODO | 0% |
+| | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~25% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
 | | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | TODO | 0% |
 | | EPIC-07 | Matching & Ranking Engine | 7 | 37 | TODO | 0% |
@@ -316,8 +316,8 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-04 · AI Orchestration Layer
 **Goal:** All model interaction behind one clean module: prompt assembly, the Claude gateway, schema-validated structured outputs, embeddings, cost/latency controls. Prompts & rubrics are versioned product, not config.
 
-- **CAL-029** `[TODO]` · 3 pts — **`LLMClient` port & message types.** Provider-agnostic interface (complete, stream, tool/JSON modes). *AC:* domain/app depend only on the port. *Deps:* CAL-001
-- **CAL-030** `[TODO]` · 5 pts — **Anthropic Claude gateway adapter.** Implement `LLMClient` with the Anthropic Go SDK; timeouts, retries, context cancellation. *AC:* live + mocked tests; configurable model. *Deps:* CAL-029
+- **CAL-029** `[DONE]` · 3 pts — **`LLMClient` port & message types.** Provider-agnostic interface (complete, stream, tool/JSON modes). *AC:* domain/app depend only on the port. *Deps:* CAL-001
+- **CAL-030** `[DONE]` · 5 pts — **Anthropic Claude gateway adapter.** Implement `LLMClient` with the Anthropic Go SDK; timeouts, retries, context cancellation. *AC:* live + mocked tests; configurable model. *Deps:* CAL-029
 - **CAL-031** `[TODO]` · 5 pts — **Structured-output enforcement.** Strict JSON-schema validation of model output with bounded re-ask on violation. *AC:* malformed output retried, then typed error. *Deps:* CAL-030
 - **CAL-032** `[TODO]` · 3 pts — **Versioned prompt registry.** `prompts/` loaded with version tags; prompts in VCS, referenced by id. *AC:* prompt version recorded on each call. *Deps:* CAL-030
 - **CAL-033** `[TODO]` · 3 pts — **`Embedder` port + OpenAI adapter.** text-embedding-3-small behind the port; batch support. *AC:* embeddings stored in pgvector; provider swappable. *Deps:* CAL-013, CAL-029
