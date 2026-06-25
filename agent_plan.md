@@ -213,7 +213,7 @@ caliber/
 | Milestone | Epic | Title | Stories | Pts | Status | % |
 |---|---|---|---|---|---|---|
 | **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~45% |
-| | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~70% |
+| | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~85% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | TODO | 0% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~25% |
@@ -290,7 +290,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-012** `[WIP]` · 5 pts — **goose migration tooling & base schema.** goose migrations; relational schema; JSON columns for `role_spec`, `rubric`, `report_card`, `breakdown`. *AC:* up/down migrations run in CI. *Deps:* CAL-006
 - **CAL-013** `[WIP]` · 3 pts — **Enable pgvector & embedding columns.** `vector` extension; `role_embedding`, `profile_embedding`; ivfflat/hnsw index. *AC:* vector similarity query returns ordered results. *Deps:* CAL-012
 - **CAL-014** `[DONE]` · 5 pts — **sqlc queries & Postgres repository adapters.** Implement ports with sqlc+pgx; transactions via a `UnitOfWork`. *AC:* repository integration tests against real Postgres (testcontainers). *Deps:* CAL-011, CAL-012
-- **CAL-015** `[TODO]` · 3 pts — **Audit log persistence.** Append-only `audit_log` (actor, action, entity, before/after, timestamp). *AC:* writes immutable; covered by tests. *Deps:* CAL-014
+- **CAL-015** `[DONE]` · 3 pts — **Audit log persistence.** Append-only `audit_log` (actor, action, entity, before/after, timestamp). *AC:* writes immutable; covered by tests. *Deps:* CAL-014
 - **CAL-016** `[TODO]` · 5 pts — **Seed-ready fixtures & factory helpers.** Deterministic data factories for every entity. *AC:* reused by integration tests and EPIC-14. *Deps:* CAL-014
 
 ## EPIC-02 · Identity, Authentication & RBAC
