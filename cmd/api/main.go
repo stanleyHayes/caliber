@@ -1,7 +1,7 @@
 // Command api runs the Caliber backend: a gRPC server fronted by a
 // grpc-gateway REST/JSON layer (mounted on chi alongside health checks).
-// Service handlers are stubbed (Unimplemented) here; real implementations land
-// in their respective epics. This proves the contract pipeline end-to-end.
+// Flow A.1 (role spec generation) is wired to a real use-case; the remaining
+// services fall back to Unimplemented until their epics land.
 package main
 
 import (
@@ -21,6 +21,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 
+	grpcadapter "github.com/xcreativs/caliber/internal/adapters/inbound/grpc"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
+	"github.com/xcreativs/caliber/internal/app/roles"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
@@ -39,9 +43,14 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// gRPC server with all services registered (stub implementations for now).
+	// Composition root: build adapters + use-cases. The dev LLM keeps the API
+	// runnable offline; the Claude adapter (CAL-030) replaces it later.
+	roleRepo := memory.NewRoleRepo()
+	specGen := roles.NewSpecGenerator(llm.NewDev(), roleRepo, time.Now)
+	roleSrv := grpcadapter.NewRoleServer(specGen)
+
 	grpcSrv := grpc.NewServer()
-	registerServices(grpcSrv)
+	registerServices(grpcSrv, roleSrv)
 	reflection.Register(grpcSrv)
 
 	lis, err := net.Listen("tcp", cfg.GRPCAddr)
@@ -56,7 +65,6 @@ func main() {
 		}
 	}()
 
-	// REST gateway mounted on chi, plus health/readiness.
 	gw, err := newGateway(ctx, dialTarget(cfg.GRPCAddr))
 	if err != nil {
 		log.Error("gateway init failed", "err", err)
@@ -93,9 +101,9 @@ func main() {
 	log.Info("stopped cleanly")
 }
 
-func registerServices(s *grpc.Server) {
+func registerServices(s *grpc.Server, roleSrv caliberv1.RoleServiceServer) {
 	caliberv1.RegisterIdentityServiceServer(s, caliberv1.UnimplementedIdentityServiceServer{})
-	caliberv1.RegisterRoleServiceServer(s, caliberv1.UnimplementedRoleServiceServer{})
+	caliberv1.RegisterRoleServiceServer(s, roleSrv)
 	caliberv1.RegisterTalentServiceServer(s, caliberv1.UnimplementedTalentServiceServer{})
 	caliberv1.RegisterMatchingServiceServer(s, caliberv1.UnimplementedMatchingServiceServer{})
 	caliberv1.RegisterInterviewServiceServer(s, caliberv1.UnimplementedInterviewServiceServer{})
@@ -126,8 +134,8 @@ func newGateway(ctx context.Context, target string) (*runtime.ServeMux, error) {
 	return mux, nil
 }
 
-func health(status string) http.HandlerFunc {
-	body := []byte(`{"status":"` + status + `"}`)
+func health(statusText string) http.HandlerFunc {
+	body := []byte(`{"status":"` + statusText + `"}`)
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
