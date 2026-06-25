@@ -25,3 +25,5 @@ type LLMResponse struct {
 
 // Clock returns the current time; injectable for deterministic tests.
 type Clock func() time.Time
+
+//go:generate mockgen -source=ports.go -destination=../mocks/llm.go -package=mocks

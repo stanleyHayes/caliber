@@ -7,6 +7,9 @@ import (
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func mkRole(t *testing.T, emp kernel.ID, title string, ts time.Time) *role.Role {
@@ -15,9 +18,7 @@ func mkRole(t *testing.T, emp kernel.ID, title string, ts time.Time) *role.Role 
 		role.RoleSpec{Title: title, Seniority: role.SeniorityMid},
 		role.Rubric{Competencies: []role.Competency{{Name: "Core", Weight: 1, MustHave: true}}},
 		ts)
-	if err != nil {
-		t.Fatalf("NewRole: %v", err)
-	}
+	require.NoError(t, err)
 	return r
 }
 
@@ -27,31 +28,24 @@ func TestRoleRepoCRUD(t *testing.T) {
 	emp := kernel.NewID()
 	r := mkRole(t, emp, "Engineer", time.Unix(1000, 0))
 
-	if err := repo.Create(ctx, r); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if err := repo.Create(ctx, r); kernel.KindOf(err) != kernel.KindConflict {
-		t.Error("duplicate Create should conflict")
-	}
+	require.NoError(t, repo.Create(ctx, r))
+	assert.Equal(t, kernel.KindConflict, kernel.KindOf(repo.Create(ctx, r)))
+
 	got, err := repo.ByID(ctx, r.ID)
-	if err != nil || got.Title != "Engineer" {
-		t.Errorf("ByID: %v", err)
-	}
-	if _, err := repo.ByID(ctx, kernel.NewID()); kernel.KindOf(err) != kernel.KindNotFound {
-		t.Error("missing ByID should be not found")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "Engineer", got.Title)
+
+	_, err = repo.ByID(ctx, kernel.NewID())
+	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
 
 	r.Title = "Senior Engineer"
-	if err := repo.Update(ctx, r); err != nil {
-		t.Fatalf("Update: %v", err)
-	}
-	got, _ = repo.ByID(ctx, r.ID)
-	if got.Title != "Senior Engineer" {
-		t.Error("Update did not persist")
-	}
-	if err := repo.Update(ctx, mkRole(t, emp, "ghost", time.Unix(1, 0))); kernel.KindOf(err) != kernel.KindNotFound {
-		t.Error("Update missing should be not found")
-	}
+	require.NoError(t, repo.Update(ctx, r))
+	got, err = repo.ByID(ctx, r.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Senior Engineer", got.Title)
+
+	ghost := mkRole(t, emp, "ghost", time.Unix(1, 0))
+	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(repo.Update(ctx, ghost)))
 }
 
 func TestRoleRepoListPagination(t *testing.T) {
@@ -59,23 +53,17 @@ func TestRoleRepoListPagination(t *testing.T) {
 	repo := NewRoleRepo()
 	empA, empB := kernel.NewID(), kernel.NewID()
 	for i := range 3 {
-		_ = repo.Create(ctx, mkRole(t, empA, "A", time.Unix(int64(i+1), 0)))
+		require.NoError(t, repo.Create(ctx, mkRole(t, empA, "A", time.Unix(int64(i+1), 0))))
 	}
-	_ = repo.Create(ctx, mkRole(t, empB, "B", time.Unix(99, 0)))
+	require.NoError(t, repo.Create(ctx, mkRole(t, empB, "B", time.Unix(99, 0))))
 
 	page1, total, err := repo.ListByEmployer(ctx, empA, kernel.NewPage(1, 2))
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if total != 3 || len(page1) != 2 {
-		t.Errorf("page1: total=%d len=%d, want 3/2", total, len(page1))
-	}
-	page2, _, _ := repo.ListByEmployer(ctx, empA, kernel.NewPage(2, 2))
-	if len(page2) != 1 {
-		t.Errorf("page2 len=%d, want 1", len(page2))
-	}
-	// newest first
-	if !page1[0].CreatedAt.After(page1[1].CreatedAt) {
-		t.Error("results should be newest-first")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), total)
+	assert.Len(t, page1, 2)
+
+	page2, _, err := repo.ListByEmployer(ctx, empA, kernel.NewPage(2, 2))
+	require.NoError(t, err)
+	assert.Len(t, page2, 1)
+	assert.True(t, page1[0].CreatedAt.After(page1[1].CreatedAt), "results should be newest-first")
 }

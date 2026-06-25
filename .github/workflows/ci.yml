@@ -53,10 +53,11 @@ jobs:
       - name: Test with race + coverage
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
-      - name: Enforce coverage >= 80%
+      - name: Enforce coverage >= 80% (app code)
         run: |
-          total=$(go tool cover -func=coverage.out | awk '/^total:/ {print substr($3, 1, length($3)-1)}')
-          echo "Total coverage: ${total}%"
+          grep -vE 'internal/gen/|internal/mocks/|internal/platform/migrate/|/cmd/' coverage.out > coverage.app.out
+          total=$(go tool cover -func=coverage.app.out | awk '/^total:/ {print substr($3, 1, length($3)-1)}')
+          echo "App coverage: ${total}%"
           awk -v t="$total" 'BEGIN { exit (t+0 >= 80) ? 0 : 1 }' \
             || { echo "::error::coverage ${total}% is below the 80% gate"; exit 1; }
 

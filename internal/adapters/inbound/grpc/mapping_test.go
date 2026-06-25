@@ -5,6 +5,10 @@ import (
 	"testing"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	"github.com/xcreativs/caliber/internal/domain/role"
+	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
+
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -19,11 +23,14 @@ func TestErrToStatus(t *testing.T) {
 		kernel.KindInternal:     codes.Internal,
 	}
 	for kind, want := range cases {
-		if got := status.Code(errToStatus(&kernel.Error{Kind: kind, Msg: "x"})); got != want {
-			t.Errorf("kind %v -> %v, want %v", kind, got, want)
-		}
+		assert.Equal(t, want, status.Code(errToStatus(&kernel.Error{Kind: kind, Msg: "x"})))
 	}
-	if status.Code(errToStatus(errors.New("plain"))) != codes.Internal {
-		t.Error("plain error should map to Internal")
-	}
+	assert.Equal(t, codes.Internal, status.Code(errToStatus(errors.New("plain"))))
+}
+
+func TestEnumMappings(t *testing.T) {
+	assert.Equal(t, caliberv1.Seniority_SENIORITY_LEAD, seniorityToProto(role.SeniorityLead))
+	assert.Equal(t, caliberv1.Seniority_SENIORITY_UNSPECIFIED, seniorityToProto(role.Seniority(99)))
+	assert.Equal(t, caliberv1.RoleStatus_ROLE_STATUS_CLOSED, roleStatusToProto(role.RoleClosed))
+	assert.Equal(t, caliberv1.RoleStatus_ROLE_STATUS_UNSPECIFIED, roleStatusToProto(role.RoleStatus(99)))
 }
