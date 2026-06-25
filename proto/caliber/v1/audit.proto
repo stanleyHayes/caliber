@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package caliber.v1;
+
+import "caliber/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Audit trail — human approvals, overrides, and agent actions (EPIC-12).
+// Append-only; underpins the human-in-the-loop and explainability story.
+service AuditService {
+  rpc ListAuditLog(ListAuditLogRequest) returns (ListAuditLogResponse) {
+    option (google.api.http) = {get: "/v1/audit-log"};
+  }
+}
+
+message AuditEntry {
+  string id = 1;
+  string actor_user_id = 2;
+  string action = 3;       // e.g. "approve_rejection", "override_score", "agent_submit"
+  string entity = 4;       // entity type
+  string entity_id = 5;
+  string before_json = 6;  // snapshot before
+  string after_json = 7;   // snapshot after
+  google.protobuf.Timestamp timestamp = 8;
+}
+
+message ListAuditLogRequest {
+  string entity = 1;     // optional filter
+  string entity_id = 2;  // optional filter
+  PageRequest page = 3;
+}
+message ListAuditLogResponse {
+  repeated AuditEntry entries = 1;
+  PageResponse page = 2;
+}

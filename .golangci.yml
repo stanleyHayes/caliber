@@ -1,0 +1,48 @@
+# golangci-lint v2 config. Enforces the hexagonal dependency rule via depguard:
+# the domain core may not import application, adapter, or platform code.
+version: "2"
+
+linters:
+  enable:
+    - depguard
+    - revive
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+  settings:
+    depguard:
+      rules:
+        domain:
+          files:
+            - "**/internal/domain/**"
+          deny:
+            - pkg: github.com/xcreativs/caliber/internal/app
+              desc: "domain must not depend on application layer"
+            - pkg: github.com/xcreativs/caliber/internal/adapters
+              desc: "domain must not depend on adapters (ports & adapters rule)"
+            - pkg: github.com/xcreativs/caliber/internal/platform
+              desc: "domain must not depend on platform/infra"
+        app:
+          files:
+            - "**/internal/app/**"
+          deny:
+            - pkg: github.com/xcreativs/caliber/internal/adapters
+              desc: "use-cases depend on domain ports, not concrete adapters"
+
+  exclusions:
+    rules:
+      - path: internal/gen/
+        linters:
+          - depguard
+          - revive
+          - govet
+          - errcheck
+          - staticcheck
+          - ineffassign
+          - unused
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

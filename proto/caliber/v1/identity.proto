@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package caliber.v1;
+
+import "caliber/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Identity, authentication and the two POC roles (EPIC-02).
+// Auth = custom JWT + Argon2id + RBAC.
+service IdentityService {
+  rpc Register(RegisterRequest) returns (RegisterResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/register"
+      body: "*"
+    };
+  }
+  rpc Login(LoginRequest) returns (LoginResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/login"
+      body: "*"
+    };
+  }
+  rpc Refresh(RefreshRequest) returns (RefreshResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/refresh"
+      body: "*"
+    };
+  }
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/logout"
+      body: "*"
+    };
+  }
+  rpc GetMe(GetMeRequest) returns (GetMeResponse) {
+    option (google.api.http) = {get: "/v1/auth/me"};
+  }
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  UserRole role = 3;
+  string name = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+// Short-lived access token + rotating refresh token (CAL-019).
+message TokenPair {
+  string access_token = 1;
+  string refresh_token = 2;
+  int64 access_expires_in = 3; // seconds
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string name = 3;
+  UserRole role = 4; // employer/recruiter or candidate
+}
+message RegisterResponse {
+  User user = 1;
+  TokenPair tokens = 2;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+message LoginResponse {
+  User user = 1;
+  TokenPair tokens = 2;
+}
+
+message RefreshRequest {
+  string refresh_token = 1;
+}
+message RefreshResponse {
+  TokenPair tokens = 1;
+}
+
+message LogoutRequest {
+  string refresh_token = 1;
+}
+message LogoutResponse {}
+
+message GetMeRequest {}
+message GetMeResponse {
+  User user = 1;
+}

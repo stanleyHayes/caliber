@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package caliber.v1;
+
+import "caliber/v1/common.proto";
+import "google/api/annotations.proto";
+
+// AI screening interviewer — Flow B, the centrepiece (EPIC-09).
+// Adaptive FSM; report card mirrors Appendix A.3; every score cites a quote.
+service InterviewService {
+  // Open a streamed session. The server pushes questions, recorded turns,
+  // and finally the report card over the stream (gRPC server-stream / SSE).
+  rpc StartInterview(StartInterviewRequest) returns (stream StartInterviewResponse) {
+    option (google.api.http) = {
+      post: "/v1/interviews:start"
+      body: "*"
+    };
+  }
+  // Candidate answers the current question; the next question arrives on the stream.
+  rpc SubmitAnswer(SubmitAnswerRequest) returns (SubmitAnswerResponse) {
+    option (google.api.http) = {
+      post: "/v1/interviews/{interview_id}/answers"
+      body: "*"
+    };
+  }
+  rpc GetReportCard(GetReportCardRequest) returns (GetReportCardResponse) {
+    option (google.api.http) = {get: "/v1/interviews/{interview_id}/report-card"};
+  }
+}
+
+message InterviewQuestion {
+  string interview_id = 1;
+  int32 ordinal = 2;
+  string text = 3;
+  string competency_tag = 4; // which rubric competency this probes
+}
+
+message InterviewTurn {
+  string id = 1;
+  int32 ordinal = 2;
+  string question = 3;
+  string answer = 4;
+  string competency_tag = 5;
+}
+
+// Per-competency score with its supporting transcript quote (Appendix A.3).
+message CompetencyScore {
+  string competency = 1;
+  double score = 2;    // 0..5
+  string evidence = 3; // quote from the transcript
+}
+
+message ReportCard {
+  string interview_id = 1;
+  string role_id = 2;
+  string candidate_id = 3;
+  InterviewVerdict verdict = 4;
+  Confidence confidence = 5;
+  repeated CompetencyScore scores = 6;
+  string recommended_next_step = 7;
+}
+
+message InterviewStatusEvent {
+  string state = 1;   // e.g. "open", "asking", "scoring", "closed"
+  string message = 2;
+}
+
+// Streamed event envelope (the StartInterview server-stream message).
+message StartInterviewResponse {
+  oneof event {
+    InterviewQuestion question = 1;
+    InterviewTurn turn = 2;
+    ReportCard report_card = 3;
+    InterviewStatusEvent status = 4;
+  }
+}
+
+message StartInterviewRequest {
+  string role_id = 1;
+  string candidate_id = 2;
+  InterviewMode mode = 3; // TEXT (default) or VOICE (post-win)
+}
+
+message SubmitAnswerRequest {
+  string interview_id = 1;
+  string answer = 2;
+}
+message SubmitAnswerResponse {
+  bool accepted = 1;
+}
+
+message GetReportCardRequest {
+  string interview_id = 1;
+}
+message GetReportCardResponse {
+  ReportCard report_card = 1;
+}

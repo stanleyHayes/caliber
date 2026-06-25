@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package caliber.v1;
+
+import "caliber/v1/common.proto";
+import "google/api/annotations.proto";
+
+// Candidate autonomous agent — Flow C, "works while you sleep, honestly" (EPIC-10).
+// Hard invariant: no fabrication — only verified profile content is surfaced (CAL-071).
+service CandidateAgentService {
+  // Enqueue an autonomous agent run over the open-role pool (async job).
+  rpc RunAgent(RunAgentRequest) returns (RunAgentResponse) {
+    option (google.api.http) = {
+      post: "/v1/candidates/{candidate_id}/agent:run"
+      body: "*"
+    };
+  }
+  // Controlled demo "run overnight" — advances agent state live and returns the wake-up view.
+  rpc TimeAdvance(TimeAdvanceRequest) returns (TimeAdvanceResponse) {
+    option (google.api.http) = {
+      post: "/v1/candidates/{candidate_id}/agent:timeAdvance"
+      body: "*"
+    };
+  }
+  rpc GetWakeUpView(GetWakeUpViewRequest) returns (GetWakeUpViewResponse) {
+    option (google.api.http) = {get: "/v1/candidates/{candidate_id}/wake-up"};
+  }
+  rpc ListApplications(ListApplicationsRequest) returns (ListApplicationsResponse) {
+    option (google.api.http) = {get: "/v1/candidates/{candidate_id}/applications"};
+  }
+}
+
+message Application {
+  string id = 1;
+  string role_id = 2;
+  string candidate_id = 3;
+  ApplicationSource source = 4;     // manual or agent
+  string tailored_summary = 5;      // drawn only from verified profile content
+  ApplicationStatus status = 6;
+}
+
+// The "wake-up" summary surfaced after a time-advance (CAL-074).
+message WakeUpView {
+  int32 new_matches = 1;
+  int32 applications_submitted = 2;
+  int32 screenings_completed = 3;
+  int32 employers_interested = 4;
+  repeated string highlights = 5;   // e.g. "screening for the Acme role completed — you scored 87"
+}
+
+message RunAgentRequest {
+  string candidate_id = 1;
+}
+message RunAgentResponse {
+  string job_id = 1;
+}
+
+message TimeAdvanceRequest {
+  string candidate_id = 1;
+}
+message TimeAdvanceResponse {
+  WakeUpView wake_up = 1;
+}
+
+message GetWakeUpViewRequest {
+  string candidate_id = 1;
+}
+message GetWakeUpViewResponse {
+  WakeUpView wake_up = 1;
+}
+
+message ListApplicationsRequest {
+  string candidate_id = 1;
+  PageRequest page = 2;
+}
+message ListApplicationsResponse {
+  repeated Application applications = 1;
+  PageResponse page = 2;
+}
