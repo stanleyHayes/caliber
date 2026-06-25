@@ -27,14 +27,30 @@ type RegisterInput struct {
 	Role     identitydom.Role
 }
 
+// Provisioner bootstraps the bounded-context aggregate a newly registered user
+// owns (e.g. a candidate's Talent Passport). It is invoked during Register after
+// the user is persisted. A nil-role-match implementation should be a no-op.
+type Provisioner interface {
+	Provision(ctx context.Context, user *identitydom.User) error
+}
+
 // Service implements the identity use-cases over the domain and security ports.
 type Service struct {
-	users   identitydom.UserRepository
-	hasher  app.PasswordHasher
-	tokens  app.TokenService
-	refresh app.RefreshTokenStore
-	now     app.Clock
-	policy  identitydom.PasswordPolicy
+	users       identitydom.UserRepository
+	hasher      app.PasswordHasher
+	tokens      app.TokenService
+	refresh     app.RefreshTokenStore
+	now         app.Clock
+	policy      identitydom.PasswordPolicy
+	provisioner Provisioner
+}
+
+// Option customizes a Service.
+type Option func(*Service)
+
+// WithProvisioner installs a context-bootstrap provisioner invoked on Register.
+func WithProvisioner(p Provisioner) Option {
+	return func(s *Service) { s.provisioner = p }
 }
 
 // NewService wires the use-case. A nil clock defaults to time.Now.
@@ -44,14 +60,19 @@ func NewService(
 	tokens app.TokenService,
 	refresh app.RefreshTokenStore,
 	now app.Clock,
+	opts ...Option,
 ) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{
+	s := &Service{
 		users: users, hasher: hasher, tokens: tokens, refresh: refresh,
 		now: now, policy: identitydom.DefaultPasswordPolicy(),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // Register validates the input, creates the user with a hashed password, and
@@ -77,6 +98,15 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*Session, err
 	}
 	if err := s.users.Create(ctx, user); err != nil {
 		return nil, err
+	}
+	if s.provisioner != nil {
+		// Best-effort atomicity is not available across two repositories without
+		// a shared transaction; a provisioning failure fails the registration so
+		// the partial state surfaces rather than silently leaving a context-less
+		// account.
+		if err := s.provisioner.Provision(ctx, user); err != nil {
+			return nil, err
+		}
 	}
 	return s.issue(ctx, user)
 }

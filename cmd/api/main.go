@@ -25,6 +25,7 @@ import (
 	"github.com/xcreativs/caliber/internal/app"
 	identityapp "github.com/xcreativs/caliber/internal/app/identity"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
+	"github.com/xcreativs/caliber/internal/app/provisioning"
 	"github.com/xcreativs/caliber/internal/app/roles"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/role"
@@ -71,6 +72,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	var roleRepo role.RoleRepository = memory.NewRoleRepo()
 	var userRepo identity.UserRepository = memory.NewUserRepo()
 	var refreshStore app.RefreshTokenStore = memory.NewRefreshStore()
+	var idOpts []identityapp.Option
 	if cfg.DatabaseURL != "" {
 		pool, perr := pgxpool.New(ctx, cfg.DatabaseURL)
 		if perr != nil {
@@ -84,6 +86,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 		roleRepo = postgres.NewRoleRepo(pool)
 		userRepo = postgres.NewUserRepo(pool)
 		refreshStore = postgres.NewRefreshStore(pool)
+		idOpts = append(idOpts, identityapp.WithProvisioner(provisioning.NewCandidateProvisioner(postgres.NewCandidateRepo(pool))))
 		shortlister := matchingapp.NewShortlister(
 			roleRepo, postgres.NewCandidateRepo(pool), postgres.NewTalentProfileRepo(pool),
 			postgres.NewRecaller(pool), embedder, model, postgres.NewMatchRepo(pool),
@@ -98,7 +101,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	if terr != nil {
 		return svc, cleanup, terr
 	}
-	identitySvc := identityapp.NewService(userRepo, authadapter.NewArgon2idHasher(), tokens, refreshStore, time.Now)
+	identitySvc := identityapp.NewService(userRepo, authadapter.NewArgon2idHasher(), tokens, refreshStore, time.Now, idOpts...)
 	svc.Identity = grpcadapter.NewIdentityServer(identitySvc)
 	svc.AccessVerifier = tokens
 

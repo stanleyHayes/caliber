@@ -215,3 +215,49 @@ func TestMe(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, u.Email, got.Email)
 }
+
+type fakeProvisioner struct {
+	called bool
+	user   *identitydom.User
+	err    error
+}
+
+func (f *fakeProvisioner) Provision(_ context.Context, u *identitydom.User) error {
+	f.called = true
+	f.user = u
+	return f.err
+}
+
+func TestRegisterInvokesProvisioner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	d.hasher.EXPECT().Hash(gomock.Any()).Return("hashed-pw", nil)
+	d.users.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+	d.expectIssue()
+	fake := &fakeProvisioner{}
+
+	svc := identityapp.NewService(d.users, d.hasher, d.tokens, d.refresh,
+		func() time.Time { return time.Unix(1700000000, 0) }, identityapp.WithProvisioner(fake))
+	_, err := svc.Register(context.Background(), identityapp.RegisterInput{
+		Email: "ama@example.com", Password: "super-secret-pass", Name: "Ama", Role: identitydom.RoleCandidate,
+	})
+	require.NoError(t, err)
+	assert.True(t, fake.called)
+	assert.Equal(t, identitydom.Email("ama@example.com"), fake.user.Email)
+}
+
+func TestRegisterFailsWhenProvisioningFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	d.hasher.EXPECT().Hash(gomock.Any()).Return("hashed-pw", nil)
+	d.users.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+	// No token issuance expected: provisioning fails first.
+	fake := &fakeProvisioner{err: kernel.Wrap(nil, kernel.KindInternal, "boom")}
+
+	svc := identityapp.NewService(d.users, d.hasher, d.tokens, d.refresh,
+		func() time.Time { return time.Unix(1700000000, 0) }, identityapp.WithProvisioner(fake))
+	_, err := svc.Register(context.Background(), identityapp.RegisterInput{
+		Email: "ama@example.com", Password: "super-secret-pass", Name: "Ama", Role: identitydom.RoleCandidate,
+	})
+	assert.Equal(t, kernel.KindInternal, kernel.KindOf(err))
+}
