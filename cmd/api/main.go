@@ -68,6 +68,9 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	embedder := buildEmbedder(cfg, log)
 	cleanup := func() {}
 	svc := grpcadapter.Services{}
+	if cfg.IsProd() && cfg.DatabaseURL == "" {
+		return svc, cleanup, errors.New("CALIBER_DATABASE_URL is required in production")
+	}
 
 	var roleRepo role.RoleRepository = memory.NewRoleRepo()
 	var userRepo identity.UserRepository = memory.NewUserRepo()
@@ -101,6 +104,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	if terr != nil {
 		return svc, cleanup, terr
 	}
+	idOpts = append(idOpts, identityapp.WithThrottle(memory.NewLoginThrottle(time.Now, 0, 0, 0)))
 	identitySvc := identityapp.NewService(userRepo, authadapter.NewArgon2idHasher(), tokens, refreshStore, time.Now, idOpts...)
 	svc.Identity = grpcadapter.NewIdentityServer(identitySvc)
 	svc.AccessVerifier = tokens

@@ -127,6 +127,7 @@ func TestLoginGenericFailures(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		d := newDeps(ctrl)
 		d.users.EXPECT().ByEmail(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
+		d.hasher.EXPECT().Hash(gomock.Any()).Return("dummy", nil) // timing equalization
 		_, err := d.service().Login(context.Background(), "ghost@example.com", "whatever-secret")
 		assert.Equal(t, kernel.KindUnauthorized, kernel.KindOf(err))
 	})
@@ -260,4 +261,41 @@ func TestRegisterFailsWhenProvisioningFails(t *testing.T) {
 		Email: "ama@example.com", Password: "super-secret-pass", Name: "Ama", Role: identitydom.RoleCandidate,
 	})
 	assert.Equal(t, kernel.KindInternal, kernel.KindOf(err))
+}
+
+func TestLoginThrottleBlocksLockedKey(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	throttle := mocks.NewMockLoginThrottle(ctrl)
+	throttle.EXPECT().Check(gomock.Any(), "ama@example.com").Return(kernel.TooManyRequests("locked"))
+	// users.ByEmail must NOT be called: the lockout blocks before the credential check.
+
+	svc := identityapp.NewService(d.users, d.hasher, d.tokens, d.refresh,
+		func() time.Time { return time.Unix(1700000000, 0) }, identityapp.WithThrottle(throttle))
+	_, err := svc.Login(context.Background(), "ama@example.com", "whatever-secret")
+	assert.Equal(t, kernel.KindTooManyRequests, kernel.KindOf(err))
+}
+
+func TestLoginThrottleRecordsFailureThenResets(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	throttle := mocks.NewMockLoginThrottle(ctrl)
+	u := activeUser(t)
+	svc := identityapp.NewService(d.users, d.hasher, d.tokens, d.refresh,
+		func() time.Time { return time.Unix(1700000000, 0) }, identityapp.WithThrottle(throttle))
+
+	throttle.EXPECT().Check(gomock.Any(), "ama@example.com").Return(nil)
+	d.users.EXPECT().ByEmail(gomock.Any(), gomock.Any()).Return(u, nil)
+	d.hasher.EXPECT().Verify(gomock.Any(), gomock.Any()).Return(false, nil)
+	throttle.EXPECT().Fail(gomock.Any(), "ama@example.com")
+	_, err := svc.Login(context.Background(), "ama@example.com", "wrong")
+	assert.Equal(t, kernel.KindUnauthorized, kernel.KindOf(err))
+
+	throttle.EXPECT().Check(gomock.Any(), "ama@example.com").Return(nil)
+	d.users.EXPECT().ByEmail(gomock.Any(), gomock.Any()).Return(u, nil)
+	d.hasher.EXPECT().Verify(gomock.Any(), gomock.Any()).Return(true, nil)
+	throttle.EXPECT().Reset(gomock.Any(), "ama@example.com")
+	d.expectIssue()
+	_, err = svc.Login(context.Background(), "ama@example.com", "super-secret-pass")
+	require.NoError(t, err)
 }

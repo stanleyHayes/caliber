@@ -76,3 +76,16 @@ type RefreshTokenStore interface {
 	// Revoke marks a grant revoked (logout). Revoking an unknown jti is a no-op.
 	Revoke(ctx context.Context, jti string) error
 }
+
+// LoginThrottle protects the login path from brute-force / credential-stuffing
+// by limiting failed attempts per key (e.g. normalized email). It is a
+// best-effort, in-process control for the POC.
+type LoginThrottle interface {
+	// Check reports a kernel.KindTooManyRequests error when the key is currently
+	// locked out, or nil when a login attempt may proceed.
+	Check(ctx context.Context, key string) error
+	// Fail records a failed attempt for the key.
+	Fail(ctx context.Context, key string)
+	// Reset clears the attempt counter for the key after a successful login.
+	Reset(ctx context.Context, key string)
+}

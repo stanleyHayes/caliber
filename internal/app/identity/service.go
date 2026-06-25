@@ -43,6 +43,7 @@ type Service struct {
 	now         app.Clock
 	policy      identitydom.PasswordPolicy
 	provisioner Provisioner
+	throttle    app.LoginThrottle
 }
 
 // Option customizes a Service.
@@ -51,6 +52,11 @@ type Option func(*Service)
 // WithProvisioner installs a context-bootstrap provisioner invoked on Register.
 func WithProvisioner(p Provisioner) Option {
 	return func(s *Service) { s.provisioner = p }
+}
+
+// WithThrottle installs a brute-force login throttle.
+func WithThrottle(t app.LoginThrottle) Option {
+	return func(s *Service) { s.throttle = t }
 }
 
 // NewService wires the use-case. A nil clock defaults to time.Now.
@@ -119,20 +125,18 @@ func (s *Service) Login(ctx context.Context, rawEmail, password string) (*Sessio
 	if err != nil {
 		return nil, invalidCredentials()
 	}
-	user, err := s.users.ByEmail(ctx, email)
+	key := email.String()
+	if err := s.throttleCheck(ctx, key); err != nil {
+		return nil, err
+	}
+	user, err := s.verifyCredentials(ctx, email, password)
 	if err != nil {
-		if kernel.KindOf(err) == kernel.KindNotFound {
-			return nil, invalidCredentials()
+		if kernel.KindOf(err) == kernel.KindUnauthorized {
+			s.throttleFail(ctx, key)
 		}
 		return nil, err
 	}
-	ok, err := s.hasher.Verify(user.PasswordHash, password)
-	if err != nil {
-		return nil, err
-	}
-	if !ok || !user.IsActive() {
-		return nil, invalidCredentials()
-	}
+	s.throttleReset(ctx, key)
 	return s.issue(ctx, user)
 }
 
@@ -173,6 +177,48 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 // Me returns the user behind an authenticated principal.
 func (s *Service) Me(ctx context.Context, userID kernel.ID) (*identitydom.User, error) {
 	return s.users.ByID(ctx, userID)
+}
+
+// verifyCredentials loads the user and checks the password, returning a generic
+// unauthorized error for an unknown email, a wrong password, or an inactive
+// account. An unknown email still performs equivalent hashing work so response
+// time does not reveal whether the account exists (enumeration defense).
+func (s *Service) verifyCredentials(ctx context.Context, email identitydom.Email, password string) (*identitydom.User, error) {
+	user, err := s.users.ByEmail(ctx, email)
+	if err != nil {
+		if kernel.KindOf(err) == kernel.KindNotFound {
+			_, _ = s.hasher.Hash(password) // equalize timing against the verify path
+			return nil, invalidCredentials()
+		}
+		return nil, err
+	}
+	ok, err := s.hasher.Verify(user.PasswordHash, password)
+	if err != nil {
+		return nil, err
+	}
+	if !ok || !user.IsActive() {
+		return nil, invalidCredentials()
+	}
+	return user, nil
+}
+
+func (s *Service) throttleCheck(ctx context.Context, key string) error {
+	if s.throttle == nil {
+		return nil
+	}
+	return s.throttle.Check(ctx, key)
+}
+
+func (s *Service) throttleFail(ctx context.Context, key string) {
+	if s.throttle != nil {
+		s.throttle.Fail(ctx, key)
+	}
+}
+
+func (s *Service) throttleReset(ctx context.Context, key string) {
+	if s.throttle != nil {
+		s.throttle.Reset(ctx, key)
+	}
 }
 
 // issue mints an access + refresh pair and records the refresh grant.

@@ -222,3 +222,65 @@ func (mr *MockRefreshTokenStoreMockRecorder) Save(ctx, rec any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockRefreshTokenStore)(nil).Save), ctx, rec)
 }
+
+// MockLoginThrottle is a mock of LoginThrottle interface.
+type MockLoginThrottle struct {
+	ctrl     *gomock.Controller
+	recorder *MockLoginThrottleMockRecorder
+	isgomock struct{}
+}
+
+// MockLoginThrottleMockRecorder is the mock recorder for MockLoginThrottle.
+type MockLoginThrottleMockRecorder struct {
+	mock *MockLoginThrottle
+}
+
+// NewMockLoginThrottle creates a new mock instance.
+func NewMockLoginThrottle(ctrl *gomock.Controller) *MockLoginThrottle {
+	mock := &MockLoginThrottle{ctrl: ctrl}
+	mock.recorder = &MockLoginThrottleMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockLoginThrottle) EXPECT() *MockLoginThrottleMockRecorder {
+	return m.recorder
+}
+
+// Check mocks base method.
+func (m *MockLoginThrottle) Check(ctx context.Context, key string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Check", ctx, key)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Check indicates an expected call of Check.
+func (mr *MockLoginThrottleMockRecorder) Check(ctx, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Check", reflect.TypeOf((*MockLoginThrottle)(nil).Check), ctx, key)
+}
+
+// Fail mocks base method.
+func (m *MockLoginThrottle) Fail(ctx context.Context, key string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Fail", ctx, key)
+}
+
+// Fail indicates an expected call of Fail.
+func (mr *MockLoginThrottleMockRecorder) Fail(ctx, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fail", reflect.TypeOf((*MockLoginThrottle)(nil).Fail), ctx, key)
+}
+
+// Reset mocks base method.
+func (m *MockLoginThrottle) Reset(ctx context.Context, key string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Reset", ctx, key)
+}
+
+// Reset indicates an expected call of Reset.
+func (mr *MockLoginThrottleMockRecorder) Reset(ctx, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockLoginThrottle)(nil).Reset), ctx, key)
+}

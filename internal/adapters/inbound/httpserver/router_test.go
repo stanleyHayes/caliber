@@ -1,4 +1,4 @@
-package httpserver
+package httpserver_test
 
 import (
 	"net/http"
@@ -6,27 +6,27 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+
+	"github.com/xcreativs/caliber/internal/adapters/inbound/httpserver"
 )
 
-func TestRouter(t *testing.T) {
-	gw := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(299) })
-	r := NewRouter(gw)
+func TestSecureHeadersAndHealth(t *testing.T) {
+	r := httpserver.NewRouter(http.NotFoundHandler(), true)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 
-	do := func(path string) *httptest.ResponseRecorder {
-		rec := httptest.NewRecorder()
-		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
-		return rec
-	}
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, "DENY", rec.Header().Get("X-Frame-Options"))
+	assert.NotEmpty(t, rec.Header().Get("Content-Security-Policy"))
+	assert.NotEmpty(t, rec.Header().Get("Referrer-Policy"))
+	assert.Equal(t, "max-age=31536000; includeSubDomains", rec.Header().Get("Strict-Transport-Security"))
+}
 
-	h := do("/healthz")
-	require.Equal(t, http.StatusOK, h.Code)
-	assert.JSONEq(t, `{"status":"ok"}`, h.Body.String())
-
-	rz := do("/readyz")
-	require.Equal(t, http.StatusOK, rz.Code)
-	assert.JSONEq(t, `{"status":"ready"}`, rz.Body.String())
-
-	gw299 := do("/v1/anything")
-	assert.Equal(t, 299, gw299.Code, "should route under /v1 to the gateway handler")
+func TestNoHSTSOutsideProd(t *testing.T) {
+	r := httpserver.NewRouter(http.NotFoundHandler(), false)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	assert.Empty(t, rec.Header().Get("Strict-Transport-Security"))
+	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 }

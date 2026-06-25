@@ -74,6 +74,7 @@ func TestIdentityLoginHandlerUnauthorized(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	srv, d := newIdentityServer(t, ctrl)
 	d.users.EXPECT().ByEmail(gomock.Any(), gomock.Any()).Return(nil, kernelNotFound())
+	d.hasher.EXPECT().Hash(gomock.Any()).Return("dummy", nil) // timing equalization
 	_, err := srv.Login(context.Background(), &caliberv1.LoginRequest{Email: "x@example.com", Password: "whatever-secret"})
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }

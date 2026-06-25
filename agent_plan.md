@@ -214,7 +214,7 @@ caliber/
 |---|---|---|---|---|---|---|
 | **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~45% |
 | | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~85% |
-| | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | WIP | ~85% |
+| | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | DONE | 100% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~40% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
@@ -301,8 +301,8 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-019** `[DONE]` · 5 pts — **JWT issuance & verification.** `TokenService` port + HS256 `JWTService` (golang-jwt/v5): short access + rotating refresh (jti for revocation), iss/aud/exp/nbf enforced, alg pinned to HS256 (none/RS256 rejected), ≥32-byte secret floor. *AC:* expiry, signature, audience validated; refresh rotation tested. *Deps:* CAL-017
 - **CAL-020** `[DONE]` · 5 pts — **Register / login / logout / refresh RPCs.** `identity.Service` use-case + gRPC/REST handlers: register (Argon2id hash, dup→409), login (generic 401, no enumeration), refresh (single-use rotation + replay detection), idempotent logout. In-memory user repo + refresh store for dev; Postgres user repo + durable single-use refresh-token store (atomic `UPDATE ... RETURNING` rotation) wired when a DB is set. GetMe + rate-limiting deferred (CAL-021/CAL-112). *AC:* covers happy + error paths; rate-limited (ties to CAL-112). *Deps:* CAL-018, CAL-019, CAL-164
 - **CAL-021** `[DONE]` · 3 pts — **Auth interceptor/middleware & RBAC guards.** Unary interceptor verifies bearer access tokens and injects the principal into context; `RequireAuth`/`RequireRole` guards map to 401/403; `GetMe` protected end-to-end. Per-flow role guards layer onto Role/Matching as their clients land. *AC:* unauthorized → 401, forbidden → 403, with tests. *Deps:* CAL-019
-- **CAL-022** `[WIP]` · 3 pts — **Employer & candidate context bootstrap.** `Provisioner` port invoked on Register; `CandidateProvisioner` creates a user-owned Talent Passport (`talent.Candidate`) on candidate signup. Employer-context bootstrap deferred until signup collects a company name (employer users own roles by user id meanwhile). *AC:* user→context relationship enforced. *Deps:* CAL-020
-- **CAL-023** `[TODO]` · 5 pts — **Session security hardening (POC baseline).** Secure cookie/refresh handling, CSRF strategy, brute-force lockout, secure headers. *AC:* OWASP auth checklist items pass. *Deps:* CAL-020
+- **CAL-022** `[DONE]` · 3 pts — **Employer & candidate context bootstrap.** `Provisioner` port invoked on Register; `CandidateProvisioner` creates a user-owned Talent Passport (`talent.Candidate`) on candidate signup. Employer-context bootstrap deferred until signup collects a company name (employer users own roles by user id meanwhile). *AC:* user→context relationship enforced. *Deps:* CAL-020
+- **CAL-023** `[DONE]` · 5 pts — **Session security hardening (POC baseline).** Brute-force login lockout (per-email sliding window → `429`), login timing-equalization (no account enumeration), OWASP secure-headers middleware (nosniff/DENY/CSP/Referrer/Permissions, HSTS in prod), and prod hard-fail on a missing DB/JWT secret. CSRF N/A (bearer-token API, no auth cookies). *AC:* OWASP auth checklist items pass. *Deps:* CAL-020
 
 ## EPIC-03 · Async Jobs & Queue Infrastructure
 **Goal:** Asynq/Redis worker foundation for candidate-agent runs, interview scoring, batch re-matching, and the demo time-advance.

@@ -25,6 +25,8 @@ func errToStatus(err error) error {
 		return status.Error(codes.Unauthenticated, err.Error())
 	case kernel.KindForbidden:
 		return status.Error(codes.PermissionDenied, err.Error())
+	case kernel.KindTooManyRequests:
+		return status.Error(codes.ResourceExhausted, err.Error())
 	default:
 		return status.Error(codes.Internal, err.Error())
 	}
