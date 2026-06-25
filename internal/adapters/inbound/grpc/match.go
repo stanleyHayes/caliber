@@ -28,18 +28,23 @@ func (s *MatchServer) GenerateShortlist(
 	if limit <= 0 {
 		limit = defaultShortlistLimit
 	}
-	matches, err := s.shortlister.GenerateShortlist(ctx, kernel.ID(req.GetRoleId()), limit)
+	result, err := s.shortlister.GenerateShortlist(ctx, kernel.ID(req.GetRoleId()), limit)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
-	protoMatches := make([]*caliberv1.Match, 0, len(matches))
-	for _, m := range matches {
+	protoMatches := make([]*caliberv1.Match, 0, len(result.Matches))
+	for _, m := range result.Matches {
 		protoMatches = append(protoMatches, matchToProto(m))
+	}
+	exclusions := make([]*caliberv1.CandidateExclusion, 0, len(result.Exclusions))
+	for _, e := range result.Exclusions {
+		exclusions = append(exclusions, exclusionToProto(e))
 	}
 	return &caliberv1.GenerateShortlistResponse{
 		Shortlist: &caliberv1.Shortlist{
-			Matches:   protoMatches,
-			PoolDepth: int32(len(protoMatches)), //nolint:gosec // shortlist length is small and bounded
+			Matches:    protoMatches,
+			PoolDepth:  int32(len(protoMatches)), //nolint:gosec // shortlist length is small and bounded
+			Exclusions: exclusions,
 		},
 	}, nil
 }

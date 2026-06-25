@@ -8,6 +8,7 @@ import (
 	"github.com/xcreativs/caliber/internal/app"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	"github.com/xcreativs/caliber/internal/mocks"
@@ -18,9 +19,37 @@ import (
 )
 
 const (
-	score06 = `{"overall_score":0.6,"confidence":"medium","breakdown":[{"competency":"Go","score":3,"evidence":"x"}],"rationale":"solid","watch_outs":[],"thin_evidence":false}`
-	score09 = `{"overall_score":0.9,"confidence":"high","breakdown":[{"competency":"Go","score":4.5,"evidence":"y"}],"rationale":"excellent","watch_outs":["thin mentoring"],"thin_evidence":false}`
+	score06  = `{"overall_score":0.6,"confidence":"medium","breakdown":[{"competency":"Go","score":3,"evidence":"x"}],"rationale":"solid","watch_outs":[],"thin_evidence":false}`
+	score09  = `{"overall_score":0.9,"confidence":"high","breakdown":[{"competency":"Go","score":4.5,"evidence":"y"}],"rationale":"excellent","watch_outs":["thin mentoring"],"thin_evidence":false}`
+	scoreGo1 = `{"overall_score":0.3,"confidence":"low","breakdown":[{"competency":"Go","score":1,"evidence":"z"}],"rationale":"weak","watch_outs":[],"thin_evidence":true}`
 )
+
+// shortDeps bundles the mock collaborators of the Shortlister for terse setup.
+type shortDeps struct {
+	roles      *mocks.MockRoleRepository
+	candidates *mocks.MockCandidateRepository
+	profiles   *mocks.MockTalentProfileRepository
+	recaller   *mocks.MockCandidateRecaller
+	embedder   *mocks.MockEmbedder
+	scorer     *mocks.MockLLMClient
+	matchRepo  *mocks.MockMatchRepository
+}
+
+func newDeps(ctrl *gomock.Controller) shortDeps {
+	return shortDeps{
+		roles:      mocks.NewMockRoleRepository(ctrl),
+		candidates: mocks.NewMockCandidateRepository(ctrl),
+		profiles:   mocks.NewMockTalentProfileRepository(ctrl),
+		recaller:   mocks.NewMockCandidateRecaller(ctrl),
+		embedder:   mocks.NewMockEmbedder(ctrl),
+		scorer:     mocks.NewMockLLMClient(ctrl),
+		matchRepo:  mocks.NewMockMatchRepository(ctrl),
+	}
+}
+
+func (d shortDeps) shortlister() *matchingapp.Shortlister {
+	return matchingapp.NewShortlister(d.roles, d.candidates, d.profiles, d.recaller, d.embedder, d.scorer, d.matchRepo)
+}
 
 func validRole(t *testing.T) *role.Role {
 	t.Helper()
@@ -35,6 +64,13 @@ func validRole(t *testing.T) *role.Role {
 	return rl
 }
 
+func candidateAt(t *testing.T, location string) *talent.Candidate {
+	t.Helper()
+	c, err := talent.NewCandidate(kernel.NewID(), location, talent.CandidateIntake{})
+	require.NoError(t, err)
+	return c
+}
+
 func profileFor(t *testing.T, cid kernel.ID) *talent.TalentProfile {
 	t.Helper()
 	p, err := talent.NewTalentProfile(cid, "summary",
@@ -45,65 +81,214 @@ func profileFor(t *testing.T, cid kernel.ID) *talent.TalentProfile {
 
 func TestGenerateShortlistRanksAndPersists(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	roles := mocks.NewMockRoleRepository(ctrl)
-	profiles := mocks.NewMockTalentProfileRepository(ctrl)
-	recaller := mocks.NewMockCandidateRecaller(ctrl)
-	embedder := mocks.NewMockEmbedder(ctrl)
-	scorer := mocks.NewMockLLMClient(ctrl)
-	matchRepo := mocks.NewMockMatchRepository(ctrl)
+	d := newDeps(ctrl)
 
 	rl := validRole(t)
 	c1, c2 := kernel.NewID(), kernel.NewID()
 
-	roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
-	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1, 0.2}, nil)
-	recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), 10).Return([]kernel.ID{c1, c2}, nil)
-	profiles.EXPECT().ByCandidateID(gomock.Any(), c1).Return(profileFor(t, c1), nil)
-	profiles.EXPECT().ByCandidateID(gomock.Any(), c2).Return(profileFor(t, c2), nil)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1, 0.2}, nil)
+	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), 10).Return([]kernel.ID{c1, c2}, nil)
+	d.candidates.EXPECT().ByID(gomock.Any(), c1).Return(candidateAt(t, "Accra"), nil)
+	d.candidates.EXPECT().ByID(gomock.Any(), c2).Return(candidateAt(t, "Accra"), nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), c1).Return(profileFor(t, c1), nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), c2).Return(profileFor(t, c2), nil)
 	gomock.InOrder(
-		scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score06}, nil),
-		scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score09}, nil),
+		d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score06}, nil),
+		d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score09}, nil),
 	)
-	matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil).Times(2)
+	d.matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
-	s := matchingapp.NewShortlister(roles, profiles, recaller, embedder, scorer, matchRepo)
-	out, err := s.GenerateShortlist(context.Background(), rl.ID, 10)
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
 	require.NoError(t, err)
-	require.Len(t, out, 2)
-	assert.Equal(t, c2, out[0].CandidateID, "candidate scored 0.9 ranks first")
-	assert.InDelta(t, 0.9, out[0].OverallScore, 1e-9)
-	assert.Equal(t, kernel.ConfidenceHigh, out[0].Confidence)
-	assert.Equal(t, c1, out[1].CandidateID)
-	assert.InDelta(t, 0.6, out[1].OverallScore, 1e-9)
+	require.Len(t, res.Matches, 2)
+	assert.Empty(t, res.Exclusions)
+	assert.Equal(t, c2, res.Matches[0].CandidateID, "candidate scored 0.9 ranks first")
+	assert.InDelta(t, 0.9, res.Matches[0].OverallScore, 1e-9)
+	assert.Equal(t, kernel.ConfidenceHigh, res.Matches[0].Confidence)
+	assert.Equal(t, c1, res.Matches[1].CandidateID)
+	assert.InDelta(t, 0.6, res.Matches[1].OverallScore, 1e-9)
+}
+
+// TestGenerateShortlistHardFilters proves stage-3 gating: a location-mismatched
+// candidate is excluded BEFORE scoring (no LLM call), an under-scored must-have
+// candidate is excluded AFTER scoring, and only the qualifying candidate is
+// persisted and returned — each exclusion carrying a reason.
+func TestGenerateShortlistHardFilters(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+
+	rl := validRole(t)
+	cLagos, cWeak, cGood := kernel.NewID(), kernel.NewID(), kernel.NewID()
+
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1}, nil)
+	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{cLagos, cWeak, cGood}, nil)
+
+	d.candidates.EXPECT().ByID(gomock.Any(), cLagos).Return(candidateAt(t, "Lagos"), nil)
+	d.candidates.EXPECT().ByID(gomock.Any(), cWeak).Return(candidateAt(t, "Accra"), nil)
+	d.candidates.EXPECT().ByID(gomock.Any(), cGood).Return(candidateAt(t, "Accra"), nil)
+
+	// cLagos is gated out pre-scoring: its profile is never loaded, never scored.
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cWeak).Return(profileFor(t, cWeak), nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cGood).Return(profileFor(t, cGood), nil)
+	gomock.InOrder(
+		d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: scoreGo1}, nil),
+		d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score09}, nil),
+	)
+	d.matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 25)
+	require.NoError(t, err)
+
+	require.Len(t, res.Matches, 1)
+	assert.Equal(t, cGood, res.Matches[0].CandidateID)
+
+	require.Len(t, res.Exclusions, 2)
+	byCandidate := map[kernel.ID]matchingdom.Exclusion{}
+	for _, e := range res.Exclusions {
+		byCandidate[e.CandidateID] = e
+		assert.NotEmpty(t, e.Reason)
+	}
+	assert.Equal(t, matchingdom.GateLocation, byCandidate[cLagos].Gate)
+	assert.Equal(t, matchingdom.GateMustHave, byCandidate[cWeak].Gate)
 }
 
 func TestGenerateShortlistRoleNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	roles := mocks.NewMockRoleRepository(ctrl)
-	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
-	s := matchingapp.NewShortlister(roles, mocks.NewMockTalentProfileRepository(ctrl), mocks.NewMockCandidateRecaller(ctrl),
-		mocks.NewMockEmbedder(ctrl), mocks.NewMockLLMClient(ctrl), mocks.NewMockMatchRepository(ctrl))
-	_, err := s.GenerateShortlist(context.Background(), kernel.NewID(), 10)
+	d := newDeps(ctrl)
+	d.roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
+	_, err := d.shortlister().GenerateShortlist(context.Background(), kernel.NewID(), 10)
 	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
 }
 
 func TestGenerateShortlistBadScoreJSON(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	roles := mocks.NewMockRoleRepository(ctrl)
-	profiles := mocks.NewMockTalentProfileRepository(ctrl)
-	recaller := mocks.NewMockCandidateRecaller(ctrl)
-	embedder := mocks.NewMockEmbedder(ctrl)
-	scorer := mocks.NewMockLLMClient(ctrl)
+	d := newDeps(ctrl)
 
 	rl := validRole(t)
 	c1 := kernel.NewID()
-	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil)
-	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1}, nil)
-	recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{c1}, nil)
-	profiles.EXPECT().ByCandidateID(gomock.Any(), c1).Return(profileFor(t, c1), nil)
-	scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil)
+	d.roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil)
+	d.embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1}, nil)
+	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{c1}, nil)
+	d.candidates.EXPECT().ByID(gomock.Any(), c1).Return(candidateAt(t, "Accra"), nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), c1).Return(profileFor(t, c1), nil)
+	d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil)
 
-	s := matchingapp.NewShortlister(roles, profiles, recaller, embedder, scorer, mocks.NewMockMatchRepository(ctrl))
-	_, err := s.GenerateShortlist(context.Background(), rl.ID, 10)
+	_, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
+}
+
+func roleWithBand(t *testing.T, band kernel.SalaryBand) *role.Role {
+	t.Helper()
+	rl, err := role.NewRole(kernel.NewID(),
+		role.RoleSpec{
+			Title: "Backend Engineer", Location: "Accra", Seniority: role.SeniorityMid,
+			Responsibilities: []string{"build services"}, MustHaves: []string{"Go"}, SalaryBand: band,
+		},
+		role.Rubric{Competencies: []role.Competency{{Name: "Go", Weight: 0.6, MustHave: true}, {Name: "SQL", Weight: 0.4}}},
+		time.Unix(1700000000, 0))
+	require.NoError(t, err)
+	return rl
+}
+
+// TestGenerateShortlistSkipsMissingData proves skipIfMissing: a recalled id with
+// no candidate row, and one with no profile row, are both silently dropped
+// (never scored, never excluded, no error).
+func TestGenerateShortlistSkipsMissingData(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+
+	rl := validRole(t)
+	noCand, noProfile := kernel.NewID(), kernel.NewID()
+
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1}, nil)
+	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{noCand, noProfile}, nil)
+	d.candidates.EXPECT().ByID(gomock.Any(), noCand).Return(nil, kernel.NotFound("no candidate"))
+	d.candidates.EXPECT().ByID(gomock.Any(), noProfile).Return(candidateAt(t, "Accra"), nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), noProfile).Return(nil, kernel.NotFound("no profile"))
+	// No scoring, no persistence for either candidate.
+
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	require.NoError(t, err)
+	assert.Empty(t, res.Matches)
+	assert.Empty(t, res.Exclusions)
+}
+
+// TestGenerateShortlistSalaryGate proves the salary gate runs pre-scoring: an
+// over-band candidate is excluded with a reason and never reaches the scorer.
+func TestGenerateShortlistSalaryGate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+
+	rl := roleWithBand(t, kernel.SalaryBand{Currency: "GHS", Low: 1000, High: 5000})
+	cid := kernel.NewID()
+	cand, err := talent.NewCandidate(kernel.NewID(), "Accra",
+		talent.CandidateIntake{SalaryFloor: 8000, SalaryCurrency: "GHS"})
+	require.NoError(t, err)
+
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1}, nil)
+	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{cid}, nil)
+	d.candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	// profiles.ByCandidateID and scorer.Complete are NEVER expected -> proves skip.
+
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	require.NoError(t, err)
+	assert.Empty(t, res.Matches)
+	require.Len(t, res.Exclusions, 1)
+	assert.Equal(t, matchingdom.GateSalaryFloor, res.Exclusions[0].Gate)
+	assert.Equal(t, cid, res.Exclusions[0].CandidateID)
+}
+
+// TestGenerateShortlistRejectsProtectedRubric proves the bias gate precedes all
+// model and data access: a rubric naming a protected attribute is rejected
+// before any embedding, recall, or scoring happens.
+func TestGenerateShortlistRejectsProtectedRubric(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+
+	rl, err := role.NewRole(kernel.NewID(),
+		role.RoleSpec{Title: "Engineer", Location: "Accra", Seniority: role.SeniorityMid},
+		role.Rubric{Competencies: []role.Competency{{Name: "age", Weight: 1.0, MustHave: true}}},
+		time.Unix(1700000000, 0))
+	require.NoError(t, err)
+
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	// embedder.Embed / recaller.Recall / scorer.Complete are NEVER expected.
+
+	_, err = d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
+}
+
+// TestGenerateShortlistRemoteRoleSkipsLocation proves isRemote disables the
+// location gate: an out-of-city candidate survives a remote role.
+func TestGenerateShortlistRemoteRoleSkipsLocation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+
+	rl, err := role.NewRole(kernel.NewID(),
+		role.RoleSpec{
+			Title: "Backend Engineer", Location: "Accra", Availability: "Remote", Seniority: role.SeniorityMid,
+			MustHaves: []string{"Go"},
+		},
+		role.Rubric{Competencies: []role.Competency{{Name: "Go", Weight: 0.6, MustHave: true}, {Name: "SQL", Weight: 0.4}}},
+		time.Unix(1700000000, 0))
+	require.NoError(t, err)
+	cid := kernel.NewID()
+
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1}, nil)
+	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{cid}, nil)
+	d.candidates.EXPECT().ByID(gomock.Any(), cid).Return(candidateAt(t, "Lagos"), nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(profileFor(t, cid), nil)
+	d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score09}, nil)
+	d.matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil)
+
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	require.NoError(t, err)
+	require.Len(t, res.Matches, 1)
+	assert.Equal(t, cid, res.Matches[0].CandidateID)
+	assert.Empty(t, res.Exclusions)
 }

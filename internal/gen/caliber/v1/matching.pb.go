@@ -191,12 +191,14 @@ func (x *Match) GetThinEvidence() bool {
 	return false
 }
 
-// A page of ranked matches plus the live pool depth.
+// A page of ranked matches plus the live pool depth and any candidates removed
+// by hard filters (CAL-049). Exclusions are surfaced, never silent.
 type Shortlist struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Matches       []*Match               `protobuf:"bytes,1,rep,name=matches,proto3" json:"matches,omitempty"`
 	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
 	PoolDepth     int32                  `protobuf:"varint,3,opt,name=pool_depth,json=poolDepth,proto3" json:"pool_depth,omitempty"`
+	Exclusions    []*CandidateExclusion  `protobuf:"bytes,4,rep,name=exclusions,proto3" json:"exclusions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -252,6 +254,76 @@ func (x *Shortlist) GetPoolDepth() int32 {
 	return 0
 }
 
+func (x *Shortlist) GetExclusions() []*CandidateExclusion {
+	if x != nil {
+		return x.Exclusions
+	}
+	return nil
+}
+
+// A candidate removed from a shortlist by a hard filter (CAL-049), with the
+// gate that rejected them and a plain-English reason (explainability: hard
+// filters never drop candidates silently).
+type CandidateExclusion struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CandidateId   string                 `protobuf:"bytes,1,opt,name=candidate_id,json=candidateId,proto3" json:"candidate_id,omitempty"`
+	Gate          string                 `protobuf:"bytes,2,opt,name=gate,proto3" json:"gate,omitempty"`     // e.g. "location", "salary_floor", "must_have_competency"
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"` // plain-English explanation
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CandidateExclusion) Reset() {
+	*x = CandidateExclusion{}
+	mi := &file_caliber_v1_matching_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CandidateExclusion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CandidateExclusion) ProtoMessage() {}
+
+func (x *CandidateExclusion) ProtoReflect() protoreflect.Message {
+	mi := &file_caliber_v1_matching_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CandidateExclusion.ProtoReflect.Descriptor instead.
+func (*CandidateExclusion) Descriptor() ([]byte, []int) {
+	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CandidateExclusion) GetCandidateId() string {
+	if x != nil {
+		return x.CandidateId
+	}
+	return ""
+}
+
+func (x *CandidateExclusion) GetGate() string {
+	if x != nil {
+		return x.Gate
+	}
+	return ""
+}
+
+func (x *CandidateExclusion) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 type GenerateShortlistRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RoleId        string                 `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
@@ -262,7 +334,7 @@ type GenerateShortlistRequest struct {
 
 func (x *GenerateShortlistRequest) Reset() {
 	*x = GenerateShortlistRequest{}
-	mi := &file_caliber_v1_matching_proto_msgTypes[3]
+	mi := &file_caliber_v1_matching_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -274,7 +346,7 @@ func (x *GenerateShortlistRequest) String() string {
 func (*GenerateShortlistRequest) ProtoMessage() {}
 
 func (x *GenerateShortlistRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_caliber_v1_matching_proto_msgTypes[3]
+	mi := &file_caliber_v1_matching_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -287,7 +359,7 @@ func (x *GenerateShortlistRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateShortlistRequest.ProtoReflect.Descriptor instead.
 func (*GenerateShortlistRequest) Descriptor() ([]byte, []int) {
-	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{3}
+	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GenerateShortlistRequest) GetRoleId() string {
@@ -313,7 +385,7 @@ type GenerateShortlistResponse struct {
 
 func (x *GenerateShortlistResponse) Reset() {
 	*x = GenerateShortlistResponse{}
-	mi := &file_caliber_v1_matching_proto_msgTypes[4]
+	mi := &file_caliber_v1_matching_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -325,7 +397,7 @@ func (x *GenerateShortlistResponse) String() string {
 func (*GenerateShortlistResponse) ProtoMessage() {}
 
 func (x *GenerateShortlistResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_caliber_v1_matching_proto_msgTypes[4]
+	mi := &file_caliber_v1_matching_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -338,7 +410,7 @@ func (x *GenerateShortlistResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateShortlistResponse.ProtoReflect.Descriptor instead.
 func (*GenerateShortlistResponse) Descriptor() ([]byte, []int) {
-	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{4}
+	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GenerateShortlistResponse) GetShortlist() *Shortlist {
@@ -361,7 +433,7 @@ type RefineShortlistRequest struct {
 
 func (x *RefineShortlistRequest) Reset() {
 	*x = RefineShortlistRequest{}
-	mi := &file_caliber_v1_matching_proto_msgTypes[5]
+	mi := &file_caliber_v1_matching_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -373,7 +445,7 @@ func (x *RefineShortlistRequest) String() string {
 func (*RefineShortlistRequest) ProtoMessage() {}
 
 func (x *RefineShortlistRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_caliber_v1_matching_proto_msgTypes[5]
+	mi := &file_caliber_v1_matching_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -386,7 +458,7 @@ func (x *RefineShortlistRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefineShortlistRequest.ProtoReflect.Descriptor instead.
 func (*RefineShortlistRequest) Descriptor() ([]byte, []int) {
-	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{5}
+	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RefineShortlistRequest) GetRoleId() string {
@@ -426,7 +498,7 @@ type RefineShortlistResponse struct {
 
 func (x *RefineShortlistResponse) Reset() {
 	*x = RefineShortlistResponse{}
-	mi := &file_caliber_v1_matching_proto_msgTypes[6]
+	mi := &file_caliber_v1_matching_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -438,7 +510,7 @@ func (x *RefineShortlistResponse) String() string {
 func (*RefineShortlistResponse) ProtoMessage() {}
 
 func (x *RefineShortlistResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_caliber_v1_matching_proto_msgTypes[6]
+	mi := &file_caliber_v1_matching_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -451,7 +523,7 @@ func (x *RefineShortlistResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefineShortlistResponse.ProtoReflect.Descriptor instead.
 func (*RefineShortlistResponse) Descriptor() ([]byte, []int) {
-	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{6}
+	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RefineShortlistResponse) GetShortlist() *Shortlist {
@@ -485,12 +557,19 @@ const file_caliber_v1_matching_proto_rawDesc = "" +
 	"\trationale\x18\a \x01(\tR\trationale\x12\x1d\n" +
 	"\n" +
 	"watch_outs\x18\b \x03(\tR\twatchOuts\x12#\n" +
-	"\rthin_evidence\x18\t \x01(\bR\fthinEvidence\"\x85\x01\n" +
+	"\rthin_evidence\x18\t \x01(\bR\fthinEvidence\"\xc5\x01\n" +
 	"\tShortlist\x12+\n" +
 	"\amatches\x18\x01 \x03(\v2\x11.caliber.v1.MatchR\amatches\x12,\n" +
 	"\x04page\x18\x02 \x01(\v2\x18.caliber.v1.PageResponseR\x04page\x12\x1d\n" +
 	"\n" +
-	"pool_depth\x18\x03 \x01(\x05R\tpoolDepth\"`\n" +
+	"pool_depth\x18\x03 \x01(\x05R\tpoolDepth\x12>\n" +
+	"\n" +
+	"exclusions\x18\x04 \x03(\v2\x1e.caliber.v1.CandidateExclusionR\n" +
+	"exclusions\"c\n" +
+	"\x12CandidateExclusion\x12!\n" +
+	"\fcandidate_id\x18\x01 \x01(\tR\vcandidateId\x12\x12\n" +
+	"\x04gate\x18\x02 \x01(\tR\x04gate\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"`\n" +
 	"\x18GenerateShortlistRequest\x12\x17\n" +
 	"\arole_id\x18\x01 \x01(\tR\x06roleId\x12+\n" +
 	"\x04page\x18\x02 \x01(\v2\x17.caliber.v1.PageRequestR\x04page\"P\n" +
@@ -522,41 +601,43 @@ func file_caliber_v1_matching_proto_rawDescGZIP() []byte {
 	return file_caliber_v1_matching_proto_rawDescData
 }
 
-var file_caliber_v1_matching_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_caliber_v1_matching_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_caliber_v1_matching_proto_goTypes = []any{
 	(*MatchBreakdownItem)(nil),        // 0: caliber.v1.MatchBreakdownItem
 	(*Match)(nil),                     // 1: caliber.v1.Match
 	(*Shortlist)(nil),                 // 2: caliber.v1.Shortlist
-	(*GenerateShortlistRequest)(nil),  // 3: caliber.v1.GenerateShortlistRequest
-	(*GenerateShortlistResponse)(nil), // 4: caliber.v1.GenerateShortlistResponse
-	(*RefineShortlistRequest)(nil),    // 5: caliber.v1.RefineShortlistRequest
-	(*RefineShortlistResponse)(nil),   // 6: caliber.v1.RefineShortlistResponse
-	(Confidence)(0),                   // 7: caliber.v1.Confidence
-	(*PageResponse)(nil),              // 8: caliber.v1.PageResponse
-	(*PageRequest)(nil),               // 9: caliber.v1.PageRequest
-	(*RoleSpec)(nil),                  // 10: caliber.v1.RoleSpec
-	(*Rubric)(nil),                    // 11: caliber.v1.Rubric
+	(*CandidateExclusion)(nil),        // 3: caliber.v1.CandidateExclusion
+	(*GenerateShortlistRequest)(nil),  // 4: caliber.v1.GenerateShortlistRequest
+	(*GenerateShortlistResponse)(nil), // 5: caliber.v1.GenerateShortlistResponse
+	(*RefineShortlistRequest)(nil),    // 6: caliber.v1.RefineShortlistRequest
+	(*RefineShortlistResponse)(nil),   // 7: caliber.v1.RefineShortlistResponse
+	(Confidence)(0),                   // 8: caliber.v1.Confidence
+	(*PageResponse)(nil),              // 9: caliber.v1.PageResponse
+	(*PageRequest)(nil),               // 10: caliber.v1.PageRequest
+	(*RoleSpec)(nil),                  // 11: caliber.v1.RoleSpec
+	(*Rubric)(nil),                    // 12: caliber.v1.Rubric
 }
 var file_caliber_v1_matching_proto_depIdxs = []int32{
-	7,  // 0: caliber.v1.Match.confidence:type_name -> caliber.v1.Confidence
+	8,  // 0: caliber.v1.Match.confidence:type_name -> caliber.v1.Confidence
 	0,  // 1: caliber.v1.Match.breakdown:type_name -> caliber.v1.MatchBreakdownItem
 	1,  // 2: caliber.v1.Shortlist.matches:type_name -> caliber.v1.Match
-	8,  // 3: caliber.v1.Shortlist.page:type_name -> caliber.v1.PageResponse
-	9,  // 4: caliber.v1.GenerateShortlistRequest.page:type_name -> caliber.v1.PageRequest
-	2,  // 5: caliber.v1.GenerateShortlistResponse.shortlist:type_name -> caliber.v1.Shortlist
-	10, // 6: caliber.v1.RefineShortlistRequest.spec:type_name -> caliber.v1.RoleSpec
-	11, // 7: caliber.v1.RefineShortlistRequest.rubric:type_name -> caliber.v1.Rubric
-	9,  // 8: caliber.v1.RefineShortlistRequest.page:type_name -> caliber.v1.PageRequest
-	2,  // 9: caliber.v1.RefineShortlistResponse.shortlist:type_name -> caliber.v1.Shortlist
-	3,  // 10: caliber.v1.MatchingService.GenerateShortlist:input_type -> caliber.v1.GenerateShortlistRequest
-	5,  // 11: caliber.v1.MatchingService.RefineShortlist:input_type -> caliber.v1.RefineShortlistRequest
-	4,  // 12: caliber.v1.MatchingService.GenerateShortlist:output_type -> caliber.v1.GenerateShortlistResponse
-	6,  // 13: caliber.v1.MatchingService.RefineShortlist:output_type -> caliber.v1.RefineShortlistResponse
-	12, // [12:14] is the sub-list for method output_type
-	10, // [10:12] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	9,  // 3: caliber.v1.Shortlist.page:type_name -> caliber.v1.PageResponse
+	3,  // 4: caliber.v1.Shortlist.exclusions:type_name -> caliber.v1.CandidateExclusion
+	10, // 5: caliber.v1.GenerateShortlistRequest.page:type_name -> caliber.v1.PageRequest
+	2,  // 6: caliber.v1.GenerateShortlistResponse.shortlist:type_name -> caliber.v1.Shortlist
+	11, // 7: caliber.v1.RefineShortlistRequest.spec:type_name -> caliber.v1.RoleSpec
+	12, // 8: caliber.v1.RefineShortlistRequest.rubric:type_name -> caliber.v1.Rubric
+	10, // 9: caliber.v1.RefineShortlistRequest.page:type_name -> caliber.v1.PageRequest
+	2,  // 10: caliber.v1.RefineShortlistResponse.shortlist:type_name -> caliber.v1.Shortlist
+	4,  // 11: caliber.v1.MatchingService.GenerateShortlist:input_type -> caliber.v1.GenerateShortlistRequest
+	6,  // 12: caliber.v1.MatchingService.RefineShortlist:input_type -> caliber.v1.RefineShortlistRequest
+	5,  // 13: caliber.v1.MatchingService.GenerateShortlist:output_type -> caliber.v1.GenerateShortlistResponse
+	7,  // 14: caliber.v1.MatchingService.RefineShortlist:output_type -> caliber.v1.RefineShortlistResponse
+	13, // [13:15] is the sub-list for method output_type
+	11, // [11:13] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_caliber_v1_matching_proto_init() }
@@ -572,7 +653,7 @@ func file_caliber_v1_matching_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_caliber_v1_matching_proto_rawDesc), len(file_caliber_v1_matching_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

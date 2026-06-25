@@ -4,6 +4,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,13 +17,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	grpcadapter "github.com/xcreativs/caliber/internal/adapters/inbound/grpc"
+	authadapter "github.com/xcreativs/caliber/internal/adapters/outbound/auth"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/embeddings"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
 	"github.com/xcreativs/caliber/internal/app"
+	identityapp "github.com/xcreativs/caliber/internal/app/identity"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
+	"github.com/xcreativs/caliber/internal/app/provisioning"
 	"github.com/xcreativs/caliber/internal/app/roles"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
@@ -61,8 +68,14 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	embedder := buildEmbedder(cfg, log)
 	cleanup := func() {}
 	svc := grpcadapter.Services{}
+	if cfg.IsProd() && cfg.DatabaseURL == "" {
+		return svc, cleanup, errors.New("CALIBER_DATABASE_URL is required in production")
+	}
 
 	var roleRepo role.RoleRepository = memory.NewRoleRepo()
+	var userRepo identity.UserRepository = memory.NewUserRepo()
+	var refreshStore app.RefreshTokenStore = memory.NewRefreshStore()
+	var idOpts []identityapp.Option
 	if cfg.DatabaseURL != "" {
 		pool, perr := pgxpool.New(ctx, cfg.DatabaseURL)
 		if perr != nil {
@@ -74,9 +87,12 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 		}
 		cleanup = pool.Close
 		roleRepo = postgres.NewRoleRepo(pool)
+		userRepo = postgres.NewUserRepo(pool)
+		refreshStore = postgres.NewRefreshStore(pool)
+		idOpts = append(idOpts, identityapp.WithProvisioner(provisioning.NewCandidateProvisioner(postgres.NewCandidateRepo(pool))))
 		shortlister := matchingapp.NewShortlister(
-			roleRepo, postgres.NewTalentProfileRepo(pool), postgres.NewRecaller(pool),
-			embedder, model, postgres.NewMatchRepo(pool),
+			roleRepo, postgres.NewCandidateRepo(pool), postgres.NewTalentProfileRepo(pool),
+			postgres.NewRecaller(pool), embedder, model, postgres.NewMatchRepo(pool),
 		)
 		svc.Match = grpcadapter.NewMatchServer(shortlister)
 		log.Info("persistence selected", "provider", "postgres")
@@ -84,8 +100,41 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories (matching disabled)")
 	}
 
+	tokens, terr := buildTokenService(cfg, log)
+	if terr != nil {
+		return svc, cleanup, terr
+	}
+	idOpts = append(idOpts, identityapp.WithThrottle(memory.NewLoginThrottle(time.Now, 0, 0, 0)))
+	identitySvc := identityapp.NewService(userRepo, authadapter.NewArgon2idHasher(), tokens, refreshStore, time.Now, idOpts...)
+	svc.Identity = grpcadapter.NewIdentityServer(identitySvc)
+	svc.AccessVerifier = tokens
+
 	svc.Role = grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, roleRepo, time.Now))
 	return svc, cleanup, nil
+}
+
+// buildTokenService constructs the JWT service. In production a strong
+// CALIBER_JWT_SECRET is mandatory (boot fails without it); in dev an ephemeral
+// random secret is generated so the server runs, with a warning.
+//
+//nolint:ireturn // selects/constructs the concrete TokenService; interface return is intentional.
+func buildTokenService(cfg config.Config, log *slog.Logger) (app.TokenService, error) {
+	secret := cfg.JWTSecret
+	if len(secret) < 32 {
+		if cfg.IsProd() {
+			return nil, errors.New("CALIBER_JWT_SECRET must be at least 32 bytes in production")
+		}
+		ephemeral := make([]byte, 32)
+		if _, err := rand.Read(ephemeral); err != nil {
+			return nil, err
+		}
+		secret = hex.EncodeToString(ephemeral)
+		log.Warn("CALIBER_JWT_SECRET unset/weak; using an ephemeral dev secret (tokens reset on restart)")
+	}
+	return authadapter.NewJWTService(authadapter.JWTConfig{
+		Secret: secret, Issuer: cfg.JWTIssuer, Audience: cfg.JWTAudience,
+		AccessTTL: cfg.AccessTokenTTL, RefreshTTL: cfg.RefreshTokenTTL,
+	})
 }
 
 //nolint:ireturn // selects a concrete LLM implementation from config; interface return is intentional.

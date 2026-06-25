@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"time"
 )
 
 // Config holds all runtime configuration for the API and worker processes.
@@ -24,6 +25,10 @@ type Config struct {
 	OpenAIAPIKey         string // embeddings
 	OpenAIEmbeddingModel string // embedding model (default text-embedding-3-small)
 	JWTSecret            string // access/refresh token signing
+	JWTIssuer            string // token "iss" claim
+	JWTAudience          string // token "aud" claim
+	AccessTokenTTL       time.Duration
+	RefreshTokenTTL      time.Duration
 }
 
 // Load reads configuration from the environment, applying sane defaults.
@@ -42,6 +47,10 @@ func Load() (Config, error) {
 		OpenAIAPIKey:         os.Getenv("OPENAI_API_KEY"),
 		OpenAIEmbeddingModel: getenv("CALIBER_OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
 		JWTSecret:            os.Getenv("CALIBER_JWT_SECRET"),
+		JWTIssuer:            getenv("CALIBER_JWT_ISSUER", "caliber"),
+		JWTAudience:          getenv("CALIBER_JWT_AUDIENCE", "caliber-api"),
+		AccessTokenTTL:       getdur("CALIBER_ACCESS_TOKEN_TTL", 15*time.Minute),
+		RefreshTokenTTL:      getdur("CALIBER_REFRESH_TOKEN_TTL", 7*24*time.Hour),
 	}
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
 		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")
@@ -76,4 +85,18 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// getdur parses a Go duration (e.g. "15m", "168h") from the environment,
+// falling back to def when unset or malformed.
+func getdur(key string, def time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return def
+	}
+	return d
 }

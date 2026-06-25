@@ -68,10 +68,11 @@ func (c ProfileCompetency) Validate() error {
 // CandidateIntake captures a candidate's job-search preferences gathered at
 // intake: desired titles, location, salary floor, and deal-breakers.
 type CandidateIntake struct {
-	TargetTitles []string
-	Location     string
-	SalaryFloor  float64
-	DealBreakers []string
+	TargetTitles   []string
+	Location       string
+	SalaryFloor    float64
+	SalaryCurrency string
+	DealBreakers   []string
 }
 
 // Validate checks the intake is internally consistent (non-negative salary floor).

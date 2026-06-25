@@ -41,11 +41,22 @@ message Match {
   bool thin_evidence = 9;         // "recommend screening interview" flag
 }
 
-// A page of ranked matches plus the live pool depth.
+// A page of ranked matches plus the live pool depth and any candidates removed
+// by hard filters (CAL-049). Exclusions are surfaced, never silent.
 message Shortlist {
   repeated Match matches = 1;
   PageResponse page = 2;
   int32 pool_depth = 3;
+  repeated CandidateExclusion exclusions = 4;
+}
+
+// A candidate removed from a shortlist by a hard filter (CAL-049), with the
+// gate that rejected them and a plain-English reason (explainability: hard
+// filters never drop candidates silently).
+message CandidateExclusion {
+  string candidate_id = 1;
+  string gate = 2;    // e.g. "location", "salary_floor", "must_have_competency"
+  string reason = 3;  // plain-English explanation
 }
 
 message GenerateShortlistRequest {

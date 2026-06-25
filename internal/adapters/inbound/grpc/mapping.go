@@ -25,6 +25,8 @@ func errToStatus(err error) error {
 		return status.Error(codes.Unauthenticated, err.Error())
 	case kernel.KindForbidden:
 		return status.Error(codes.PermissionDenied, err.Error())
+	case kernel.KindTooManyRequests:
+		return status.Error(codes.ResourceExhausted, err.Error())
 	default:
 		return status.Error(codes.Internal, err.Error())
 	}
@@ -127,5 +129,14 @@ func matchToProto(m *matchingdom.Match) *caliberv1.Match {
 		Rationale:    m.Rationale,
 		WatchOuts:    m.WatchOuts,
 		ThinEvidence: m.ThinEvidence,
+	}
+}
+
+// exclusionToProto maps a domain hard-filter Exclusion to its proto form.
+func exclusionToProto(e matchingdom.Exclusion) *caliberv1.CandidateExclusion {
+	return &caliberv1.CandidateExclusion{
+		CandidateId: e.CandidateID.String(),
+		Gate:        e.Gate,
+		Reason:      e.Reason,
 	}
 }

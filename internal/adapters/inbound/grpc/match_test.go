@@ -25,22 +25,26 @@ const matchScoreJSON = `{"overall_score":0.8,"confidence":"high","breakdown":[{"
 func shortlisterWithOneMatch(t *testing.T, ctrl *gomock.Controller, rl *role.Role, cid kernel.ID) *matchingapp.Shortlister {
 	t.Helper()
 	roles := mocks.NewMockRoleRepository(ctrl)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
 	profiles := mocks.NewMockTalentProfileRepository(ctrl)
 	recaller := mocks.NewMockCandidateRecaller(ctrl)
 	embedder := mocks.NewMockEmbedder(ctrl)
 	scorer := mocks.NewMockLLMClient(ctrl)
 	matchRepo := mocks.NewMockMatchRepository(ctrl)
 
+	cand, err := talent.NewCandidate(kernel.NewID(), "Accra", talent.CandidateIntake{})
+	require.NoError(t, err)
 	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil)
 	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1}, nil)
 	recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{cid}, nil)
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
 	prof, err := talent.NewTalentProfile(cid, "s", []talent.ProfileCompetency{{Name: "Go", Level: 4, EvidenceQuote: "x"}})
 	require.NoError(t, err)
 	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(prof, nil)
 	scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: matchScoreJSON}, nil)
 	matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil)
 
-	return matchingapp.NewShortlister(roles, profiles, recaller, embedder, scorer, matchRepo)
+	return matchingapp.NewShortlister(roles, candidates, profiles, recaller, embedder, scorer, matchRepo)
 }
 
 func TestGenerateShortlistHandler(t *testing.T) {
@@ -67,14 +71,54 @@ func TestGenerateShortlistHandler(t *testing.T) {
 	assert.Equal(t, "Go", m.GetBreakdown()[0].GetCompetency())
 	assert.Equal(t, []string{"mentoring"}, m.GetWatchOuts())
 	assert.Equal(t, int32(1), resp.GetShortlist().GetPoolDepth())
+	assert.Empty(t, resp.GetShortlist().GetExclusions())
 }
 
 func TestGenerateShortlistHandlerError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	roles := mocks.NewMockRoleRepository(ctrl)
 	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
-	s := matchingapp.NewShortlister(roles, mocks.NewMockTalentProfileRepository(ctrl), mocks.NewMockCandidateRecaller(ctrl),
-		mocks.NewMockEmbedder(ctrl), mocks.NewMockLLMClient(ctrl), mocks.NewMockMatchRepository(ctrl))
+	s := matchingapp.NewShortlister(roles, mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl),
+		mocks.NewMockCandidateRecaller(ctrl), mocks.NewMockEmbedder(ctrl), mocks.NewMockLLMClient(ctrl),
+		mocks.NewMockMatchRepository(ctrl))
 	_, err := NewMatchServer(s).GenerateShortlist(context.Background(), &caliberv1.GenerateShortlistRequest{RoleId: "x"})
 	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+// TestGenerateShortlistHandlerExclusions proves hard-filter exclusions are
+// mapped into the proto response: a Lagos candidate against an Accra role is
+// surfaced as a location exclusion with a reason, not silently dropped.
+func TestGenerateShortlistHandlerExclusions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	rl, err := role.NewRole(kernel.NewID(),
+		role.RoleSpec{Title: "Backend Engineer", Location: "Accra", Seniority: role.SeniorityMid},
+		role.Rubric{Competencies: []role.Competency{{Name: "Go", Weight: 1, MustHave: true}}},
+		time.Unix(1, 0))
+	require.NoError(t, err)
+	cid := kernel.NewID()
+
+	roles := mocks.NewMockRoleRepository(ctrl)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	embedder := mocks.NewMockEmbedder(ctrl)
+	recaller := mocks.NewMockCandidateRecaller(ctrl)
+	cand, err := talent.NewCandidate(kernel.NewID(), "Lagos", talent.CandidateIntake{})
+	require.NoError(t, err)
+
+	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil)
+	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1}, nil)
+	recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{cid}, nil)
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+
+	s := matchingapp.NewShortlister(roles, candidates, mocks.NewMockTalentProfileRepository(ctrl),
+		recaller, embedder, mocks.NewMockLLMClient(ctrl), mocks.NewMockMatchRepository(ctrl))
+	resp, err := NewMatchServer(s).GenerateShortlist(context.Background(),
+		&caliberv1.GenerateShortlistRequest{RoleId: rl.ID.String()})
+	require.NoError(t, err)
+
+	assert.Empty(t, resp.GetShortlist().GetMatches())
+	exclusions := resp.GetShortlist().GetExclusions()
+	require.Len(t, exclusions, 1)
+	assert.Equal(t, cid.String(), exclusions[0].GetCandidateId())
+	assert.Equal(t, "location", exclusions[0].GetGate())
+	assert.NotEmpty(t, exclusions[0].GetReason())
 }

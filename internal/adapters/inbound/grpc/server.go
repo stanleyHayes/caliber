@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/xcreativs/caliber/internal/app"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -15,18 +16,31 @@ import (
 // Services holds the concrete gRPC service implementations to register; any
 // unset service falls back to its generated Unimplemented stub.
 type Services struct {
-	Role  caliberv1.RoleServiceServer
-	Match caliberv1.MatchingServiceServer
+	Identity caliberv1.IdentityServiceServer
+	Role     caliberv1.RoleServiceServer
+	Match    caliberv1.MatchingServiceServer
+
+	// AccessVerifier, when set, installs the auth interceptor that authenticates
+	// bearer access tokens and injects the principal into each request context.
+	AccessVerifier app.TokenService
 }
 
 // NewGRPCServer builds a gRPC server with every Caliber service registered.
 func NewGRPCServer(svc Services) *grpc.Server {
-	s := grpc.NewServer()
+	var opts []grpc.ServerOption
+	if svc.AccessVerifier != nil {
+		opts = append(opts, grpc.UnaryInterceptor(NewAuthInterceptor(svc.AccessVerifier)))
+	}
+	s := grpc.NewServer(opts...)
 	role := svc.Role
 	if role == nil {
 		role = caliberv1.UnimplementedRoleServiceServer{}
 	}
-	caliberv1.RegisterIdentityServiceServer(s, caliberv1.UnimplementedIdentityServiceServer{})
+	identitySvc := svc.Identity
+	if identitySvc == nil {
+		identitySvc = caliberv1.UnimplementedIdentityServiceServer{}
+	}
+	caliberv1.RegisterIdentityServiceServer(s, identitySvc)
 	caliberv1.RegisterRoleServiceServer(s, role)
 	caliberv1.RegisterTalentServiceServer(s, caliberv1.UnimplementedTalentServiceServer{})
 	match := svc.Match

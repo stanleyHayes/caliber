@@ -16,6 +16,7 @@ const (
 	KindConflict
 	KindUnauthorized
 	KindForbidden
+	KindTooManyRequests
 )
 
 // Error is the typed domain error carrying a Kind, a message, and an optional cause.
@@ -51,6 +52,9 @@ func Unauthorized(msg string) *Error { return newErr(KindUnauthorized, msg) }
 
 // Forbidden builds a KindForbidden error (authenticated but not permitted).
 func Forbidden(msg string) *Error { return newErr(KindForbidden, msg) }
+
+// TooManyRequests builds a KindTooManyRequests error (rate-limited / locked out).
+func TooManyRequests(msg string) *Error { return newErr(KindTooManyRequests, msg) }
 
 // Invalidf builds a KindInvalid error from a format string.
 func Invalidf(format string, a ...any) *Error { return newErr(KindInvalid, fmt.Sprintf(format, a...)) }
