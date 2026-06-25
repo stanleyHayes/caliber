@@ -214,7 +214,7 @@ caliber/
 |---|---|---|---|---|---|---|
 | **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~45% |
 | | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~85% |
-| | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | TODO | 0% |
+| | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | WIP | ~40% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~40% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
@@ -296,9 +296,9 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-02 · Identity, Authentication & RBAC
 **Goal:** Lightweight, secure login for two roles behind clean ports. (Spec: no enterprise SSO for POC.)
 
-- **CAL-017** `[TODO]` · 3 pts — **Auth domain & roles.** `Role{employer, recruiter, candidate}`, password policy, account states. *AC:* role rules unit-tested. *Deps:* CAL-010
-- **CAL-018** `[TODO]` · 5 pts — **Argon2id password hashing adapter.** Implement `PasswordHasher` port with tuned Argon2id params. *AC:* hashes verify; params configurable; timing-safe. *Deps:* CAL-017
-- **CAL-019** `[TODO]` · 5 pts — **JWT issuance & verification.** Short-lived access + rotating refresh tokens; `TokenService` port; key rotation ready. *AC:* expiry, signature, audience validated; refresh rotation tested. *Deps:* CAL-017
+- **CAL-017** `[DONE]` · 3 pts — **Auth domain & roles.** `identity.Role{employer,recruiter,candidate}`, `PasswordPolicy`, `AccountStatus`, validated `User`/`Email`. *AC:* role rules unit-tested. *Deps:* CAL-010
+- **CAL-018** `[DONE]` · 5 pts — **Argon2id password hashing adapter.** `PasswordHasher` port + `Argon2idHasher` (OWASP defaults m=64MiB/t=3/p=2, PHC-encoded, constant-time verify). Decoder validates embedded params (rejects t<1/p<1/oversized-m) so a crafted hash can't panic or exhaust memory. *AC:* hashes verify; params configurable; timing-safe. *Deps:* CAL-017
+- **CAL-019** `[DONE]` · 5 pts — **JWT issuance & verification.** `TokenService` port + HS256 `JWTService` (golang-jwt/v5): short access + rotating refresh (jti for revocation), iss/aud/exp/nbf enforced, alg pinned to HS256 (none/RS256 rejected), ≥32-byte secret floor. *AC:* expiry, signature, audience validated; refresh rotation tested. *Deps:* CAL-017
 - **CAL-020** `[TODO]` · 5 pts — **Register / login / logout / refresh RPCs.** gRPC + gateway endpoints + DTO validation. *AC:* covers happy + error paths; rate-limited (ties to CAL-112). *Deps:* CAL-018, CAL-019, CAL-164
 - **CAL-021** `[TODO]` · 3 pts — **Auth interceptor/middleware & RBAC guards.** Context-injected principal; role/ownership guards on handlers. *AC:* unauthorized → 401, forbidden → 403, with tests. *Deps:* CAL-019
 - **CAL-022** `[TODO]` · 3 pts — **Employer & candidate context bootstrap.** On signup, create Employer or Candidate context owned by the user. *AC:* user→context relationship enforced. *Deps:* CAL-020
