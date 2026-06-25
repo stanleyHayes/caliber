@@ -6,6 +6,8 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
 
+//go:generate mockgen -source=ports.go -destination=../../mocks/talent.go -package=mocks
+
 // CandidateRepository is the persistence port for Candidate aggregates.
 type CandidateRepository interface {
 	// Create persists a new candidate.
