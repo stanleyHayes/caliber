@@ -15,7 +15,8 @@ import (
 // Services holds the concrete gRPC service implementations to register; any
 // unset service falls back to its generated Unimplemented stub.
 type Services struct {
-	Role caliberv1.RoleServiceServer
+	Role  caliberv1.RoleServiceServer
+	Match caliberv1.MatchingServiceServer
 }
 
 // NewGRPCServer builds a gRPC server with every Caliber service registered.
@@ -28,7 +29,11 @@ func NewGRPCServer(svc Services) *grpc.Server {
 	caliberv1.RegisterIdentityServiceServer(s, caliberv1.UnimplementedIdentityServiceServer{})
 	caliberv1.RegisterRoleServiceServer(s, role)
 	caliberv1.RegisterTalentServiceServer(s, caliberv1.UnimplementedTalentServiceServer{})
-	caliberv1.RegisterMatchingServiceServer(s, caliberv1.UnimplementedMatchingServiceServer{})
+	match := svc.Match
+	if match == nil {
+		match = caliberv1.UnimplementedMatchingServiceServer{}
+	}
+	caliberv1.RegisterMatchingServiceServer(s, match)
 	caliberv1.RegisterInterviewServiceServer(s, caliberv1.UnimplementedInterviewServiceServer{})
 	caliberv1.RegisterCandidateAgentServiceServer(s, caliberv1.UnimplementedCandidateAgentServiceServer{})
 	caliberv1.RegisterDashboardServiceServer(s, caliberv1.UnimplementedDashboardServiceServer{})

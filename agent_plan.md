@@ -219,8 +219,8 @@ caliber/
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~40% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
 | | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | TODO | 0% |
-| | EPIC-07 | Matching & Ranking Engine | 7 | 37 | WIP | ~45% |
-| | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | TODO | 0% |
+| | EPIC-07 | Matching & Ranking Engine | 7 | 37 | WIP | ~60% |
+| | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~20% |
 | | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | TODO | 0% |
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | TODO | 0% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | TODO | 0% |
@@ -346,7 +346,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-07 · Matching & Ranking Engine
 **Goal:** Rank candidates against a Role Spec with scores a human can trust — recall → precision → hard filters. (Spec §8.3, Appendix A.2.)
 
-- **CAL-047** `[WIP]` · 5 pts — **Stage 1: vector recall.** pgvector cosine similarity role↔candidate top-N. *AC:* top-N returned, ordered, paged. *Deps:* CAL-041, CAL-045
+- **CAL-047** `[DONE]` · 5 pts — **Stage 1: vector recall.** pgvector cosine similarity role↔candidate top-N (`Recaller` raw `$1::vector` query, testcontainers ordering test). *AC:* top-N returned, ordered, paged. *Deps:* CAL-041, CAL-045
 - **CAL-048** `[DONE]` · 8 pts — **Stage 2: rubric-based LLM scoring.** Per candidate, 0–5 per competency with evidence quote, overall fit, confidence. *AC:* output matches Appendix A.2 `breakdown`. *Deps:* CAL-047, CAL-031
 - **CAL-049** `[TODO]` · 5 pts — **Stage 3: hard filters as gates.** Must-haves (location, work authorization, min years) as pass/fail gates. *AC:* gated-out candidates excluded with reason. *Deps:* CAL-048
 - **CAL-050** `[DONE]` · 5 pts — **Match assembly & persistence.** Build `Match` (overall_score, breakdown, rationale, watch_outs, thin_evidence_flag). *AC:* matches Appendix A.2; persisted. *Deps:* CAL-049, CAL-014
@@ -357,8 +357,8 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-08 · Employer Intake & Explainable Shortlisting (Flow A)
 **Goal:** End-to-end Flow A: messy sentence in → structured spec, rubric, explainable ranked shortlist out, in seconds. (Spec §6.1.)
 
-- **CAL-054** `[TODO]` · 5 pts — **Flow A orchestration use-case.** Wire intake → spec/rubric → recall → score → filter → ranked Matches. *AC:* single call produces a shortlist. *Deps:* CAL-040, CAL-050
-- **CAL-055** `[TODO]` · 3 pts — **Instant availability signal.** "N strong matches already in your pool." *AC:* pool depth returned immediately after spec. *Deps:* CAL-047
+- **CAL-054** `[WIP]` · 5 pts — **Flow A orchestration use-case.** `Shortlister` wires spec/rubric → recall → score → ranked Matches; exposed via `MatchingService.GenerateShortlist` (gRPC + REST) and wired in `main` when a DB is configured. Hard filters (CAL-049) still pending. *AC:* single call produces a shortlist. *Deps:* CAL-040, CAL-050
+- **CAL-055** `[WIP]` · 3 pts — **Instant availability signal.** "N strong matches already in your pool." `Shortlist.pool_depth` returned in the response. *AC:* pool depth returned immediately after spec. *Deps:* CAL-047
 - **CAL-056** `[TODO]` · 5 pts — **Explainable, paginated shortlist response.** Each candidate: fit score, per-competency breakdown, plain-English "why," watch-outs, thin-evidence flag; results paginated. *AC:* contract locked; no black-box fields. *Deps:* CAL-050, CAL-082
 - **CAL-057** `[TODO]` · 3 pts — **Refine RPC.** Tighten criteria / add skill → live re-rank. *AC:* shortlist updates correctly. *Deps:* CAL-051
 - **CAL-058** `[TODO]` · 5 pts — **Flow A proto contract & gateway.** gRPC service + REST gateway + OpenAPI; field names locked from Appendix A. *AC:* documented, validated, versioned. *Deps:* CAL-054, CAL-164

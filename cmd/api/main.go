@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,10 +14,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	grpcadapter "github.com/xcreativs/caliber/internal/adapters/inbound/grpc"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/embeddings"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
 	"github.com/xcreativs/caliber/internal/app"
+	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
 	"github.com/xcreativs/caliber/internal/app/roles"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/platform/config"
@@ -44,31 +47,63 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	var model app.LLMClient
-	if cfg.AnthropicAPIKey != "" {
-		model = llm.NewClaude(llm.WithAPIKey(cfg.AnthropicAPIKey), llm.WithModel(cfg.AnthropicModel))
-		log.Info("llm provider selected", "provider", "claude", "model", cfg.AnthropicModel)
-	} else {
-		model = llm.NewDev()
-		log.Warn("ANTHROPIC_API_KEY not set; using deterministic dev LLM")
+	svc, cleanup, err := buildServices(ctx, cfg, log)
+	if err != nil {
+		return err
 	}
+	defer cleanup()
+
+	return server.Run(ctx, cfg, log, svc)
+}
+
+func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (grpcadapter.Services, func(), error) {
+	model := buildLLM(cfg, log)
+	embedder := buildEmbedder(cfg, log)
+	cleanup := func() {}
+	svc := grpcadapter.Services{}
 
 	var roleRepo role.RoleRepository = memory.NewRoleRepo()
 	if cfg.DatabaseURL != "" {
 		pool, perr := pgxpool.New(ctx, cfg.DatabaseURL)
 		if perr != nil {
-			return perr
+			return svc, cleanup, perr
 		}
-		defer pool.Close()
 		if perr = pool.Ping(ctx); perr != nil {
-			return perr
+			pool.Close()
+			return svc, cleanup, perr
 		}
+		cleanup = pool.Close
 		roleRepo = postgres.NewRoleRepo(pool)
+		shortlister := matchingapp.NewShortlister(
+			roleRepo, postgres.NewTalentProfileRepo(pool), postgres.NewRecaller(pool),
+			embedder, model, postgres.NewMatchRepo(pool),
+		)
+		svc.Match = grpcadapter.NewMatchServer(shortlister)
 		log.Info("persistence selected", "provider", "postgres")
 	} else {
-		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories")
+		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories (matching disabled)")
 	}
 
-	roleSrv := grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, roleRepo, time.Now))
-	return server.Run(ctx, cfg, log, grpcadapter.Services{Role: roleSrv})
+	svc.Role = grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, roleRepo, time.Now))
+	return svc, cleanup, nil
+}
+
+//nolint:ireturn // selects a concrete LLM implementation from config; interface return is intentional.
+func buildLLM(cfg config.Config, log *slog.Logger) app.LLMClient {
+	if cfg.AnthropicAPIKey != "" {
+		log.Info("llm provider selected", "provider", "claude", "model", cfg.AnthropicModel)
+		return llm.NewClaude(llm.WithAPIKey(cfg.AnthropicAPIKey), llm.WithModel(cfg.AnthropicModel))
+	}
+	log.Warn("ANTHROPIC_API_KEY not set; using deterministic dev LLM")
+	return llm.NewDev()
+}
+
+//nolint:ireturn // selects a concrete embedder implementation from config; interface return is intentional.
+func buildEmbedder(cfg config.Config, log *slog.Logger) app.Embedder {
+	if cfg.OpenAIAPIKey != "" {
+		log.Info("embedder selected", "provider", "openai", "model", cfg.OpenAIEmbeddingModel)
+		return embeddings.NewOpenAI(embeddings.WithOpenAIKey(cfg.OpenAIAPIKey), embeddings.WithOpenAIModel(cfg.OpenAIEmbeddingModel))
+	}
+	log.Warn("OPENAI_API_KEY not set; using deterministic dev embedder")
+	return embeddings.NewDev()
 }

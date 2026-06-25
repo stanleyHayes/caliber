@@ -4,6 +4,7 @@ package grpcadapter
 
 import (
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 	"google.golang.org/grpc/codes"
@@ -91,5 +92,40 @@ func roleToProto(r *role.Role) *caliberv1.Role {
 		Spec:       specToProto(r.Spec),
 		Rubric:     rubricToProto(r.Rubric),
 		CreatedAt:  timestamppb.New(r.CreatedAt),
+	}
+}
+
+func confidenceToProto(c kernel.Confidence) caliberv1.Confidence {
+	switch c {
+	case kernel.ConfidenceLow:
+		return caliberv1.Confidence_CONFIDENCE_LOW
+	case kernel.ConfidenceMedium:
+		return caliberv1.Confidence_CONFIDENCE_MEDIUM
+	case kernel.ConfidenceHigh:
+		return caliberv1.Confidence_CONFIDENCE_HIGH
+	default:
+		return caliberv1.Confidence_CONFIDENCE_UNSPECIFIED
+	}
+}
+
+func matchToProto(m *matchingdom.Match) *caliberv1.Match {
+	breakdown := make([]*caliberv1.MatchBreakdownItem, 0, len(m.Breakdown))
+	for _, b := range m.Breakdown {
+		breakdown = append(breakdown, &caliberv1.MatchBreakdownItem{
+			Competency: b.Competency,
+			Score:      b.Score,
+			Evidence:   b.Evidence,
+		})
+	}
+	return &caliberv1.Match{
+		Id:           m.ID.String(),
+		RoleId:       m.RoleID.String(),
+		CandidateId:  m.CandidateID.String(),
+		OverallScore: m.OverallScore,
+		Confidence:   confidenceToProto(m.Confidence),
+		Breakdown:    breakdown,
+		Rationale:    m.Rationale,
+		WatchOuts:    m.WatchOuts,
+		ThinEvidence: m.ThinEvidence,
 	}
 }
