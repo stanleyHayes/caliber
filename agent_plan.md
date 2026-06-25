@@ -219,7 +219,7 @@ caliber/
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~40% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
 | | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | TODO | 0% |
-| | EPIC-07 | Matching & Ranking Engine | 7 | 37 | TODO | 0% |
+| | EPIC-07 | Matching & Ranking Engine | 7 | 37 | WIP | ~45% |
 | | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | TODO | 0% |
 | | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | TODO | 0% |
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | TODO | 0% |
@@ -346,12 +346,12 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-07 · Matching & Ranking Engine
 **Goal:** Rank candidates against a Role Spec with scores a human can trust — recall → precision → hard filters. (Spec §8.3, Appendix A.2.)
 
-- **CAL-047** `[TODO]` · 5 pts — **Stage 1: vector recall.** pgvector cosine similarity role↔candidate top-N. *AC:* top-N returned, ordered, paged. *Deps:* CAL-041, CAL-045
-- **CAL-048** `[TODO]` · 8 pts — **Stage 2: rubric-based LLM scoring.** Per candidate, 0–5 per competency with evidence quote, overall fit, confidence. *AC:* output matches Appendix A.2 `breakdown`. *Deps:* CAL-047, CAL-031
+- **CAL-047** `[WIP]` · 5 pts — **Stage 1: vector recall.** pgvector cosine similarity role↔candidate top-N. *AC:* top-N returned, ordered, paged. *Deps:* CAL-041, CAL-045
+- **CAL-048** `[DONE]` · 8 pts — **Stage 2: rubric-based LLM scoring.** Per candidate, 0–5 per competency with evidence quote, overall fit, confidence. *AC:* output matches Appendix A.2 `breakdown`. *Deps:* CAL-047, CAL-031
 - **CAL-049** `[TODO]` · 5 pts — **Stage 3: hard filters as gates.** Must-haves (location, work authorization, min years) as pass/fail gates. *AC:* gated-out candidates excluded with reason. *Deps:* CAL-048
-- **CAL-050** `[TODO]` · 5 pts — **Match assembly & persistence.** Build `Match` (overall_score, breakdown, rationale, watch_outs, thin_evidence_flag). *AC:* matches Appendix A.2; persisted. *Deps:* CAL-049, CAL-014
+- **CAL-050** `[DONE]` · 5 pts — **Match assembly & persistence.** Build `Match` (overall_score, breakdown, rationale, watch_outs, thin_evidence_flag). *AC:* matches Appendix A.2; persisted. *Deps:* CAL-049, CAL-014
 - **CAL-051** `[TODO]` · 5 pts — **Live re-ranking on criteria change.** Editing must-have/weight/location re-ranks the shortlist. *AC:* re-rank ≤ acceptable latency; correct order. *Deps:* CAL-050, CAL-040
-- **CAL-052** `[TODO]` · 5 pts — **Bias-safe ranking guard.** Rubric-driven only; protected attributes excluded from scoring inputs. *AC:* automated test asserts protected fields never reach the scorer. *Deps:* CAL-048
+- **CAL-052** `[DONE]` · 5 pts — **Bias-safe ranking guard.** Rubric-driven only; protected attributes excluded from scoring inputs. *AC:* automated test asserts protected fields never reach the scorer. *Deps:* CAL-048
 - **CAL-053** `[TODO]` · 4 pts — **Two-way matching (role↔candidate).** Surface roles fitting a passive candidate (feeds Radar alerts). *AC:* both directions queryable. *Deps:* CAL-047
 
 ## EPIC-08 · Employer Intake & Explainable Shortlisting (Flow A)
