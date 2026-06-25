@@ -10,11 +10,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	grpcadapter "github.com/xcreativs/caliber/internal/adapters/inbound/grpc"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
 	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/app/roles"
+	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
 	"github.com/xcreativs/caliber/internal/platform/server"
@@ -49,6 +53,22 @@ func run() error {
 		log.Warn("ANTHROPIC_API_KEY not set; using deterministic dev LLM")
 	}
 
-	roleSrv := grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, memory.NewRoleRepo(), time.Now))
+	var roleRepo role.RoleRepository = memory.NewRoleRepo()
+	if cfg.DatabaseURL != "" {
+		pool, perr := pgxpool.New(ctx, cfg.DatabaseURL)
+		if perr != nil {
+			return perr
+		}
+		defer pool.Close()
+		if perr = pool.Ping(ctx); perr != nil {
+			return perr
+		}
+		roleRepo = postgres.NewRoleRepo(pool)
+		log.Info("persistence selected", "provider", "postgres")
+	} else {
+		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories")
+	}
+
+	roleSrv := grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, roleRepo, time.Now))
 	return server.Run(ctx, cfg, log, grpcadapter.Services{Role: roleSrv})
 }

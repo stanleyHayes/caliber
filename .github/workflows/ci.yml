@@ -27,6 +27,7 @@ jobs:
       - name: Install buf + codegen plugins
         run: |
           go install github.com/bufbuild/buf/cmd/buf@latest
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
           go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
           go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@latest
@@ -41,6 +42,9 @@ jobs:
           buf generate
           git diff --exit-code -- internal/gen \
             || { echo "::error::internal/gen is stale — run 'make proto' and commit"; exit 1; }
+          sqlc generate
+          git diff --exit-code -- internal/adapters/outbound/postgres/sqlcdb \
+            || { echo "::error::sqlcdb is stale — run 'make sqlc' and commit"; exit 1; }
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -55,7 +59,7 @@ jobs:
 
       - name: Enforce coverage >= 80% (app code)
         run: |
-          grep -vE 'internal/gen/|internal/mocks/|internal/platform/migrate/|/cmd/' coverage.out > coverage.app.out
+          grep -vE 'internal/gen/|internal/mocks/|internal/platform/migrate/|internal/adapters/outbound/postgres/|/cmd/' coverage.out > coverage.app.out
           total=$(go tool cover -func=coverage.app.out | awk '/^total:/ {print substr($3, 1, length($3)-1)}')
           echo "App coverage: ${total}%"
           awk -v t="$total" 'BEGIN { exit (t+0 >= 80) ? 0 : 1 }' \

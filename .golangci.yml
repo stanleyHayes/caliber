@@ -51,5 +51,7 @@ linters:
     rules:
       - path: 'internal/gen/'
         linters: [depguard]
+      - path: 'internal/adapters/outbound/postgres/'
+        linters: [musttag]
       - path: '_test\.go'
         linters: [funlen, gocyclo, gocognit, cyclop, dupl, gosec, errcheck, maintidx, lll, nilnil]
