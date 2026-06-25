@@ -225,7 +225,7 @@ caliber/
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | TODO | 0% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | TODO | 0% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
-| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | TODO | 0% |
+| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~7% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | TODO | 0% |
 | | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | TODO | 0% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | TODO | 0% |
@@ -411,7 +411,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-13 · Frontend Web Application (React + Vite)
 **Goal:** Brandable React (Vite) SPA with MUI v9, employer & candidate views, the streamed interview UI, and the Talent Radar dashboard. Skeleton loading and pagination throughout; SEO-ready public pages via prerender (EPIC-17).
 
-- **CAL-088** `[TODO]` · 5 pts — **React+Vite scaffold + MUI v9 theme + typography.** Vite app, react-router, **MUI v9** themed design system with brandable tokens (Primary Blue #0066CC, Ink #111418, Slate #6B7280); typography wired to **Fraunces** (titles), **Outfit** (body), **JetBrains Mono** (statuses), self-hosted with `font-display: swap`; light/dark color modes ready. *AC:* design tokens + fonts centralized; no Tailwind. *Deps:* CAL-164
+- **CAL-088** `[DONE]` · 5 pts — **React+Vite scaffold + MUI v9 theme + typography.** Vite app, react-router, **MUI v9** themed design system with brandable tokens (Primary Blue #0066CC, Ink #111418, Slate #6B7280); typography wired to **Fraunces** (titles), **Outfit** (body), **JetBrains Mono** (statuses), self-hosted with `font-display: swap`; light/dark color modes ready. *AC:* design tokens + fonts centralized; no Tailwind. *Deps:* CAL-164
 - **CAL-167** `[TODO]` · 3 pts — **App shell, routing & Zustand stores.** Layout, role-aware routes, Zustand stores for UI/auth/wizard state. *AC:* navigation + protected routes work. *Deps:* CAL-088
 - **CAL-095** `[TODO]` · 5 pts — **API client (gRPC-web/REST) + TanStack Query + streaming.** Typed client from proto; TanStack Query setup; stream handling for the interview; resilient error states. *AC:* resilient to slow/failed calls. *Deps:* CAL-058
 - **CAL-165** `[TODO]` · 3 pts — **Skeleton-loading system (content).** Reusable MUI `Skeleton` components shaped per surface (list rows, cards, dashboard tiles, report card, interview turns). *AC:* no spinners/"Loading…" text for content; lint/check guards against them. *Deps:* CAL-088
