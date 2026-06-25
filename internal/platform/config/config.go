@@ -3,7 +3,7 @@
 package config
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"strings"
 )
@@ -40,7 +40,7 @@ func Load() (Config, error) {
 		JWTSecret:       os.Getenv("CALIBER_JWT_SECRET"),
 	}
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
-		return Config{}, fmt.Errorf("config: HTTP and gRPC addresses must be set")
+		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")
 	}
 	return c, nil
 }

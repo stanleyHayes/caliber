@@ -38,7 +38,10 @@ func (d *Dev) Complete(_ context.Context, req app.LLMRequest) (app.LLMResponse, 
 			{"name": "System design", "weight": 0.2, "must_have": false},
 		},
 	}
-	b, _ := json.Marshal(doc)
+	b, err := json.Marshal(doc)
+	if err != nil {
+		return app.LLMResponse{}, err
+	}
 	return app.LLMResponse{Text: string(b)}, nil
 }
 

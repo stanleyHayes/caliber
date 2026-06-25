@@ -30,7 +30,7 @@ import (
 	"github.com/xcreativs/caliber/internal/platform/logging"
 )
 
-func main() {
+func main() { //nolint:funlen // composition root: wires adapters, gRPC, and the HTTP gateway
 	cfg, err := config.Load()
 	if err != nil {
 		panic(err)
@@ -53,7 +53,8 @@ func main() {
 	registerServices(grpcSrv, roleSrv)
 	reflection.Register(grpcSrv)
 
-	lis, err := net.Listen("tcp", cfg.GRPCAddr)
+	var lc net.ListenConfig
+	lis, err := lc.Listen(ctx, "tcp", cfg.GRPCAddr)
 	if err != nil {
 		log.Error("grpc listen failed", "addr", cfg.GRPCAddr, "err", err)
 		panic(err)

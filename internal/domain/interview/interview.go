@@ -3,7 +3,7 @@ package interview
 import "github.com/xcreativs/caliber/internal/domain/kernel"
 
 // Interview is an adaptive screening session driven by the state machine.
-type Interview struct { //nolint:revive // domain name fixed by the interview context spec
+type Interview struct {
 	ID          kernel.ID
 	RoleID      kernel.ID
 	CandidateID kernel.ID

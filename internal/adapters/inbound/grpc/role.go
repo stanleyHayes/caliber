@@ -12,6 +12,7 @@ import (
 // spec generation; remaining methods fall back to Unimplemented).
 type RoleServer struct {
 	caliberv1.UnimplementedRoleServiceServer
+
 	gen *roles.SpecGenerator
 }
 
@@ -19,7 +20,10 @@ type RoleServer struct {
 func NewRoleServer(gen *roles.SpecGenerator) *RoleServer { return &RoleServer{gen: gen} }
 
 // GenerateRoleSpec turns a free-text hiring need into a structured, persisted Role.
-func (s *RoleServer) GenerateRoleSpec(ctx context.Context, req *caliberv1.GenerateRoleSpecRequest) (*caliberv1.GenerateRoleSpecResponse, error) {
+func (s *RoleServer) GenerateRoleSpec(
+	ctx context.Context,
+	req *caliberv1.GenerateRoleSpecRequest,
+) (*caliberv1.GenerateRoleSpecResponse, error) {
 	r, err := s.gen.Generate(ctx, kernel.ID(req.GetEmployerId()), req.GetFreeText())
 	if err != nil {
 		return nil, errToStatus(err)

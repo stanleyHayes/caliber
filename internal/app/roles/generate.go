@@ -24,7 +24,10 @@ func NewSpecGenerator(llm app.LLMClient, repo role.RoleRepository, now app.Clock
 }
 
 // SystemPrompt instructs the model to emit a strict role-spec JSON document.
-const SystemPrompt = `You convert a hiring manager's messy request into a structured role spec and a weighted rubric. Respond ONLY with a JSON object matching the agreed schema (title, location, seniority, availability, responsibilities[], must_haves[], nice_to_haves[], salary_band{currency,low,high}, rubric[{name,weight,must_have}]). Rubric weights must sum to 1.0.`
+const SystemPrompt = `You convert a hiring manager's messy request into a structured role spec and a
+weighted rubric. Respond ONLY with a JSON object matching the agreed schema (title, location,
+seniority, availability, responsibilities[], must_haves[], nice_to_haves[],
+salary_band{currency,low,high}, rubric[{name,weight,must_have}]). Rubric weights must sum to 1.0.`
 
 type llmRoleSpec struct {
 	Title            string   `json:"title"`

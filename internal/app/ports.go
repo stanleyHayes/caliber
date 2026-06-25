@@ -1,6 +1,3 @@
-// Package app holds application use-cases and the ports they orchestrate the
-// domain through (LLM access, clock). Use-cases depend on domain ports, never
-// on concrete adapters.
 package app
 
 import (

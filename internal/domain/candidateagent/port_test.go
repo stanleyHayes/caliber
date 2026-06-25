@@ -47,14 +47,8 @@ func (r *fakeRepo) ByCandidate(_ context.Context, candidateID kernel.ID, page ke
 		}
 	}
 	total := int64(len(all))
-	start := page.Offset()
-	if start > len(all) {
-		start = len(all)
-	}
-	end := start + page.Limit()
-	if end > len(all) {
-		end = len(all)
-	}
+	start := min(page.Offset(), len(all))
+	end := min(start+page.Limit(), len(all))
 	return all[start:end], total, nil
 }
 

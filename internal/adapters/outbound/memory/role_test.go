@@ -58,7 +58,7 @@ func TestRoleRepoListPagination(t *testing.T) {
 	ctx := context.Background()
 	repo := NewRoleRepo()
 	empA, empB := kernel.NewID(), kernel.NewID()
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		_ = repo.Create(ctx, mkRole(t, empA, "A", time.Unix(int64(i+1), 0)))
 	}
 	_ = repo.Create(ctx, mkRole(t, empB, "B", time.Unix(99, 0)))

@@ -21,7 +21,7 @@ const (
 func (s RoleStatus) Valid() bool { return s >= RoleDraft && s <= RoleClosed }
 
 // Role is an open position with its generated spec and rubric.
-type Role struct { //nolint:revive // domain name fixed by the role context spec
+type Role struct {
 	ID         kernel.ID
 	EmployerID kernel.ID
 	Title      string

@@ -65,14 +65,8 @@ func (r *RoleRepo) ListByEmployer(_ context.Context, employerID kernel.ID, page 
 	}
 	sort.Slice(all, func(i, j int) bool { return all[i].CreatedAt.After(all[j].CreatedAt) })
 	total := int64(len(all))
-	start := page.Offset()
-	if start > len(all) {
-		start = len(all)
-	}
-	end := start + page.Limit()
-	if end > len(all) {
-		end = len(all)
-	}
+	start := min(page.Offset(), len(all))
+	end := min(start+page.Limit(), len(all))
 	out := make([]*role.Role, 0, end-start)
 	for i := start; i < end; i++ {
 		rl := all[i]

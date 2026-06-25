@@ -6,12 +6,15 @@ import (
 )
 
 func TestParseRole(t *testing.T) {
-	ok := map[string]Role{"employer": RoleEmployer, "Recruiter": RoleRecruiter, " candidate ": RoleCandidate}
+	ok := map[string]Role{"employer": RoleEmployer, "Recruiter": RoleRecruiter}
 	for in, want := range ok {
 		got, err := ParseRole(in)
 		if err != nil || got != want {
 			t.Errorf("ParseRole(%q) = %v, %v; want %v", in, got, err, want)
 		}
+	}
+	if r, err := ParseRole(" candidate "); err != nil || r != RoleCandidate {
+		t.Errorf("ParseRole should trim/normalize: %v %v", r, err)
 	}
 	if _, err := ParseRole("admin"); err == nil {
 		t.Error("ParseRole(admin) should error")
