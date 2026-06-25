@@ -214,7 +214,7 @@ caliber/
 |---|---|---|---|---|---|---|
 | **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~45% |
 | | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~85% |
-| | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | WIP | ~60% |
+| | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | WIP | ~75% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~40% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
@@ -300,7 +300,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-018** `[DONE]` · 5 pts — **Argon2id password hashing adapter.** `PasswordHasher` port + `Argon2idHasher` (OWASP defaults m=64MiB/t=3/p=2, PHC-encoded, constant-time verify). Decoder validates embedded params (rejects t<1/p<1/oversized-m) so a crafted hash can't panic or exhaust memory. *AC:* hashes verify; params configurable; timing-safe. *Deps:* CAL-017
 - **CAL-019** `[DONE]` · 5 pts — **JWT issuance & verification.** `TokenService` port + HS256 `JWTService` (golang-jwt/v5): short access + rotating refresh (jti for revocation), iss/aud/exp/nbf enforced, alg pinned to HS256 (none/RS256 rejected), ≥32-byte secret floor. *AC:* expiry, signature, audience validated; refresh rotation tested. *Deps:* CAL-017
 - **CAL-020** `[DONE]` · 5 pts — **Register / login / logout / refresh RPCs.** `identity.Service` use-case + gRPC/REST handlers: register (Argon2id hash, dup→409), login (generic 401, no enumeration), refresh (single-use rotation + replay detection), idempotent logout. In-memory user repo + refresh store for dev; Postgres user repo wired when a DB is set. GetMe + rate-limiting deferred (CAL-021/CAL-112). *AC:* covers happy + error paths; rate-limited (ties to CAL-112). *Deps:* CAL-018, CAL-019, CAL-164
-- **CAL-021** `[TODO]` · 3 pts — **Auth interceptor/middleware & RBAC guards.** Context-injected principal; role/ownership guards on handlers. *AC:* unauthorized → 401, forbidden → 403, with tests. *Deps:* CAL-019
+- **CAL-021** `[DONE]` · 3 pts — **Auth interceptor/middleware & RBAC guards.** Unary interceptor verifies bearer access tokens and injects the principal into context; `RequireAuth`/`RequireRole` guards map to 401/403; `GetMe` protected end-to-end. Per-flow role guards layer onto Role/Matching as their clients land. *AC:* unauthorized → 401, forbidden → 403, with tests. *Deps:* CAL-019
 - **CAL-022** `[TODO]` · 3 pts — **Employer & candidate context bootstrap.** On signup, create Employer or Candidate context owned by the user. *AC:* user→context relationship enforced. *Deps:* CAL-020
 - **CAL-023** `[TODO]` · 5 pts — **Session security hardening (POC baseline).** Secure cookie/refresh handling, CSRF strategy, brute-force lockout, secure headers. *AC:* OWASP auth checklist items pass. *Deps:* CAL-020
 

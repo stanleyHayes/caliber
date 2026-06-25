@@ -98,6 +98,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	}
 	identitySvc := identityapp.NewService(userRepo, authadapter.NewArgon2idHasher(), tokens, memory.NewRefreshStore(), time.Now)
 	svc.Identity = grpcadapter.NewIdentityServer(identitySvc)
+	svc.AccessVerifier = tokens
 
 	svc.Role = grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, roleRepo, time.Now))
 	return svc, cleanup, nil

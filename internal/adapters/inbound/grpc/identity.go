@@ -3,8 +3,6 @@ package grpcadapter
 import (
 	"context"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	identityapp "github.com/xcreativs/caliber/internal/app/identity"
@@ -64,10 +62,18 @@ func (s *IdentityServer) Logout(ctx context.Context, req *caliberv1.LogoutReques
 	return &caliberv1.LogoutResponse{}, nil
 }
 
-// GetMe returns the authenticated user. It requires the principal injected by
-// the auth interceptor (CAL-021); until that lands it reports unauthenticated.
-func (s *IdentityServer) GetMe(_ context.Context, _ *caliberv1.GetMeRequest) (*caliberv1.GetMeResponse, error) {
-	return nil, status.Error(codes.Unauthenticated, "identity: authentication required")
+// GetMe returns the authenticated user behind the access token (the principal
+// injected by the auth interceptor).
+func (s *IdentityServer) GetMe(ctx context.Context, _ *caliberv1.GetMeRequest) (*caliberv1.GetMeResponse, error) {
+	principal, err := RequireAuth(ctx)
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	user, err := s.svc.Me(ctx, principal.UserID)
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	return &caliberv1.GetMeResponse{User: userToProto(user)}, nil
 }
 
 func userRoleFromProto(r caliberv1.UserRole) (identity.Role, error) {
