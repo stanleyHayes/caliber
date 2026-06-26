@@ -115,6 +115,13 @@ func (r *AgentRunner) consider(
 	if !assessment.Apply || assessment.FitScore < r.minFit {
 		return false, nil
 	}
+	if grounding := agentdom.CheckGrounding(
+		assessment.TailoredSummary, profileCompetencyNames(profile), roleCompetencyNames(rl),
+	); !grounding.Grounded {
+		// No-fabrication (CAL-071): the summary asserts a skill the verified
+		// profile does not evidence; do not apply on the candidate's behalf.
+		return false, nil
+	}
 	application, err := agentdom.NewAgentApplication(rl.ID, candidateID, profile.ID, assessment.TailoredSummary)
 	if err != nil {
 		// A blank/ungrounded summary fails the no-fabrication invariant: skip, don't apply.
@@ -145,6 +152,22 @@ func (r *AgentRunner) assess(ctx context.Context, rl *role.Role, profile *talent
 func requirementsFor(rl *role.Role) matchingdom.Requirements {
 	return matchingdom.NewRequirements(
 		rl.Spec.Location, rl.Spec.SalaryBand.High, rl.Spec.SalaryBand.Currency, nil)
+}
+
+func profileCompetencyNames(p *talent.TalentProfile) []string {
+	names := make([]string, 0, len(p.Competencies))
+	for _, c := range p.Competencies {
+		names = append(names, c.Name)
+	}
+	return names
+}
+
+func roleCompetencyNames(rl *role.Role) []string {
+	names := make([]string, 0, len(rl.Rubric.Competencies))
+	for _, c := range rl.Rubric.Competencies {
+		names = append(names, c.Name)
+	}
+	return names
 }
 
 // profileCoversMustHaves reports whether the verified profile evidences every
