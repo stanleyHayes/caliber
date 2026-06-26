@@ -1,11 +1,13 @@
 import { AppBar, Box, Button, Container, Toolbar, Typography } from '@mui/material';
-import { Link, Outlet } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { useLogout } from '../query/auth';
 import { useAuthStore } from '../stores/auth';
 import { ModeToggle } from './ModeToggle';
 
 export function AppShell() {
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
   const logout = useLogout();
@@ -35,7 +37,17 @@ export function AppShell() {
         </Toolbar>
       </AppBar>
       <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
-        <Outlet />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </Container>
     </Box>
   );
