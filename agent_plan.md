@@ -352,7 +352,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-050** `[DONE]` · 5 pts — **Match assembly & persistence.** Build `Match` (overall_score, breakdown, rationale, watch_outs, thin_evidence_flag). *AC:* matches Appendix A.2; persisted. *Deps:* CAL-049, CAL-014
 - **CAL-051** `[TODO]` · 5 pts — **Live re-ranking on criteria change.** Editing must-have/weight/location re-ranks the shortlist. *AC:* re-rank ≤ acceptable latency; correct order. *Deps:* CAL-050, CAL-040
 - **CAL-052** `[DONE]` · 5 pts — **Bias-safe ranking guard.** Rubric-driven only; protected attributes excluded from scoring inputs. *AC:* automated test asserts protected fields never reach the scorer. *Deps:* CAL-048
-- **CAL-053** `[TODO]` · 4 pts — **Two-way matching (role↔candidate).** Surface roles fitting a passive candidate (feeds Radar alerts). *AC:* both directions queryable. *Deps:* CAL-047
+- **CAL-053** `[DONE]` · 4 pts — **Two-way matching (role↔candidate).** Added the candidate→role direction to complement the Shortlister (role→candidate): pure-domain `matchingdom.ComputeFit` (deterministic, bias-safe, explainable weighted-coverage fit over competency signals only — no LLM, scales for Radar) and `app/matching.PassiveMatcher.RolesForCandidate` (loads profile, scans open roles, gates on logistics + must-have coverage, ranks by fit). Both directions now queryable at the use-case layer. Feeds Radar alerts (CAL-078). *AC:* both directions queryable. *Deps:* CAL-047
 
 ## EPIC-08 · Employer Intake & Explainable Shortlisting (Flow A)
 **Goal:** End-to-end Flow A: messy sentence in → structured spec, rubric, explainable ranked shortlist out, in seconds. (Spec §6.1.)
