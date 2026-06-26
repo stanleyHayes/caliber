@@ -13,6 +13,7 @@ import (
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
+	"github.com/xcreativs/caliber/internal/domain/talent"
 )
 
 const (
@@ -40,16 +41,30 @@ type Interviewer struct {
 	interviews interviewdom.InterviewRepository
 	llm        app.LLMClient
 	maxTurns   int
+	profiles   talent.TalentProfileRepository // optional: passport update on completion
+}
+
+// Option customizes an Interviewer.
+type Option func(*Interviewer)
+
+// WithPassportUpdater marks the candidate's Talent Passport as screened once an
+// interview completes (best-effort).
+func WithPassportUpdater(profiles talent.TalentProfileRepository) Option {
+	return func(s *Interviewer) { s.profiles = profiles }
 }
 
 // NewInterviewer wires the use-case. A non-positive maxTurns defaults to 4.
 func NewInterviewer(
-	roles role.RoleRepository, interviews interviewdom.InterviewRepository, llm app.LLMClient, maxTurns int,
+	roles role.RoleRepository, interviews interviewdom.InterviewRepository, llm app.LLMClient, maxTurns int, opts ...Option,
 ) *Interviewer {
 	if maxTurns <= 0 {
 		maxTurns = defaultMaxTurns
 	}
-	return &Interviewer{roles: roles, interviews: interviews, llm: llm, maxTurns: maxTurns}
+	s := &Interviewer{roles: roles, interviews: interviews, llm: llm, maxTurns: maxTurns}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 type llmQuestion struct {
@@ -183,7 +198,28 @@ func (s *Interviewer) finish(ctx context.Context, rl *role.Role, iv *interviewdo
 	if err := iv.Complete(card); err != nil {
 		return err
 	}
-	return s.interviews.Update(ctx, iv)
+	if err := s.interviews.Update(ctx, iv); err != nil {
+		return err
+	}
+	s.markScreened(ctx, iv.CandidateID)
+	return nil
+}
+
+// markScreened advances the candidate's passport to screened, best-effort: a
+// missing profile or already-screened passport is a no-op.
+func (s *Interviewer) markScreened(ctx context.Context, candidateID kernel.ID) {
+	if s.profiles == nil {
+		return
+	}
+	profile, err := s.profiles.ByCandidateID(ctx, candidateID)
+	if err != nil {
+		return
+	}
+	if profile.PassportStatus == talent.PassportScreened || profile.PassportStatus == talent.PassportVerified {
+		return
+	}
+	profile.MarkScreened()
+	_ = s.profiles.Update(ctx, profile)
 }
 
 func questionPrompt(rl *role.Role, iv *interviewdom.Interview) string {

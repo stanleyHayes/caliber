@@ -14,6 +14,7 @@ import (
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
+	"github.com/xcreativs/caliber/internal/domain/talent"
 	"github.com/xcreativs/caliber/internal/mocks"
 )
 
@@ -198,4 +199,30 @@ func TestReportReturnsCompletedCard(t *testing.T) {
 	card, err := interviewer.Report(context.Background(), iv.ID)
 	require.NoError(t, err)
 	assert.Equal(t, interviewdom.VerdictAdvance, card.Verdict)
+}
+
+func TestAnswerMarksPassportScreenedOnCompletion(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	iv := askingInterview(t, rl.ID)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+
+	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: reportJSON}, nil)
+	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	prof, err := talent.NewTalentProfile(iv.CandidateID, "s", []talent.ProfileCompetency{{Name: "Go", Level: 4, EvidenceQuote: "x"}})
+	require.NoError(t, err)
+	profiles.EXPECT().ByCandidateID(gomock.Any(), iv.CandidateID).Return(prof, nil)
+	var updated *talent.TalentProfile
+	profiles.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, p *talent.TalentProfile) error { updated = p; return nil })
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 1, interviewapp.WithPassportUpdater(profiles))
+	_, report, err := interviewer.Answer(context.Background(), iv.ID, "concrete answer")
+	require.NoError(t, err)
+	require.NotNil(t, report)
+	require.NotNil(t, updated)
+	assert.Equal(t, talent.PassportScreened, updated.PassportStatus, "passport advanced to screened")
 }
