@@ -26,6 +26,8 @@ func (d *Dev) Complete(_ context.Context, req app.LLMRequest) (app.LLMResponse, 
 		doc = devQuestion(req.Prompt)
 	case strings.Contains(req.System, "score a screening interview"):
 		doc = devReport(req.Prompt)
+	case strings.Contains(req.System, "honest job-application agent"):
+		doc = devAgent(req.Prompt)
 	default:
 		doc = devRoleSpec(req.Prompt)
 	}
@@ -117,6 +119,40 @@ func answers(prompt string) []string {
 		}
 	}
 	return out
+}
+
+// devAgent assesses fit and drafts a tailored summary grounded only in the
+// candidate's verified profile competencies (no fabrication).
+func devAgent(prompt string) map[string]any {
+	comps := profileCompetencies(prompt)
+	summary := "Strong fit for this role based on verified experience."
+	if len(comps) > 0 {
+		summary = "Drawing on verified experience in " + strings.Join(comps, ", ") + ", a strong fit for this role."
+	}
+	return map[string]any{"fit_score": 0.8, "apply": true, "tailored_summary": summary}
+}
+
+// profileCompetencies extracts competency names under the verified-profile header.
+func profileCompetencies(prompt string) []string {
+	var names []string
+	inProfile := false
+	for ln := range strings.SplitSeq(prompt, "\n") {
+		switch {
+		case strings.HasPrefix(ln, "VERIFIED PROFILE COMPETENCIES:"):
+			inProfile = true
+		case inProfile:
+			if item, ok := strings.CutPrefix(ln, "- "); ok {
+				name := item
+				if i := strings.Index(name, " (level"); i >= 0 {
+					name = name[:i]
+				}
+				names = append(names, strings.TrimSpace(name))
+			} else {
+				inProfile = false
+			}
+		}
+	}
+	return names
 }
 
 func firstLine(s string) string {

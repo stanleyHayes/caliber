@@ -20,3 +20,5 @@ type ApplicationRepository interface {
 	// It returns the page of applications and the total count across all pages.
 	ByCandidate(ctx context.Context, candidateID kernel.ID, page kernel.Page) ([]*Application, int64, error)
 }
+
+//go:generate mockgen -source=port.go -destination=../../mocks/candidateagent.go -package=mocks

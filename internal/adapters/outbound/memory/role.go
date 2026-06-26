@@ -53,6 +53,28 @@ func (r *RoleRepo) Update(_ context.Context, rl *role.Role) error {
 	return nil
 }
 
+// ListOpen lists non-closed roles (the applyable pool), newest first.
+func (r *RoleRepo) ListOpen(_ context.Context, page kernel.Page) ([]*role.Role, int64, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var all []role.Role
+	for _, rl := range r.items {
+		if rl.Status != role.RoleClosed {
+			all = append(all, rl)
+		}
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].CreatedAt.After(all[j].CreatedAt) })
+	total := int64(len(all))
+	start := min(page.Offset(), len(all))
+	end := min(start+page.Limit(), len(all))
+	out := make([]*role.Role, 0, end-start)
+	for i := start; i < end; i++ {
+		rl := all[i]
+		out = append(out, &rl)
+	}
+	return out, total, nil
+}
+
 // ListByEmployer returns a page of an employer's roles, newest first.
 func (r *RoleRepo) ListByEmployer(_ context.Context, employerID kernel.ID, page kernel.Page) ([]*role.Role, int64, error) {
 	r.mu.RLock()

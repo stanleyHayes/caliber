@@ -21,3 +21,13 @@ LIMIT $2 OFFSET $3;
 
 -- name: CountRolesByEmployer :one
 SELECT count(*) FROM roles WHERE employer_id = $1;
+
+-- name: ListOpenRoles :many
+SELECT id, employer_id, title, status, role_spec, rubric, salary_band, created_at
+FROM roles
+WHERE status <> 'closed'
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
+
+-- name: CountOpenRoles :one
+SELECT count(*) FROM roles WHERE status <> 'closed';

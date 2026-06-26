@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countOpenRoles = `-- name: CountOpenRoles :one
+SELECT count(*) FROM roles WHERE status <> 'closed'
+`
+
+func (q *Queries) CountOpenRoles(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenRoles)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countRolesByEmployer = `-- name: CountRolesByEmployer :one
 SELECT count(*) FROM roles WHERE employer_id = $1
 `
@@ -83,6 +94,59 @@ func (q *Queries) GetRole(ctx context.Context, id string) (GetRoleRow, error) {
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listOpenRoles = `-- name: ListOpenRoles :many
+SELECT id, employer_id, title, status, role_spec, rubric, salary_band, created_at
+FROM roles
+WHERE status <> 'closed'
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListOpenRolesParams struct {
+	Limit  int32
+	Offset int32
+}
+
+type ListOpenRolesRow struct {
+	ID         string
+	EmployerID string
+	Title      string
+	Status     string
+	RoleSpec   []byte
+	Rubric     []byte
+	SalaryBand []byte
+	CreatedAt  pgtype.Timestamptz
+}
+
+func (q *Queries) ListOpenRoles(ctx context.Context, arg ListOpenRolesParams) ([]ListOpenRolesRow, error) {
+	rows, err := q.db.Query(ctx, listOpenRoles, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOpenRolesRow
+	for rows.Next() {
+		var i ListOpenRolesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EmployerID,
+			&i.Title,
+			&i.Status,
+			&i.RoleSpec,
+			&i.Rubric,
+			&i.SalaryBand,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listRolesByEmployer = `-- name: ListRolesByEmployer :many

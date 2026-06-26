@@ -85,6 +85,30 @@ func (r *RoleRepo) Update(ctx context.Context, rl *role.Role) error {
 	return nil
 }
 
+// ListOpen lists non-closed roles (the applyable pool), newest first.
+func (r *RoleRepo) ListOpen(ctx context.Context, page kernel.Page) ([]*role.Role, int64, error) {
+	rows, err := r.q.ListOpenRoles(ctx, sqlcdb.ListOpenRolesParams{
+		Limit:  clampInt32(page.Limit()),
+		Offset: clampInt32(page.Offset()),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]*role.Role, 0, len(rows))
+	for _, row := range rows {
+		rl, derr := toDomainRole(row.ID, row.EmployerID, row.Title, row.Status, row.RoleSpec, row.Rubric, row.CreatedAt)
+		if derr != nil {
+			return nil, 0, derr
+		}
+		out = append(out, rl)
+	}
+	total, err := r.q.CountOpenRoles(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
 // ListByEmployer returns a page of an employer's roles, newest first, plus the total.
 func (r *RoleRepo) ListByEmployer(ctx context.Context, employerID kernel.ID, page kernel.Page) ([]*role.Role, int64, error) {
 	rows, err := r.q.ListRolesByEmployer(ctx, sqlcdb.ListRolesByEmployerParams{
