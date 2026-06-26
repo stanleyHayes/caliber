@@ -13,7 +13,7 @@ import (
 func TestSecureHeadersAndHealth(t *testing.T) {
 	r := httpserver.NewRouter(http.NotFoundHandler(), true)
 	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
@@ -26,7 +26,7 @@ func TestSecureHeadersAndHealth(t *testing.T) {
 func TestNoHSTSOutsideProd(t *testing.T) {
 	r := httpserver.NewRouter(http.NotFoundHandler(), false)
 	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
 	assert.Empty(t, rec.Header().Get("Strict-Transport-Security"))
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 }

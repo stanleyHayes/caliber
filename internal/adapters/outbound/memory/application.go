@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/xcreativs/caliber/internal/domain/candidateagent"
@@ -61,8 +62,8 @@ func (r *ApplicationRepo) ByCandidate(
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var all []*candidateagent.Application
-	for i := len(r.order) - 1; i >= 0; i-- {
-		a := r.byID[r.order[i]]
+	for _, id := range slices.Backward(r.order) {
+		a := r.byID[id]
 		if a.CandidateID == candidateID {
 			app := a
 			all = append(all, &app)
