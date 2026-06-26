@@ -12,10 +12,6 @@ jobs:
   backend:
     name: Backend (lint · proto · test · coverage · sonar)
     runs-on: ubuntu-latest
-    env:
-      # Allow `go install <tool>@latest` to fetch a newer Go toolchain on demand
-      # when a tool (e.g. buf) requires one beyond the version pinned in go.mod.
-      GOTOOLCHAIN: auto
     steps:
       # All actions pinned to latest majors (Node 24 runtime; no Node 20).
       - uses: actions/checkout@v7
@@ -29,6 +25,11 @@ jobs:
           cache: true
 
       - name: Install buf + codegen plugins
+        env:
+          # Step-level GOTOOLCHAIN beats setup-go's GITHUB_ENV value, so
+          # `go install <tool>@latest` fetches whatever Go a tool needs (sqlc
+          # now wants 1.26+, buf 1.25.10) regardless of the go.mod-pinned Go.
+          GOTOOLCHAIN: auto
         run: |
           go install github.com/bufbuild/buf/cmd/buf@latest
           go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
