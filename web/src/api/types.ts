@@ -233,3 +233,41 @@ export interface TimeAdvanceResponse {
 export interface ListApplicationsResponse {
   applications: Application[];
 }
+
+// ----- Talent Radar dashboard (caliber.v1 DashboardService) -----
+
+export type PassportStatus =
+  | 'PASSPORT_STATUS_UNSPECIFIED'
+  | 'PASSPORT_STATUS_CV_ONLY'
+  | 'PASSPORT_STATUS_SCREENED'
+  | 'PASSPORT_STATUS_VERIFIED';
+
+export interface PoolCandidate {
+  candidateId: string;
+  name: string;
+  passportStatus: PassportStatus;
+  headlineScore: number;
+}
+
+export interface SupplyDemandItem {
+  roleFamily: string;
+  openRoles: number;
+  availableCandidates: number;
+  gap: number;
+}
+
+export interface TimeToShortlistMetric {
+  baselineHours: number;
+  currentHours: number;
+  improvementFactor: number;
+}
+
+export interface GetPoolResponse {
+  candidates: PoolCandidate[];
+}
+export interface GetSupplyDemandResponse {
+  items: SupplyDemandItem[];
+}
+export interface GetTimeToShortlistResponse {
+  metric: TimeToShortlistMetric;
+}

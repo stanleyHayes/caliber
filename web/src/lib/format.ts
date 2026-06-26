@@ -1,4 +1,4 @@
-import type { ApplicationStatus, Confidence, InterviewVerdict, Seniority } from '../api/types';
+import type { ApplicationStatus, Confidence, InterviewVerdict, PassportStatus, Seniority } from '../api/types';
 
 export const pct = (v: number) => `${Math.round(v * 100)}%`;
 
@@ -54,4 +54,18 @@ export const applicationStatusColor: Record<ApplicationStatus, 'default' | 'info
   APPLICATION_STATUS_SUBMITTED: 'info',
   APPLICATION_STATUS_SCREENING: 'warning',
   APPLICATION_STATUS_SCREENED: 'success',
+};
+
+export const passportLabel: Record<PassportStatus, string> = {
+  PASSPORT_STATUS_UNSPECIFIED: 'New',
+  PASSPORT_STATUS_CV_ONLY: 'CV only',
+  PASSPORT_STATUS_SCREENED: 'Screened',
+  PASSPORT_STATUS_VERIFIED: 'Verified',
+};
+
+export const passportColor: Record<PassportStatus, 'default' | 'info' | 'warning' | 'success'> = {
+  PASSPORT_STATUS_UNSPECIFIED: 'default',
+  PASSPORT_STATUS_CV_ONLY: 'warning',
+  PASSPORT_STATUS_SCREENED: 'info',
+  PASSPORT_STATUS_VERIFIED: 'success',
 };

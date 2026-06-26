@@ -21,6 +21,11 @@ export function AppShell() {
           >
             Caliber
           </Typography>
+          {accessToken && (
+            <Button component={Link} to="/radar" color="inherit" sx={{ mr: 1 }}>
+              Radar
+            </Button>
+          )}
           <ModeToggle />
           {accessToken && (
             <Button onClick={() => logout.mutate()} sx={{ ml: 1 }} color="inherit">

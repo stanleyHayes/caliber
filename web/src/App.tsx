@@ -10,6 +10,7 @@ import { EmployerFlowPage } from './pages/EmployerFlowPage';
 import { InterviewPage } from './pages/InterviewPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { RadarPage } from './pages/RadarPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { queryClient } from './query/client';
 
@@ -25,6 +26,7 @@ export function App() {
                 <Route path="/roles/new" element={<EmployerFlowPage />} />
                 <Route path="/interview" element={<InterviewPage />} />
                 <Route path="/agent" element={<AgentPage />} />
+                <Route path="/radar" element={<RadarPage />} />
               </Route>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
