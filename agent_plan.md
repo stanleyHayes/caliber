@@ -220,12 +220,12 @@ caliber/
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
 | | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | TODO | 0% |
 | | EPIC-07 | Matching & Ranking Engine | 7 | 37 | WIP | ~70% |
-| | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~30% |
+| | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~45% |
 | | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | TODO | 0% |
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | TODO | 0% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | TODO | 0% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
-| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~35% |
+| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~40% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | TODO | 0% |
 | | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | TODO | 0% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | TODO | 0% |
@@ -360,7 +360,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-054** `[DONE]` · 5 pts — **Flow A orchestration use-case.** `Shortlister` wires recall → logistical gates → rubric scoring → must-have gate → ranked Matches (+ surfaced exclusions); exposed via `MatchingService.GenerateShortlist` (gRPC + REST) and wired in `main` when a DB is configured. *AC:* single call produces a shortlist. *Deps:* CAL-040, CAL-050
 - **CAL-055** `[WIP]` · 3 pts — **Instant availability signal.** "N strong matches already in your pool." `Shortlist.pool_depth` returned in the response. *AC:* pool depth returned immediately after spec. *Deps:* CAL-047
 - **CAL-056** `[TODO]` · 5 pts — **Explainable, paginated shortlist response.** Each candidate: fit score, per-competency breakdown, plain-English "why," watch-outs, thin-evidence flag; results paginated. *AC:* contract locked; no black-box fields. *Deps:* CAL-050, CAL-082
-- **CAL-057** `[TODO]` · 3 pts — **Refine RPC.** Tighten criteria / add skill → live re-rank. *AC:* shortlist updates correctly. *Deps:* CAL-051
+- **CAL-057** `[DONE]` · 3 pts — **Refine RPC.** `MatchingService.RefineShortlist` (Refiner use-case: revise+persist role → re-rank) wired; the employer UI re-ranks the shortlist live on every spec/rubric edit (version-keyed query, keeps the prior ranking visible while updating). *AC:* shortlist updates correctly. *Deps:* CAL-051
 - **CAL-058** `[TODO]` · 5 pts — **Flow A proto contract & gateway.** gRPC service + REST gateway + OpenAPI; field names locked from Appendix A. *AC:* documented, validated, versioned. *Deps:* CAL-054, CAL-164
 - **CAL-059** `[TODO]` · 8 pts — **Flow A integration tests (demo beat).** Messy sentence → spec+rubric+ranked explainable shortlist on seed data. *AC:* acceptance criteria §15.1 pass. *Deps:* CAL-054, CAL-016
 

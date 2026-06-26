@@ -20,9 +20,9 @@ import { MatchCard } from './MatchCard';
 
 const PAGE_SIZE = 20;
 
-export function ShortlistSection({ roleId }: { roleId: string }) {
+export function ShortlistSection({ roleId, version }: { roleId: string; version: number }) {
   const [run, setRun] = useState(false);
-  const query = useShortlist(roleId, PAGE_SIZE, run);
+  const query = useShortlist(roleId, PAGE_SIZE, run, version);
 
   if (!run) {
     return (
