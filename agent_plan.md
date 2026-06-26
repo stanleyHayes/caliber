@@ -223,7 +223,7 @@ caliber/
 | | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~45% |
 | | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | WIP | ~50% |
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~35% |
-| | EPIC-11 | Talent Radar Dashboard | 5 | 24 | TODO | 0% |
+| | EPIC-11 | Talent Radar Dashboard | 5 | 24 | WIP | ~40% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
 | | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~50% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | TODO | 0% |
@@ -391,10 +391,10 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-11 · Talent Radar Dashboard
 **Goal:** The god-view that frames the whole demo: live pool, supply/demand snapshot, two-way alerts, and the headline time-to-shortlist metric dropping weeks → hours. (Spec §6.4.)
 
-- **CAL-076** `[TODO]` · 5 pts — **Live, paginated candidate pool view.** Aggregated pool with passport status. *AC:* reflects current seed state; paginated. *Deps:* CAL-045
-- **CAL-077** `[TODO]` · 5 pts — **Supply/demand snapshot by role family.** Counts and gaps per role family. *AC:* numbers reconcile with seed data. *Deps:* CAL-076
+- **CAL-076** `[WIP]` · 5 pts — **Live, paginated candidate pool view.** Aggregated pool with passport status. *AC:* reflects current seed state; paginated. *Deps:* CAL-045
+- **CAL-077** `[WIP]` · 5 pts — **Supply/demand snapshot by role family.** Counts and gaps per role family. *AC:* numbers reconcile with seed data. *Deps:* CAL-076
 - **CAL-078** `[TODO]` · 5 pts — **Two-way match alerts.** "New strong candidate for an open role" / "new role fits a passive candidate." *AC:* alerts generated from EPIC-07 two-way matching; paginated. *Deps:* CAL-053
-- **CAL-079** `[TODO]` · 5 pts — **Time-to-shortlist metric.** Headline metric showing collapse from weeks → hours. *AC:* computed and displayed as the closing visual. *Deps:* CAL-059
+- **CAL-079** `[WIP]` · 5 pts — **Time-to-shortlist metric.** Headline metric showing collapse from weeks → hours. *AC:* computed and displayed as the closing visual. *Deps:* CAL-059
 - **CAL-080** `[TODO]` · 4 pts — **Dashboard aggregation performance.** Cache/precompute snapshots for snappy live rendering. *AC:* dashboard loads within demo budget. *Deps:* CAL-076
 
 ## EPIC-12 · Trust, Explainability, Audit & Guardrails
