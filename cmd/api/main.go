@@ -184,9 +184,9 @@ const (
 	llmRateBurst      = 40
 )
 
-//nolint:ireturn // returns the guarded LLM facade as the app.LLMClient port; interface return is intentional.
+//nolint:ireturn // returns the audited+guarded LLM facade as the app.LLMClient port; interface return is intentional.
 func buildLLM(cfg config.Config, log *slog.Logger) app.LLMClient {
-	return llm.NewGuarded(newLLMProvider(cfg, log),
+	guarded := llm.NewGuarded(newLLMProvider(cfg, log),
 		llm.WithMaxTokens(llmMaxTokensCap),
 		llm.WithConcurrency(llmMaxConcurrency),
 		llm.WithRateLimiter(llm.NewTokenBucket(llmRatePerSecond, llmRateBurst, nil)),
@@ -195,6 +195,16 @@ func buildLLM(cfg config.Config, log *slog.Logger) app.LLMClient {
 			log.Warn("llm prompt-injection signal detected", "categories", categories)
 		}),
 	)
+	// Outermost: trace every call (redacted: sizes + latency, no content) for
+	// cost and explainability observability (CAL-036).
+	return llm.NewAudited(guarded, llm.NewSlogRecorder(log), modelLabel(cfg), nil)
+}
+
+func modelLabel(cfg config.Config) string {
+	if cfg.AnthropicAPIKey != "" {
+		return cfg.AnthropicModel
+	}
+	return "dev"
 }
 
 //nolint:ireturn // selects a concrete LLM implementation from config; interface return is intentional.
