@@ -174,8 +174,31 @@ func buildTokenService(cfg config.Config, log *slog.Logger) (app.TokenService, e
 	})
 }
 
-//nolint:ireturn // selects a concrete LLM implementation from config; interface return is intentional.
+// LLM guardrail defaults (CAL-035): bound per-call tokens, simultaneous in-flight
+// calls, and the request budget so a misbehaving client or adversarial prompt
+// cannot run up provider cost.
+const (
+	llmMaxTokensCap   = 2048
+	llmMaxConcurrency = 8
+	llmRatePerSecond  = 20
+	llmRateBurst      = 40
+)
+
+//nolint:ireturn // returns the guarded LLM facade as the app.LLMClient port; interface return is intentional.
 func buildLLM(cfg config.Config, log *slog.Logger) app.LLMClient {
+	return llm.NewGuarded(newLLMProvider(cfg, log),
+		llm.WithMaxTokens(llmMaxTokensCap),
+		llm.WithConcurrency(llmMaxConcurrency),
+		llm.WithRateLimiter(llm.NewTokenBucket(llmRatePerSecond, llmRateBurst, nil)),
+		llm.WithInjectionHook(func(categories []string) {
+			// Category labels only — never prompt content — so logs stay PII-safe.
+			log.Warn("llm prompt-injection signal detected", "categories", categories)
+		}),
+	)
+}
+
+//nolint:ireturn // selects a concrete LLM implementation from config; interface return is intentional.
+func newLLMProvider(cfg config.Config, log *slog.Logger) app.LLMClient {
 	if cfg.AnthropicAPIKey != "" {
 		log.Info("llm provider selected", "provider", "claude", "model", cfg.AnthropicModel)
 		return llm.NewClaude(llm.WithAPIKey(cfg.AnthropicAPIKey), llm.WithModel(cfg.AnthropicModel))
