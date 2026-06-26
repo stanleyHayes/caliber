@@ -10,6 +10,7 @@ import (
 
 	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/app"
+	"github.com/xcreativs/caliber/internal/app/prompts"
 )
 
 func TestDevShapesInterviewResponses(t *testing.T) {
@@ -17,7 +18,7 @@ func TestDevShapesInterviewResponses(t *testing.T) {
 	ctx := context.Background()
 
 	q, err := d.Complete(ctx, app.LLMRequest{
-		System: "You are an adaptive technical screening interviewer.",
+		Source: app.PromptRef{ID: string(prompts.IDInterviewQuestion)},
 		Prompt: "ROLE: Backend\nRUBRIC:\n- Go\n- SQL\nTRANSCRIPT: (none yet)\nAsk the next question.",
 	})
 	require.NoError(t, err)
@@ -30,7 +31,7 @@ func TestDevShapesInterviewResponses(t *testing.T) {
 	assert.Equal(t, "Go", question.CompetencyTag, "targets the first rubric competency on turn 0")
 
 	r, err := d.Complete(ctx, app.LLMRequest{
-		System: "You score a screening interview against the role rubric.",
+		Source: app.PromptRef{ID: string(prompts.IDInterviewReport)},
 		Prompt: "ROLE: Backend\nRUBRIC:\n- Go\nTRANSCRIPT:\nQ1 (Go): tell me\nA: I built a payments service\nScore the interview now.",
 	})
 	require.NoError(t, err)

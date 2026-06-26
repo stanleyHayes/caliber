@@ -11,11 +11,20 @@ type LLMClient interface {
 	Complete(ctx context.Context, req LLMRequest) (LLMResponse, error)
 }
 
-// LLMRequest is a single completion request.
+// PromptRef identifies the registry prompt a request was built from, so the
+// audit trail records exactly which prompt id + version produced each call.
+type PromptRef struct {
+	ID      string
+	Version string
+}
+
+// LLMRequest is a single completion request. Source is set when the request is
+// built through the prompt registry (prompts.Prompt.Request).
 type LLMRequest struct {
 	System    string
 	Prompt    string
 	MaxTokens int
+	Source    PromptRef
 }
 
 // LLMResponse is a completion result.

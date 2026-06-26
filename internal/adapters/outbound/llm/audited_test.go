@@ -39,7 +39,7 @@ func TestAudited_RecordsRedactedTraceOnSuccess(t *testing.T) {
 	a := llm.NewAudited(stubLLM{resp: app.LLMResponse{Text: "0123456789"}}, rec, "claude-opus-4-8", clock)
 
 	_, err := a.Complete(context.Background(), app.LLMRequest{
-		System: "You are an adaptive technical screening interviewer.",
+		Source: app.PromptRef{ID: "interview_question", Version: "v1"},
 		Prompt: "hello",
 	})
 	require.NoError(t, err)
@@ -47,6 +47,8 @@ func TestAudited_RecordsRedactedTraceOnSuccess(t *testing.T) {
 	snap := rec.Snapshot()
 	require.Len(t, snap, 1)
 	assert.Equal(t, "interview_question", snap[0].Operation)
+	assert.Equal(t, "interview_question", snap[0].PromptID)
+	assert.Equal(t, "v1", snap[0].PromptVersion)
 	assert.Equal(t, "claude-opus-4-8", snap[0].Model)
 	assert.Equal(t, 5, snap[0].PromptChars)
 	assert.Equal(t, 10, snap[0].ResponseChars)
@@ -60,7 +62,7 @@ func TestAudited_RecordsFailureAndPropagates(t *testing.T) {
 	boom := errors.New("provider down")
 	a := llm.NewAudited(stubLLM{err: boom}, rec, "dev", nil)
 
-	_, err := a.Complete(context.Background(), app.LLMRequest{System: "score a screening interview", Prompt: "x"})
+	_, err := a.Complete(context.Background(), app.LLMRequest{Source: app.PromptRef{ID: "interview_report", Version: "v1"}, Prompt: "x"})
 	require.ErrorIs(t, err, boom, "the inner error is propagated unchanged")
 
 	snap := rec.Snapshot()
@@ -77,22 +79,18 @@ func TestAudited_NilRecorderIsSafe(t *testing.T) {
 	assert.Equal(t, "ok", resp.Text)
 }
 
-func TestAudited_OperationClassification(t *testing.T) {
-	cases := map[string]string{
-		"You are an adaptive technical screening interviewer.":         "interview_question",
-		"You score a screening interview against the role rubric.":     "interview_report",
-		"You are a candidate's honest job-application agent.":          "agent_assess",
-		"You extract a structured talent profile from a CV.":           "cv_extract",
-		"You score a candidate against a role rubric.":                 "shortlist_score",
-		"You convert a hiring need into a structured role spec and...": "role_spec",
-		"some unrecognized system prompt":                              "unknown",
-	}
-	for system, want := range cases {
-		rec := llm.NewMemoryRecorder(1)
-		a := llm.NewAudited(stubLLM{}, rec, "dev", nil)
-		_, _ = a.Complete(context.Background(), app.LLMRequest{System: system})
-		assert.Equal(t, want, rec.Snapshot()[0].Operation, "system=%q", system)
-	}
+func TestAudited_UnknownSourceIsRecordedAsUnknown(t *testing.T) {
+	// A request with no Source (e.g. an ad-hoc call not built through the
+	// registry) records Operation "unknown" and empty prompt id/version, rather
+	// than guessing from the system text.
+	rec := llm.NewMemoryRecorder(1)
+	a := llm.NewAudited(stubLLM{}, rec, "dev", nil)
+	_, _ = a.Complete(context.Background(), app.LLMRequest{System: "anything"})
+	snap := rec.Snapshot()
+	require.Len(t, snap, 1)
+	assert.Equal(t, "unknown", snap[0].Operation)
+	assert.Empty(t, snap[0].PromptID)
+	assert.Empty(t, snap[0].PromptVersion)
 }
 
 func TestMemoryRecorder_RingBufferEvictsOldest(t *testing.T) {

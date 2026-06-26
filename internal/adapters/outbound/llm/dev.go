@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/xcreativs/caliber/internal/app"
+	"github.com/xcreativs/caliber/internal/app/prompts"
 )
 
 // keyName is the JSON object key for a named rubric criterion or competency,
@@ -25,16 +26,18 @@ func NewDev() *Dev { return &Dev{} }
 // Complete returns a canned, schema-valid JSON document for the request.
 func (d *Dev) Complete(_ context.Context, req app.LLMRequest) (app.LLMResponse, error) {
 	var doc any
-	switch {
-	case strings.Contains(req.System, "screening interviewer"):
+	switch prompts.ID(req.Source.ID) {
+	case prompts.IDInterviewQuestion:
 		doc = devQuestion(req.Prompt)
-	case strings.Contains(req.System, "score a screening interview"):
+	case prompts.IDInterviewReport:
 		doc = devReport(req.Prompt)
-	case strings.Contains(req.System, "honest job-application agent"):
+	case prompts.IDAgentAssess:
 		doc = devAgent(req.Prompt)
-	case strings.Contains(req.System, "structured talent profile from a CV"):
+	case prompts.IDCVExtract:
 		doc = devExtract(req.Prompt)
 	default:
+		// IDShortlistScore, IDRoleSpec, and any unset Source resolve to the
+		// role-spec generator (the shortlist scorer has no dedicated dev shape).
 		doc = devRoleSpec(req.Prompt)
 	}
 	b, err := json.Marshal(doc)

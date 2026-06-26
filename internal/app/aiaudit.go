@@ -8,7 +8,9 @@ import "time"
 // PII never reaches telemetry (token counts are approximated by character
 // length until a tokenizer is wired).
 type AICallRecord struct {
-	Operation     string        // logical operation, derived from the system prompt
+	Operation     string        // logical operation = the prompt id carried on the request
+	PromptID      string        // registry prompt id (explicit; replaces substring guessing)
+	PromptVersion string        // registry prompt version — satisfies "version recorded per call"
 	Model         string        // provider model id (or "dev")
 	Latency       time.Duration // wall-clock time for the call
 	PromptChars   int           // input size (proxy for input tokens)

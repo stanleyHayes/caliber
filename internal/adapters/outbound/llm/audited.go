@@ -3,7 +3,6 @@ package llm
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -35,8 +34,14 @@ func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 	start := a.now()
 	resp, err := a.inner.Complete(ctx, req)
 	if a.recorder != nil {
+		operation := req.Source.ID
+		if operation == "" {
+			operation = "unknown"
+		}
 		a.recorder.Record(app.AICallRecord{
-			Operation:     operationOf(req.System),
+			Operation:     operation,
+			PromptID:      req.Source.ID,
+			PromptVersion: req.Source.Version,
 			Model:         a.model,
 			Latency:       a.now().Sub(start),
 			PromptChars:   len(req.Prompt),
@@ -46,27 +51,6 @@ func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 		})
 	}
 	return resp, err
-}
-
-// operationOf classifies a call by a stable label derived from its system
-// prompt, so traces are groupable without storing prompt content.
-func operationOf(system string) string {
-	switch {
-	case strings.Contains(system, "screening interviewer"):
-		return "interview_question"
-	case strings.Contains(system, "score a screening interview"):
-		return "interview_report"
-	case strings.Contains(system, "honest job-application agent"):
-		return "agent_assess"
-	case strings.Contains(system, "structured talent profile from a CV"):
-		return "cv_extract"
-	case strings.Contains(system, "candidate against a role rubric"):
-		return "shortlist_score"
-	case strings.Contains(system, "structured role spec"):
-		return "role_spec"
-	default:
-		return "unknown"
-	}
 }
 
 // SlogRecorder logs each AI-call trace via slog at info level. It records only
@@ -82,6 +66,8 @@ func NewSlogRecorder(log *slog.Logger) *SlogRecorder { return &SlogRecorder{log:
 func (r *SlogRecorder) Record(rec app.AICallRecord) {
 	r.log.Info("ai call",
 		"operation", rec.Operation,
+		"prompt_id", rec.PromptID,
+		"prompt_version", rec.PromptVersion,
 		"model", rec.Model,
 		"latency_ms", rec.Latency.Milliseconds(),
 		"prompt_chars", rec.PromptChars,
