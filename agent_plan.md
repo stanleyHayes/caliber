@@ -331,7 +331,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-037** `[TODO]` · 5 pts — **Role Spec generation use-case.** Free text → Role Spec JSON (title, location, seniority, availability, responsibilities, must/nice-to-haves, salary band). *AC:* matches Appendix A.1 contract. *Deps:* CAL-031, CAL-032
 - **CAL-038** `[TODO]` · 5 pts — **Weighted rubric generation.** Competencies with weights + must-have flags. *AC:* valid, normalized weights; deterministic schema. *Deps:* CAL-037
 - **CAL-039** `[TODO]` · 3 pts — **Salary-band lookup over seeded market data.** Simple lookup for realism (Ghana market). *AC:* band returned in role currency. *Deps:* CAL-037, CAL-016
-- **CAL-040** `[TODO]` · 5 pts — **Editable spec/rubric RPCs + re-weighting.** Persist; allow field edits & weight changes that trigger re-rank. *AC:* edits persisted and audited. *Deps:* CAL-037, CAL-014
+- **CAL-040** `[DONE]` · 5 pts — **Editable spec/rubric RPCs + re-weighting.** `RoleService.GetRole` + `UpdateRoleSpec` (domain `Role.Revise` validates; rubric re-normalized on save) wired; employer UI edits spec fields + rubric weights/must-haves and saves. Re-rank-on-edit (CAL-057) and audit (CAL-014) still pending. *AC:* edits persisted and audited. *Deps:* CAL-037, CAL-014
 - **CAL-041** `[TODO]` · 3 pts — **Spec embedding on save.** Embed the role spec for recall. *AC:* `role_embedding` populated. *Deps:* CAL-033, CAL-040
 
 ## EPIC-06 · Profile Parser & Competency Extractor

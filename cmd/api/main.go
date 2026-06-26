@@ -109,7 +109,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	svc.Identity = grpcadapter.NewIdentityServer(identitySvc)
 	svc.AccessVerifier = tokens
 
-	svc.Role = grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, roleRepo, time.Now))
+	svc.Role = grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, roleRepo, time.Now), roles.NewSpecEditor(roleRepo))
 	return svc, cleanup, nil
 }
 

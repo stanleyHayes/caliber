@@ -140,3 +140,45 @@ func exclusionToProto(e matchingdom.Exclusion) *caliberv1.CandidateExclusion {
 		Reason:      e.Reason,
 	}
 }
+
+// specFromProto maps a proto RoleSpec into the domain spec.
+func specFromProto(p *caliberv1.RoleSpec) role.RoleSpec {
+	var band kernel.SalaryBand
+	if sb := p.GetSalaryBand(); sb != nil {
+		band = kernel.SalaryBand{Currency: sb.GetCurrency(), Low: sb.GetLow(), High: sb.GetHigh()}
+	}
+	return role.RoleSpec{
+		Title:            p.GetTitle(),
+		Location:         p.GetLocation(),
+		Seniority:        seniorityFromProto(p.GetSeniority()),
+		Availability:     p.GetAvailability(),
+		Responsibilities: p.GetResponsibilities(),
+		MustHaves:        p.GetMustHaves(),
+		NiceToHaves:      p.GetNiceToHaves(),
+		SalaryBand:       band,
+	}
+}
+
+// rubricFromProto maps a proto Rubric into the domain rubric.
+func rubricFromProto(p *caliberv1.Rubric) role.Rubric {
+	comps := make([]role.Competency, 0, len(p.GetCompetencies()))
+	for _, c := range p.GetCompetencies() {
+		comps = append(comps, role.Competency{Name: c.GetName(), Weight: c.GetWeight(), MustHave: c.GetMustHave()})
+	}
+	return role.Rubric{Competencies: comps}
+}
+
+func seniorityFromProto(s caliberv1.Seniority) role.Seniority {
+	switch s {
+	case caliberv1.Seniority_SENIORITY_JUNIOR:
+		return role.SeniorityJunior
+	case caliberv1.Seniority_SENIORITY_MID:
+		return role.SeniorityMid
+	case caliberv1.Seniority_SENIORITY_SENIOR:
+		return role.SenioritySenior
+	case caliberv1.Seniority_SENIORITY_LEAD:
+		return role.SeniorityLead
+	default:
+		return role.SeniorityUnspecified
+	}
+}

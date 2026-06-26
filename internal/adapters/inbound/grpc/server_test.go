@@ -9,7 +9,7 @@ import (
 
 func TestNewGRPCServer(t *testing.T) {
 	require.NotNil(t, NewGRPCServer(Services{}))
-	require.NotNil(t, NewGRPCServer(Services{Role: NewRoleServer(nil)}))
+	require.NotNil(t, NewGRPCServer(Services{Role: NewRoleServer(nil, nil)}))
 }
 
 func TestDialTarget(t *testing.T) {

@@ -1,8 +1,9 @@
-import { Alert, Box, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
 import { useState } from 'react';
 
 import type { GenerateRoleResponse } from '../api/types';
 import { DotsButton } from '../components/DotsButton';
+import { RoleEditor } from '../components/flow/RoleEditor';
 import { RoleSpecCard } from '../components/flow/RoleSpecCard';
 import { RubricCard } from '../components/flow/RubricCard';
 import { ShortlistSection } from '../components/flow/ShortlistSection';
@@ -17,6 +18,7 @@ export function EmployerFlowPage() {
   const generate = useGenerateRole();
   const [text, setText] = useState('');
   const [result, setResult] = useState<GenerateRoleResponse | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const onGenerate = () => {
     if (!user || text.trim().length === 0) {
@@ -76,8 +78,26 @@ export function EmployerFlowPage() {
               ? `${result.availableMatches} strong match${result.availableMatches > 1 ? 'es' : ''} already in your pool.`
               : 'Spec and rubric ready.'}
           </Alert>
-          <RoleSpecCard spec={result.role.spec} />
-          <RubricCard rubric={result.role.rubric} />
+          {editing ? (
+            <RoleEditor
+              role={result.role}
+              onSaved={(role) => {
+                setResult({ ...result, role });
+                setEditing(false);
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          ) : (
+            <>
+              <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+                <Button variant="outlined" onClick={() => setEditing(true)}>
+                  Refine spec &amp; rubric
+                </Button>
+              </Stack>
+              <RoleSpecCard spec={result.role.spec} />
+              <RubricCard rubric={result.role.rubric} />
+            </>
+          )}
           <Divider />
           <ShortlistSection roleId={result.role.id} />
         </Stack>
