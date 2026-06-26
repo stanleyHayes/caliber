@@ -11,6 +11,10 @@ import (
 	"github.com/xcreativs/caliber/internal/app"
 )
 
+// keyName is the JSON object key for a named rubric criterion or competency,
+// reused across the canned fixtures below.
+const keyName = "name"
+
 // Dev is a deterministic LLMClient. It shapes its response from the system
 // prompt: an interview question, an interview report card, or a role spec.
 type Dev struct{}
@@ -55,9 +59,9 @@ func devRoleSpec(prompt string) map[string]any {
 		"nice_to_haves":    []string{"Domain knowledge"},
 		"salary_band":      map[string]any{"currency": "GHS", "low": 0, "high": 0},
 		"rubric": []map[string]any{
-			{"name": "Core skills", "weight": 0.5, "must_have": true},
-			{"name": "Communication", "weight": 0.3, "must_have": false},
-			{"name": "System design", "weight": 0.2, "must_have": false},
+			{keyName: "Core skills", "weight": 0.5, "must_have": true},
+			{keyName: "Communication", "weight": 0.3, "must_have": false},
+			{keyName: "System design", "weight": 0.2, "must_have": false},
 		},
 	}
 }
@@ -131,12 +135,12 @@ func devExtract(cv string) map[string]any {
 	// "Core skills" mirrors the dev role generator's must-have so the agent's
 	// must-have-coverage gate can pass on dev data; real extraction is role-aware.
 	comps := []map[string]any{
-		{"name": "Core skills", "level": 4, "evidence_quote": "demonstrated throughout the CV", "source_span": "CV"},
+		{keyName: "Core skills", "level": 4, "evidence_quote": "demonstrated throughout the CV", "source_span": "CV"},
 	}
 	for _, k := range known {
 		if strings.Contains(lower, strings.ToLower(k)) {
 			comps = append(comps, map[string]any{
-				"name": k, "level": 4, "evidence_quote": k + " is referenced in the CV", "source_span": "CV",
+				keyName: k, "level": 4, "evidence_quote": k + " is referenced in the CV", "source_span": "CV",
 			})
 		}
 	}

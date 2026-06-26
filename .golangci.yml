@@ -45,9 +45,16 @@ linters:
       line-length: 140
     goconst:
       min-occurrences: 4
+      # Test fixtures legitimately repeat domain strings (candidate names like
+      # "Ama"/"Accra", role titles); hoisting them to constants hurts readability.
+      ignore-tests: true
 
   exclusions:
     generated: lax
+    paths:
+      # web/ holds the frontend; node_modules vendors third-party Go files
+      # (e.g. flatted) that are not ours to lint and only exist after npm install.
+      - 'web/'
     rules:
       - path: 'internal/gen/'
         linters: [depguard]
