@@ -5,7 +5,6 @@ package interview
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -158,30 +157,22 @@ func (s *Interviewer) Report(ctx context.Context, interviewID kernel.ID) (*inter
 
 // ask generates the next adaptive question and records it as pending.
 func (s *Interviewer) ask(ctx context.Context, rl *role.Role, iv *interviewdom.Interview) error {
-	resp, err := s.llm.Complete(ctx, app.LLMRequest{
+	q, err := app.DecodeJSON[llmQuestion](ctx, s.llm, app.LLMRequest{
 		System: QuestionSystemPrompt, Prompt: questionPrompt(rl, iv), MaxTokens: questionMaxTokens,
-	})
+	}, app.DefaultLLMAttempts, "interview: question")
 	if err != nil {
-		return kernel.Wrap(err, kernel.KindInternal, "interview: question generation failed")
-	}
-	var q llmQuestion
-	if uerr := json.Unmarshal([]byte(resp.Text), &q); uerr != nil {
-		return kernel.Wrap(uerr, kernel.KindInvalid, "interview: could not parse question output")
+		return err
 	}
 	return iv.Ask(q.Question, q.CompetencyTag)
 }
 
 // finish scores the transcript and closes the interview.
 func (s *Interviewer) finish(ctx context.Context, rl *role.Role, iv *interviewdom.Interview) error {
-	resp, err := s.llm.Complete(ctx, app.LLMRequest{
+	parsed, err := app.DecodeJSON[llmReport](ctx, s.llm, app.LLMRequest{
 		System: ReportSystemPrompt, Prompt: scorePrompt(rl, iv), MaxTokens: reportMaxTokens,
-	})
+	}, app.DefaultLLMAttempts, "interview: report")
 	if err != nil {
-		return kernel.Wrap(err, kernel.KindInternal, "interview: scoring failed")
-	}
-	var parsed llmReport
-	if uerr := json.Unmarshal([]byte(resp.Text), &parsed); uerr != nil {
-		return kernel.Wrap(uerr, kernel.KindInvalid, "interview: could not parse report output")
+		return err
 	}
 	scores := make([]interviewdom.CompetencyScore, 0, len(parsed.Scores))
 	for _, sc := range parsed.Scores {

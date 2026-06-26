@@ -173,7 +173,7 @@ func TestGenerateShortlistBadScoreJSON(t *testing.T) {
 	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{c1}, nil)
 	d.candidates.EXPECT().ByID(gomock.Any(), c1).Return(candidateAt(t, "Accra"), nil)
 	d.profiles.EXPECT().ByCandidateID(gomock.Any(), c1).Return(profileFor(t, c1), nil)
-	d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil)
+	d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil).Times(app.DefaultLLMAttempts)
 
 	_, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))

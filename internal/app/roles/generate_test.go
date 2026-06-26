@@ -80,7 +80,7 @@ func TestGenerateLLMError(t *testing.T) {
 func TestGenerateBadJSON(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	llm := mocks.NewMockLLMClient(ctrl)
-	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil)
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil).Times(app.DefaultLLMAttempts)
 	_, err := roles.NewSpecGenerator(llm, mocks.NewMockRoleRepository(ctrl), fixedClock()).
 		Generate(context.Background(), kernel.NewID(), "x")
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))

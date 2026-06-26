@@ -2,7 +2,6 @@ package matching
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -180,17 +179,13 @@ func (s *Shortlister) persist(ctx context.Context, matches []*matchingdom.Match)
 }
 
 func (s *Shortlister) score(ctx context.Context, rl *role.Role, profile *talent.TalentProfile) (*matchingdom.Match, error) {
-	resp, err := s.scorer.Complete(ctx, app.LLMRequest{
+	parsed, err := app.DecodeJSON[llmScore](ctx, s.scorer, app.LLMRequest{
 		System:    ScoringSystemPrompt,
 		Prompt:    scoringPrompt(rl, profile),
 		MaxTokens: scoringMaxTokens,
-	})
+	}, app.DefaultLLMAttempts, "matching: scoring")
 	if err != nil {
-		return nil, kernel.Wrap(err, kernel.KindInternal, "matching: scoring failed")
-	}
-	var parsed llmScore
-	if uerr := json.Unmarshal([]byte(resp.Text), &parsed); uerr != nil {
-		return nil, kernel.Wrap(uerr, kernel.KindInvalid, "matching: could not parse scoring output")
+		return nil, err
 	}
 	breakdown := make([]matchingdom.MatchBreakdownItem, 0, len(parsed.Breakdown))
 	for _, b := range parsed.Breakdown {

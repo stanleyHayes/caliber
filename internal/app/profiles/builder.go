@@ -5,7 +5,6 @@ package profiles
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/xcreativs/caliber/internal/app"
@@ -57,17 +56,13 @@ func (b *ProfileBuilder) CreateFromCV(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := b.llm.Complete(ctx, app.LLMRequest{
+	parsed, err := app.DecodeJSON[llmProfile](ctx, b.llm, app.LLMRequest{
 		System:    ExtractSystemPrompt,
 		Prompt:    guard.FenceUntrusted("CANDIDATE_CV", cvText),
 		MaxTokens: extractMaxTokens,
-	})
+	}, app.DefaultLLMAttempts, "talent: profile extraction")
 	if err != nil {
-		return nil, kernel.Wrap(err, kernel.KindInternal, "talent: cv extraction failed")
-	}
-	var parsed llmProfile
-	if uerr := json.Unmarshal([]byte(resp.Text), &parsed); uerr != nil {
-		return nil, kernel.Wrap(uerr, kernel.KindInvalid, "talent: could not parse extracted profile")
+		return nil, err
 	}
 	comps := make([]talent.ProfileCompetency, 0, len(parsed.Competencies))
 	for _, c := range parsed.Competencies {

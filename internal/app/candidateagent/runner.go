@@ -5,7 +5,6 @@ package candidateagent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -143,13 +142,11 @@ func (r *AgentRunner) consider(
 }
 
 func (r *AgentRunner) assess(ctx context.Context, rl *role.Role, profile *talent.TalentProfile) (llmAssessment, error) {
-	resp, err := r.llm.Complete(ctx, app.LLMRequest{System: AgentSystemPrompt, Prompt: assessPrompt(rl, profile), MaxTokens: assessMaxTokens})
+	assessment, err := app.DecodeJSON[llmAssessment](ctx, r.llm,
+		app.LLMRequest{System: AgentSystemPrompt, Prompt: assessPrompt(rl, profile), MaxTokens: assessMaxTokens},
+		app.DefaultLLMAttempts, "agent: assessment")
 	if err != nil {
-		return llmAssessment{}, kernel.Wrap(err, kernel.KindInternal, "agent: assessment failed")
-	}
-	var assessment llmAssessment
-	if uerr := json.Unmarshal([]byte(resp.Text), &assessment); uerr != nil {
-		return llmAssessment{}, kernel.Wrap(uerr, kernel.KindInvalid, "agent: could not parse assessment")
+		return llmAssessment{}, err
 	}
 	return assessment, nil
 }

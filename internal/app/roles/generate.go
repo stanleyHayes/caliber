@@ -3,7 +3,6 @@ package roles
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/xcreativs/caliber/internal/app"
@@ -59,17 +58,13 @@ func (g *SpecGenerator) Generate(ctx context.Context, employerID kernel.ID, free
 	if strings.TrimSpace(freeText) == "" {
 		return nil, kernel.Invalid("roles: hiring need text is required")
 	}
-	resp, err := g.llm.Complete(ctx, app.LLMRequest{
+	parsed, err := app.DecodeJSON[llmRoleSpec](ctx, g.llm, app.LLMRequest{
 		System:    SystemPrompt,
 		Prompt:    guard.FenceUntrusted("HIRING_NEED", freeText),
 		MaxTokens: 1024,
-	})
+	}, app.DefaultLLMAttempts, "roles: role-spec generation")
 	if err != nil {
-		return nil, kernel.Wrap(err, kernel.KindInternal, "roles: llm completion failed")
-	}
-	var parsed llmRoleSpec
-	if err := json.Unmarshal([]byte(resp.Text), &parsed); err != nil {
-		return nil, kernel.Wrap(err, kernel.KindInvalid, "roles: could not parse model output as role spec")
+		return nil, err
 	}
 	spec, rubric := toDomain(parsed)
 	r, err := role.NewRole(employerID, spec, rubric, g.now())

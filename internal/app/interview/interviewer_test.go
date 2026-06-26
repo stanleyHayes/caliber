@@ -141,7 +141,7 @@ func TestAnswerRejectsBadQuestionJSON(t *testing.T) {
 	iv := askingInterview(t, rl.ID)
 	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
-	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil)
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil).Times(app.DefaultLLMAttempts)
 
 	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
 	_, _, err := interviewer.Answer(context.Background(), iv.ID, "an answer")
@@ -155,7 +155,7 @@ func TestAnswerRejectsBadReportJSON(t *testing.T) {
 	iv := askingInterview(t, rl.ID)
 	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
-	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil)
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil).Times(app.DefaultLLMAttempts)
 
 	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 1)
 	_, _, err := interviewer.Answer(context.Background(), iv.ID, "an answer")
