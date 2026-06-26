@@ -3,7 +3,8 @@ package candidateagent
 import (
 	"slices"
 	"strings"
-	"unicode"
+
+	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
 
 // GroundingResult reports whether an agent-authored summary stays within
@@ -25,6 +26,15 @@ type GroundingResult struct {
 // name appears as a contiguous run of word tokens in the summary (token, not
 // substring, matching — so "Go" is not found inside "ago"/"going"). An empty
 // summary or empty role rubric is vacuously grounded.
+//
+// SCOPE (deliberate): this guard detects over-claiming of ROLE-RUBRIC
+// competencies only. It does NOT detect fabrication of off-rubric content
+// (invented tenure, employers, titles, or skills outside the rubric), nor a
+// claim phrased as a synonym/abbreviation of a rubric competency ("k8s" for
+// "Kubernetes"). Those remain the responsibility of the grounded prompt and
+// human review; broadening detection is tracked as follow-up work. It is a
+// conservative gate: an asserted-but-uncovered competency rejects the whole
+// application (surfaced to the candidate), favouring no-fabrication over reach.
 func CheckGrounding(summary string, profileCompetencies, roleCompetencies []string) GroundingResult {
 	summaryTokens := tokenize(summary)
 	var fabricated []string
@@ -72,9 +82,9 @@ func mentions(have, want []string) bool {
 	return false
 }
 
-// tokenize lower-cases s and splits it into alphanumeric word tokens.
+// tokenize lower-cases s and splits it with the shared kernel tokenizer, so a
+// punctuated skill name ("C++", ".NET") tokenizes the same way the must-have
+// coverage gate tokenizes it — the two gates can never disagree about coverage.
 func tokenize(s string) []string {
-	return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-	})
+	return kernel.Tokens(strings.ToLower(s))
 }

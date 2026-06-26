@@ -15,10 +15,12 @@ import (
 )
 
 // TestRunRejectsFabricatedSummary is the CAL-071 acceptance guard: the agent's
-// tailored content must trace to the verified profile. Here the model returns a
+// tailored content must trace to the verified profile. The model returns a
 // summary that claims Kubernetes — a role competency the candidate's profile does
-// NOT evidence — so the application is rejected (never submitted), even though
-// the candidate is eligible (the profile covers the Go must-have).
+// NOT evidence — so the application is rejected (never submitted) even though the
+// candidate is eligible (the profile covers the Go must-have), and the rejection
+// is surfaced to the candidate as an explainable highlight rather than dropped
+// silently.
 func TestRunRejectsFabricatedSummary(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	d := newDeps(ctrl)
@@ -40,4 +42,7 @@ func TestRunRejectsFabricatedSummary(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, view.NewMatches, "eligible: the profile covers the Go must-have")
 	assert.Zero(t, view.ApplicationsSubmitted, "fabricated Kubernetes claim is rejected, not applied")
+	require.Len(t, view.Highlights, 1, "the rejection is surfaced, not silent")
+	assert.Contains(t, view.Highlights[0], "Skipped")
+	assert.Contains(t, view.Highlights[0], "Kubernetes", "names the unverified skill that triggered the rejection")
 }

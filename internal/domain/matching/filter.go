@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"unicode"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
@@ -206,9 +205,8 @@ func tokenSet(s string) map[string]struct{} {
 	return out
 }
 
-// splitTokens splits on commas, slashes, semicolons, and whitespace.
+// splitTokens tokenizes via the shared kernel tokenizer so the must-have gate and
+// the no-fabrication grounding check tokenize identically.
 func splitTokens(s string) []string {
-	return strings.FieldsFunc(s, func(r rune) bool {
-		return r == ',' || r == '/' || r == ';' || unicode.IsSpace(r)
-	})
+	return kernel.Tokens(s)
 }

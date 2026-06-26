@@ -72,20 +72,30 @@ func (r *AgentRunner) Run(ctx context.Context, candidateID kernel.ID, scanLimit 
 	if err != nil {
 		return agentdom.WakeUpView{}, err
 	}
+	return r.scanRoles(ctx, candidateID, cand, profile, roles)
+}
 
+// scanRoles considers each eligible role, applying for honest strong matches and
+// accumulating the wake-up view (matches, applications, and explainable notes).
+func (r *AgentRunner) scanRoles(
+	ctx context.Context, candidateID kernel.ID,
+	cand *talent.Candidate, profile *talent.TalentProfile, roles []*role.Role,
+) (agentdom.WakeUpView, error) {
 	view := agentdom.WakeUpView{}
 	for _, rl := range roles {
 		if !r.eligible(cand, profile, rl) {
 			continue
 		}
 		view.NewMatches++
-		applied, err := r.consider(ctx, candidateID, profile, rl)
+		applied, note, err := r.consider(ctx, candidateID, profile, rl)
 		if err != nil {
 			return agentdom.WakeUpView{}, err
 		}
 		if applied {
 			view.ApplicationsSubmitted++
-			view.Highlights = append(view.Highlights, fmt.Sprintf("Applied to %q on your behalf.", rl.Title))
+		}
+		if note != "" {
+			view.Highlights = append(view.Highlights, note)
 		}
 	}
 	return view, nil
@@ -105,38 +115,43 @@ func (r *AgentRunner) eligible(cand *talent.Candidate, profile *talent.TalentPro
 
 // consider asks the LLM to assess and (if a strong honest match) drafts and
 // submits an agent application grounded in the verified profile.
+// consider assesses, applies the no-fabrication guards, and (if honest) submits.
+// It returns whether it applied and a short candidate-facing note worth
+// surfacing (an application made, or a role skipped because its draft referenced
+// unverified skills) — so a guardrail rejection is explainable, never silent.
 func (r *AgentRunner) consider(
 	ctx context.Context, candidateID kernel.ID, profile *talent.TalentProfile, rl *role.Role,
-) (bool, error) {
+) (bool, string, error) {
 	assessment, err := r.assess(ctx, rl, profile)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 	if !assessment.Apply || assessment.FitScore < r.minFit {
-		return false, nil
+		return false, "", nil
 	}
 	if grounding := agentdom.CheckGrounding(
 		assessment.TailoredSummary, profileCompetencyNames(profile), roleCompetencyNames(rl),
 	); !grounding.Grounded {
-		// No-fabrication (CAL-071): the summary asserts a skill the verified
-		// profile does not evidence; do not apply on the candidate's behalf.
-		return false, nil
+		// No-fabrication (CAL-071): the summary asserts skills the verified
+		// profile does not evidence; do not apply, and surface why.
+		return false, fmt.Sprintf("Skipped %q: the drafted summary referenced unverified skills (%s).",
+			rl.Title, strings.Join(grounding.Fabricated, ", ")), nil
 	}
 	application, err := agentdom.NewAgentApplication(rl.ID, candidateID, profile.ID, assessment.TailoredSummary)
 	if err != nil {
 		// A blank/ungrounded summary fails the no-fabrication invariant: skip, don't apply.
 		if kernel.KindOf(err) == kernel.KindInvalid {
-			return false, nil
+			return false, "", nil
 		}
-		return false, err
+		return false, "", err
 	}
 	if err := application.Submit(); err != nil {
-		return false, err
+		return false, "", err
 	}
 	if err := r.apps.Create(ctx, application); err != nil {
-		return false, err
+		return false, "", err
 	}
-	return true, nil
+	return true, fmt.Sprintf("Applied to %q on your behalf.", rl.Title), nil
 }
 
 func (r *AgentRunner) assess(ctx context.Context, rl *role.Role, profile *talent.TalentProfile) (llmAssessment, error) {
