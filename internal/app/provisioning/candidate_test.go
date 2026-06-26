@@ -37,6 +37,7 @@ func TestProvisionCandidateCreatesContext(t *testing.T) {
 	require.NoError(t, provisioning.NewCandidateProvisioner(candidates).Provision(context.Background(), u))
 	require.NotNil(t, created)
 	assert.Equal(t, u.ID, created.UserID, "candidate context is owned by the user")
+	assert.Equal(t, u.ID, created.ID, "candidate id mirrors the user id")
 }
 
 func TestProvisionEmployerIsNoOp(t *testing.T) {

@@ -218,12 +218,12 @@ caliber/
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~40% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
-| | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | TODO | 0% |
+| | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | WIP | ~35% |
 | | EPIC-07 | Matching & Ranking Engine | 7 | 37 | WIP | ~70% |
 | | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~45% |
 | | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | WIP | ~50% |
-| | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~35% |
-| | EPIC-11 | Talent Radar Dashboard | 5 | 24 | WIP | ~40% |
+| | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~55% |
+| | EPIC-11 | Talent Radar Dashboard | 5 | 24 | WIP | ~55% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
 | | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~63% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | TODO | 0% |
@@ -337,10 +337,10 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-06 · Profile Parser & Competency Extractor
 **Goal:** Convert a CV + intake answers into a structured competency profile with evidence tied back to source text. (Spec §8.2.)
 
-- **CAL-042** `[TODO]` · 5 pts — **CV ingestion (file/text).** Upload + parse PDF/DOCX/plain text to clean text. *AC:* common formats handled; size/type validated. *Deps:* CAL-020
-- **CAL-043** `[TODO]` · 5 pts — **Competency extraction use-case.** Text → structured profile JSON (competencies, seniority, history). *AC:* fixed schema; covered by tests. *Deps:* CAL-031
-- **CAL-044** `[TODO]` · 5 pts — **Evidence-linking.** Each extracted competency cites its CV source span. *AC:* recruiter can see source of each claim. *Deps:* CAL-043
-- **CAL-045** `[TODO]` · 5 pts — **Profile embedding + Talent Profile persistence.** Store structured profile + summary embedding. *AC:* `TalentProfile` + `profile_embedding` written. *Deps:* CAL-033, CAL-014
+- **CAL-042** `[WIP]` · 5 pts — **CV ingestion (file/text).** Upload + parse PDF/DOCX/plain text to clean text. *AC:* common formats handled; size/type validated. *Deps:* CAL-020
+- **CAL-043** `[WIP]` · 5 pts — **Competency extraction use-case.** Text → structured profile JSON (competencies, seniority, history). *AC:* fixed schema; covered by tests. *Deps:* CAL-031
+- **CAL-044** `[WIP]` · 5 pts — **Evidence-linking.** Each extracted competency cites its CV source span. *AC:* recruiter can see source of each claim. *Deps:* CAL-043
+- **CAL-045** `[WIP]` · 5 pts — **Profile embedding + Talent Profile persistence.** Store structured profile + summary embedding. *AC:* `TalentProfile` + `profile_embedding` written. *Deps:* CAL-033, CAL-014
 - **CAL-046** `[TODO]` · 3 pts — **Guided intake answers.** Capture target titles, location, salary floor, deal-breakers; merge into profile. *AC:* intake feeds matching filters. *Deps:* CAL-043
 
 ## EPIC-07 · Matching & Ranking Engine

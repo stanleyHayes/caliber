@@ -34,6 +34,9 @@ func (p *CandidateProvisioner) Provision(ctx context.Context, user *identitydom.
 	if err != nil {
 		return err
 	}
+	// Use the user id as the candidate id so a candidate-role user is addressable
+	// by a single id across identity, talent, agent, and dashboard surfaces.
+	candidate.ID = user.ID
 	return p.candidates.Create(ctx, candidate)
 }
 

@@ -28,10 +28,13 @@ import (
 	identityapp "github.com/xcreativs/caliber/internal/app/identity"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
+	profilesapp "github.com/xcreativs/caliber/internal/app/profiles"
 	"github.com/xcreativs/caliber/internal/app/provisioning"
 	"github.com/xcreativs/caliber/internal/app/roles"
+	candidateagentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/role"
+	"github.com/xcreativs/caliber/internal/domain/talent"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
 	"github.com/xcreativs/caliber/internal/platform/server"
@@ -66,6 +69,50 @@ func run() error {
 	return server.Run(ctx, cfg, log, svc)
 }
 
+// repositories bundles the persistence ports the services share.
+type repositories struct {
+	roles      role.RoleRepository
+	users      identity.UserRepository
+	refresh    app.RefreshTokenStore
+	candidates talent.CandidateRepository
+	profiles   talent.TalentProfileRepository
+	apps       candidateagentdom.ApplicationRepository
+}
+
+// openRepositories selects in-memory (dev) or Postgres repositories. With a
+// database it also builds the pgvector-backed shortlist service.
+func openRepositories(
+	ctx context.Context, cfg config.Config, model app.LLMClient, embedder app.Embedder, log *slog.Logger,
+) (repositories, *grpcadapter.MatchServer, func(), error) {
+	repos := repositories{
+		roles: memory.NewRoleRepo(), users: memory.NewUserRepo(), refresh: memory.NewRefreshStore(),
+		candidates: memory.NewCandidateRepo(), profiles: memory.NewTalentProfileRepo(), apps: memory.NewApplicationRepo(),
+	}
+	cleanup := func() {}
+	if cfg.DatabaseURL == "" {
+		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories (shortlist recall disabled)")
+		return repos, nil, cleanup, nil
+	}
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return repos, nil, cleanup, err
+	}
+	if err = pool.Ping(ctx); err != nil {
+		pool.Close()
+		return repos, nil, cleanup, err
+	}
+	repos.roles = postgres.NewRoleRepo(pool)
+	repos.users = postgres.NewUserRepo(pool)
+	repos.refresh = postgres.NewRefreshStore(pool)
+	repos.candidates = postgres.NewCandidateRepo(pool)
+	repos.profiles = postgres.NewTalentProfileRepo(pool)
+	repos.apps = postgres.NewApplicationRepo(pool)
+	shortlister := matchingapp.NewShortlister(
+		repos.roles, repos.candidates, repos.profiles, postgres.NewRecaller(pool), embedder, model, postgres.NewMatchRepo(pool))
+	log.Info("persistence selected", "provider", "postgres")
+	return repos, grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister)), pool.Close, nil
+}
+
 func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (grpcadapter.Services, func(), error) {
 	model := buildLLM(cfg, log)
 	embedder := buildEmbedder(cfg, log)
@@ -75,58 +122,37 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 		return svc, cleanup, errors.New("CALIBER_DATABASE_URL is required in production")
 	}
 
-	var roleRepo role.RoleRepository = memory.NewRoleRepo()
-	var userRepo identity.UserRepository = memory.NewUserRepo()
-	var refreshStore app.RefreshTokenStore = memory.NewRefreshStore()
-	var idOpts []identityapp.Option
-	if cfg.DatabaseURL != "" {
-		pool, perr := pgxpool.New(ctx, cfg.DatabaseURL)
-		if perr != nil {
-			return svc, cleanup, perr
-		}
-		if perr = pool.Ping(ctx); perr != nil {
-			pool.Close()
-			return svc, cleanup, perr
-		}
-		cleanup = pool.Close
-		roleRepo = postgres.NewRoleRepo(pool)
-		userRepo = postgres.NewUserRepo(pool)
-		refreshStore = postgres.NewRefreshStore(pool)
-		idOpts = append(idOpts, identityapp.WithProvisioner(provisioning.NewCandidateProvisioner(postgres.NewCandidateRepo(pool))))
-		shortlister := matchingapp.NewShortlister(
-			roleRepo, postgres.NewCandidateRepo(pool), postgres.NewTalentProfileRepo(pool),
-			postgres.NewRecaller(pool), embedder, model, postgres.NewMatchRepo(pool),
-		)
-		svc.Match = grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(roleRepo, shortlister))
-		appRepo := postgres.NewApplicationRepo(pool)
-		agentRunner := candidateagentapp.NewAgentRunner(
-			postgres.NewCandidateRepo(pool), postgres.NewTalentProfileRepo(pool), roleRepo, appRepo, model)
-		svc.Agent = grpcadapter.NewAgentServer(agentRunner, appRepo)
-		svc.Dashboard = grpcadapter.NewDashboardServer(dashboardapp.NewAggregator(
-			postgres.NewCandidateRepo(pool), postgres.NewTalentProfileRepo(pool), userRepo, roleRepo))
-		log.Info("persistence selected", "provider", "postgres")
-	} else {
-		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories (matching disabled)")
+	repos, match, cleanup, err := openRepositories(ctx, cfg, model, embedder, log)
+	if err != nil {
+		return svc, cleanup, err
+	}
+	if match != nil {
+		svc.Match = match
 	}
 
 	tokens, terr := buildTokenService(cfg, log)
 	if terr != nil {
 		return svc, cleanup, terr
 	}
-	idOpts = append(idOpts, identityapp.WithThrottle(memory.NewLoginThrottle(time.Now, 0, 0, 0)))
-	identitySvc := identityapp.NewService(userRepo, authadapter.NewArgon2idHasher(), tokens, refreshStore, time.Now, idOpts...)
+	idOpts := []identityapp.Option{
+		identityapp.WithProvisioner(provisioning.NewCandidateProvisioner(repos.candidates)),
+		identityapp.WithThrottle(memory.NewLoginThrottle(time.Now, 0, 0, 0)),
+	}
+	identitySvc := identityapp.NewService(repos.users, authadapter.NewArgon2idHasher(), tokens, repos.refresh, time.Now, idOpts...)
 	svc.Identity = grpcadapter.NewIdentityServer(identitySvc)
 	svc.AccessVerifier = tokens
 
-	svc.Role = grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, roleRepo, time.Now), roles.NewSpecEditor(roleRepo))
-	svc.Interview = grpcadapter.NewInterviewServer(interviewapp.NewInterviewer(roleRepo, memory.NewInterviewRepo(), model, 0))
+	// These read/act on candidate + role data only (no pgvector), so they run in
+	// both the in-memory dev path and the Postgres path.
+	svc.Role = grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, repos.roles, time.Now), roles.NewSpecEditor(repos.roles))
+	svc.Interview = grpcadapter.NewInterviewServer(interviewapp.NewInterviewer(repos.roles, memory.NewInterviewRepo(), model, 0))
+	svc.Talent = grpcadapter.NewTalentServer(profilesapp.NewProfileBuilder(repos.candidates, repos.profiles, model))
+	svc.Agent = grpcadapter.NewAgentServer(
+		candidateagentapp.NewAgentRunner(repos.candidates, repos.profiles, repos.roles, repos.apps, model), repos.apps)
+	svc.Dashboard = grpcadapter.NewDashboardServer(dashboardapp.NewAggregator(repos.candidates, repos.profiles, repos.users, repos.roles))
 	return svc, cleanup, nil
 }
 
-// buildTokenService constructs the JWT service. In production a strong
-// CALIBER_JWT_SECRET is mandatory (boot fails without it); in dev an ephemeral
-// random secret is generated so the server runs, with a warning.
-//
 //nolint:ireturn // selects/constructs the concrete TokenService; interface return is intentional.
 func buildTokenService(cfg config.Config, log *slog.Logger) (app.TokenService, error) {
 	secret := cfg.JWTSecret

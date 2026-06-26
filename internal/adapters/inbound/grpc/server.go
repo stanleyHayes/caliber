@@ -22,6 +22,7 @@ type Services struct {
 	Interview caliberv1.InterviewServiceServer
 	Agent     caliberv1.CandidateAgentServiceServer
 	Dashboard caliberv1.DashboardServiceServer
+	Talent    caliberv1.TalentServiceServer
 
 	// AccessVerifier, when set, installs the auth interceptor that authenticates
 	// bearer access tokens and injects the principal into each request context.
@@ -45,7 +46,11 @@ func NewGRPCServer(svc Services) *grpc.Server {
 	}
 	caliberv1.RegisterIdentityServiceServer(s, identitySvc)
 	caliberv1.RegisterRoleServiceServer(s, role)
-	caliberv1.RegisterTalentServiceServer(s, caliberv1.UnimplementedTalentServiceServer{})
+	talentSvc := svc.Talent
+	if talentSvc == nil {
+		talentSvc = caliberv1.UnimplementedTalentServiceServer{}
+	}
+	caliberv1.RegisterTalentServiceServer(s, talentSvc)
 	match := svc.Match
 	if match == nil {
 		match = caliberv1.UnimplementedMatchingServiceServer{}
