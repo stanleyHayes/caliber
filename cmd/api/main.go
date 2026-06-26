@@ -37,6 +37,7 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
+	"github.com/xcreativs/caliber/internal/platform/seed"
 	"github.com/xcreativs/caliber/internal/platform/server"
 )
 
@@ -91,6 +92,7 @@ func openRepositories(
 	cleanup := func() {}
 	if cfg.DatabaseURL == "" {
 		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories (shortlist recall disabled)")
+		seedDemo(ctx, cfg, repos, log)
 		return repos, nil, cleanup, nil
 	}
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
@@ -225,4 +227,23 @@ func buildEmbedder(cfg config.Config, log *slog.Logger) app.Embedder {
 	}
 	log.Warn("OPENAI_API_KEY not set; using deterministic dev embedder")
 	return embeddings.NewDev()
+}
+
+// seedDemo loads the deterministic demo dataset into the in-memory dev stack so
+// the Radar, alerts, and pool are populated out of the box (CAL-016). It is a
+// no-op when seeding is disabled or any step fails (best-effort, never blocks boot).
+func seedDemo(ctx context.Context, cfg config.Config, repos repositories, log *slog.Logger) {
+	if !cfg.SeedDemo {
+		return
+	}
+	res, err := seed.Load(ctx, seed.Repositories{
+		Users: repos.users, Candidates: repos.candidates, Profiles: repos.profiles, Roles: repos.roles,
+	}, authadapter.NewArgon2idHasher(), time.Now())
+	if err != nil {
+		log.Warn("demo seed skipped", "err", err)
+		return
+	}
+	log.Info("loaded demo dataset",
+		"employers", res.Employers, "roles", res.Roles, "candidates", res.Candidates,
+		"demo_login_password", seed.DefaultPassword)
 }

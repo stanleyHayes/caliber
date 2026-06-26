@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -29,6 +30,8 @@ type Config struct {
 	JWTAudience          string // token "aud" claim
 	AccessTokenTTL       time.Duration
 	RefreshTokenTTL      time.Duration
+
+	SeedDemo bool // load the demo dataset into the in-memory dev stack
 }
 
 // Load reads configuration from the environment, applying sane defaults.
@@ -51,6 +54,7 @@ func Load() (Config, error) {
 		JWTAudience:          getenv("CALIBER_JWT_AUDIENCE", "caliber-api"),
 		AccessTokenTTL:       getdur("CALIBER_ACCESS_TOKEN_TTL", 15*time.Minute),
 		RefreshTokenTTL:      getdur("CALIBER_REFRESH_TOKEN_TTL", 7*24*time.Hour),
+		SeedDemo:             getbool("CALIBER_SEED_DEMO", true),
 	}
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
 		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")
@@ -78,6 +82,18 @@ func (c Config) Validate() []string {
 		}
 	}
 	return missing
+}
+
+func getbool(key string, def bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return def
+	}
+	return b
 }
 
 func getenv(key, def string) string {
