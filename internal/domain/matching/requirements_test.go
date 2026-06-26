@@ -19,6 +19,8 @@ func TestNewRequirements_RemoteDetection(t *testing.T) {
 	}{
 		{"remote location token", "Remote", "Lagos", true},
 		{"hybrid location token", "Accra / Remote", "Lagos", true},
+		{"hyphenated remote-first", "Remote-first", "Lagos", true},
+		{"hyphenated fully-remote", "Fully-Remote", "Lagos", true},
 		{"case-insensitive remote", "REMOTE", "Lagos", true},
 		{"onsite mismatch gates", "Accra", "Lagos", false},
 		{"onsite match clears", "Accra", "Accra", true},

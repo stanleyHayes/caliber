@@ -71,7 +71,7 @@ type Requirements struct {
 func NewRequirements(location string, salaryCeiling float64, salaryCurrency string, mustHaves []string) Requirements {
 	return Requirements{
 		Location:       location,
-		RemoteAllowed:  hasToken(strings.ToLower(location), "remote"),
+		RemoteAllowed:  hasToken(strings.ReplaceAll(strings.ToLower(location), "-", " "), "remote"),
 		SalaryCeiling:  salaryCeiling,
 		SalaryCurrency: salaryCurrency,
 		MustHaves:      mustHaves,
