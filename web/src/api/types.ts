@@ -271,3 +271,24 @@ export interface GetSupplyDemandResponse {
 export interface GetTimeToShortlistResponse {
   metric: TimeToShortlistMetric;
 }
+
+// ----- Talent profile (CreateProfileFromCV / GetTalentProfile) -----
+
+export interface ProfileCompetency {
+  name: string;
+  level: number; // 0..5
+  evidenceQuote: string;
+  sourceSpan: string;
+}
+
+export interface TalentProfile {
+  id: string;
+  candidateId: string;
+  summary: string;
+  competencies: ProfileCompetency[];
+  passportStatus: PassportStatus;
+}
+
+export interface ProfileResponse {
+  profile: TalentProfile;
+}

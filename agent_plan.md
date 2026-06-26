@@ -225,7 +225,7 @@ caliber/
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~55% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | WIP | ~55% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
-| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~63% |
+| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~67% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | TODO | 0% |
 | | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | TODO | 0% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | TODO | 0% |
@@ -380,7 +380,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-10 · Candidate Agent & Time-Advance (Flow C)
 **Goal:** The agent that "works while you sleep, honestly" — matches, tailors, submits and screens using only verified profile content; demoed via a controlled time-advance. (Spec §8.5, §6.3.)
 
-- **CAL-069** `[TODO]` · 3 pts — **One-time candidate setup.** CV upload + guided intake → initial profile. *AC:* usable profile from CV + intake. *Deps:* CAL-042, CAL-046
+- **CAL-069** `[WIP]` · 3 pts — **One-time candidate setup.** CV upload + guided intake → initial profile. *AC:* usable profile from CV + intake. *Deps:* CAL-042, CAL-046
 - **CAL-070** `[WIP]` · 8 pts — **Candidate-agent job (autonomous loop).** Scan open roles → score fit (reuse EPIC-07) → hard filters → for strong matches, tailor a truthful application. *AC:* runs as an Asynq job over the seeded role pool. *Deps:* CAL-050, CAL-025
 - **CAL-071** `[WIP]` · 5 pts — **No-fabrication guardrail (hard invariant).** Agent may only surface/rephrase verified profile content; never invents skills/experience. *AC:* asserted in code AND prompt; test proves tailored content traces to profile. *Deps:* CAL-070
 - **CAL-072** `[WIP]` · 5 pts — **Application tailoring & submission (in-platform).** Generate role-specific application from verified content; submit within the platform; optionally complete/queue screening. *AC:* `Application{source: agent, tailored_summary, status}` written. *Deps:* CAL-070

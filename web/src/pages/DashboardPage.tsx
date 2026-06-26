@@ -56,9 +56,12 @@ export function DashboardPage() {
               </Button>
             )}
             {role === 'USER_ROLE_CANDIDATE' && (
-              <Stack direction="row" spacing={1}>
-                <Button component={Link} to="/interview" variant="contained">
-                  Take a screening interview
+              <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                <Button component={Link} to="/profile" variant="contained">
+                  Set up your passport
+                </Button>
+                <Button component={Link} to="/interview" variant="outlined">
+                  Screening interview
                 </Button>
                 <Button component={Link} to="/agent" variant="outlined">
                   Run your agent
