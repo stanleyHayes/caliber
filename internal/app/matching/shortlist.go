@@ -201,8 +201,7 @@ func (s *Shortlister) score(ctx context.Context, rl *role.Role, profile *talent.
 // rubric (location, salary ceiling, must-have competencies).
 func requirementsFor(rl *role.Role) matchingdom.Requirements {
 	return matchingdom.NewRequirements(
-		rl.Spec.Location, rl.Spec.Availability,
-		rl.Spec.SalaryBand.High, rl.Spec.SalaryBand.Currency, mustHaveNames(rl.Rubric))
+		rl.Spec.Location, rl.Spec.SalaryBand.High, rl.Spec.SalaryBand.Currency, mustHaveNames(rl.Rubric))
 }
 
 func mustHaveNames(r role.Rubric) []string {

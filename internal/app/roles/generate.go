@@ -82,9 +82,13 @@ func toDomain(p llmRoleSpec) (role.RoleSpec, role.Rubric) {
 	if err != nil {
 		sen = role.SeniorityMid
 	}
+	// Sanitize role-spec text at ingestion so the canonical stored names/title
+	// are free of format/control runes; this keeps the prompt-visible rubric
+	// names byte-identical to what is stored, so a model's competency_tag echo
+	// round-trips to a real rubric name.
 	spec := role.RoleSpec{
-		Title:            p.Title,
-		Location:         p.Location,
+		Title:            guard.Sanitize(p.Title),
+		Location:         guard.Sanitize(p.Location),
 		Seniority:        sen,
 		Availability:     p.Availability,
 		Responsibilities: p.Responsibilities,
@@ -94,7 +98,7 @@ func toDomain(p llmRoleSpec) (role.RoleSpec, role.Rubric) {
 	}
 	comps := make([]role.Competency, 0, len(p.Rubric))
 	for _, c := range p.Rubric {
-		comps = append(comps, role.Competency{Name: c.Name, Weight: c.Weight, MustHave: c.MustHave})
+		comps = append(comps, role.Competency{Name: guard.Sanitize(c.Name), Weight: c.Weight, MustHave: c.MustHave})
 	}
 	return spec, role.Rubric{Competencies: comps}.Normalize()
 }

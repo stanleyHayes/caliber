@@ -60,14 +60,18 @@ type Requirements struct {
 }
 
 // NewRequirements builds the hard-constraint set from a role's logistical facts.
-// RemoteAllowed is derived from the location/availability text mentioning
-// "remote" (a remote role disables the location gate). Centralizing this here
-// keeps every caller's gate identical — shortlist, the candidate agent, the
-// two-way matcher, and the Radar alert feed.
-func NewRequirements(location, availability string, salaryCeiling float64, salaryCurrency string, mustHaves []string) Requirements {
+// RemoteAllowed is derived ONLY from the location field carrying "remote" as a
+// whole token (e.g. "Remote" or "Accra / Remote"). It deliberately does NOT scan
+// the free-text availability/start-date field ("e.g. within 1 month"), where an
+// incidental mention ("remote teams experience required") would otherwise
+// disable the location gate and let an incompatible candidate through. Token (not
+// substring) matching also avoids false positives like "Remoteville".
+// Centralizing this keeps every caller's gate identical — shortlist, the
+// candidate agent, the two-way matcher, and the Radar alert feed.
+func NewRequirements(location string, salaryCeiling float64, salaryCurrency string, mustHaves []string) Requirements {
 	return Requirements{
 		Location:       location,
-		RemoteAllowed:  strings.Contains(strings.ToLower(location+" "+availability), "remote"),
+		RemoteAllowed:  hasToken(strings.ToLower(location), "remote"),
 		SalaryCeiling:  salaryCeiling,
 		SalaryCurrency: salaryCurrency,
 		MustHaves:      mustHaves,

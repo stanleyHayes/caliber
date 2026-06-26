@@ -14,19 +14,21 @@ func TestNewRequirements_RemoteDetection(t *testing.T) {
 	cases := []struct {
 		name         string
 		location     string
-		availability string
 		candLocation string
-		wantCleared  bool // does an Accra candidate clear the location gate?
+		wantCleared  bool // does an out-of-area candidate clear the location gate?
 	}{
-		{"remote in location", "Remote", "", "Lagos", true},
-		{"remote in availability", "Accra", "remote-friendly, start in 1 month", "Lagos", true},
-		{"case-insensitive remote", "REMOTE", "", "Lagos", true},
-		{"onsite mismatch gates", "Accra", "onsite", "Lagos", false},
-		{"onsite match clears", "Accra", "onsite", "Accra", true},
+		{"remote location token", "Remote", "Lagos", true},
+		{"hybrid location token", "Accra / Remote", "Lagos", true},
+		{"case-insensitive remote", "REMOTE", "Lagos", true},
+		{"onsite mismatch gates", "Accra", "Lagos", false},
+		{"onsite match clears", "Accra", "Accra", true},
+		{"remote substring is not a whole token", "Remoteville", "Lagos", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := matchingdom.NewRequirements(tc.location, tc.availability, 0, "", nil)
+			// availability is intentionally NOT a parameter: a remote role must
+			// declare it via the location field, never the start-date text.
+			req := matchingdom.NewRequirements(tc.location, 0, "", nil)
 			ex := req.ScreenLogistics(cid, tc.candLocation, 0, "")
 			assert.Equal(t, tc.wantCleared, len(ex) == 0)
 		})
@@ -34,7 +36,7 @@ func TestNewRequirements_RemoteDetection(t *testing.T) {
 }
 
 func TestNewRequirements_CarriesSalaryAndMustHaves(t *testing.T) {
-	req := matchingdom.NewRequirements("Accra", "onsite", 5000, "GHS", []string{"Go"})
+	req := matchingdom.NewRequirements("Accra", 5000, "GHS", []string{"Go"})
 	assert.Equal(t, "Accra", req.Location)
 	assert.False(t, req.RemoteAllowed)
 	assert.InDelta(t, 5000.0, req.SalaryCeiling, 1e-9)

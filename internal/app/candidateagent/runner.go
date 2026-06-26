@@ -152,8 +152,7 @@ func (r *AgentRunner) assess(ctx context.Context, rl *role.Role, profile *talent
 
 func requirementsFor(rl *role.Role) matchingdom.Requirements {
 	return matchingdom.NewRequirements(
-		rl.Spec.Location, rl.Spec.Availability,
-		rl.Spec.SalaryBand.High, rl.Spec.SalaryBand.Currency, nil)
+		rl.Spec.Location, rl.Spec.SalaryBand.High, rl.Spec.SalaryBand.Currency, nil)
 }
 
 // profileCoversMustHaves reports whether the verified profile evidences every

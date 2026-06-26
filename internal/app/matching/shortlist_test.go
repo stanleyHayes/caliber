@@ -262,15 +262,16 @@ func TestGenerateShortlistRejectsProtectedRubric(t *testing.T) {
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 }
 
-// TestGenerateShortlistRemoteRoleSkipsLocation proves isRemote disables the
-// location gate: an out-of-city candidate survives a remote role.
+// TestGenerateShortlistRemoteRoleSkipsLocation proves a remote role (declared
+// by a "remote" token in its location) disables the location gate: an
+// out-of-city candidate survives.
 func TestGenerateShortlistRemoteRoleSkipsLocation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	d := newDeps(ctrl)
 
 	rl, err := role.NewRole(kernel.NewID(),
 		role.RoleSpec{
-			Title: "Backend Engineer", Location: "Accra", Availability: "Remote", Seniority: role.SeniorityMid,
+			Title: "Backend Engineer", Location: "Accra / Remote", Seniority: role.SeniorityMid,
 			MustHaves: []string{"Go"},
 		},
 		role.Rubric{Competencies: []role.Competency{{Name: "Go", Weight: 0.6, MustHave: true}, {Name: "SQL", Weight: 0.4}}},

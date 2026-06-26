@@ -254,8 +254,7 @@ func signalNamesFrom(rs []matchingdom.RubricSignal) []string {
 // logistical gates (work location, salary floor) — never protected attributes.
 func roleLogisticsClear(c *talent.Candidate, rl *role.Role) bool {
 	req := matchingdom.NewRequirements(
-		rl.Spec.Location, rl.Spec.Availability,
-		rl.Spec.SalaryBand.High, rl.Spec.SalaryBand.Currency, nil)
+		rl.Spec.Location, rl.Spec.SalaryBand.High, rl.Spec.SalaryBand.Currency, nil)
 	return len(req.ScreenLogistics(c.ID, c.Location, c.Intake.SalaryFloor, c.Intake.SalaryCurrency)) == 0
 }
 
