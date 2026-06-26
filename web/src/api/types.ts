@@ -194,3 +194,42 @@ export interface InterviewEvent {
   question?: InterviewQuestion;
   reportCard?: InterviewReportCard;
 }
+
+// ----- Flow C: candidate autonomous agent (caliber.v1 CandidateAgentService) -----
+
+export type ApplicationSource =
+  | 'APPLICATION_SOURCE_UNSPECIFIED'
+  | 'APPLICATION_SOURCE_MANUAL'
+  | 'APPLICATION_SOURCE_AGENT';
+
+export type ApplicationStatus =
+  | 'APPLICATION_STATUS_UNSPECIFIED'
+  | 'APPLICATION_STATUS_DRAFTED'
+  | 'APPLICATION_STATUS_SUBMITTED'
+  | 'APPLICATION_STATUS_SCREENING'
+  | 'APPLICATION_STATUS_SCREENED';
+
+export interface Application {
+  id: string;
+  roleId: string;
+  candidateId: string;
+  source: ApplicationSource;
+  tailoredSummary: string;
+  status: ApplicationStatus;
+}
+
+export interface WakeUpView {
+  newMatches: number;
+  applicationsSubmitted: number;
+  screeningsCompleted: number;
+  employersInterested: number;
+  highlights: string[];
+}
+
+export interface TimeAdvanceResponse {
+  wakeUp: WakeUpView;
+}
+
+export interface ListApplicationsResponse {
+  applications: Application[];
+}

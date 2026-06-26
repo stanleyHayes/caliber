@@ -225,7 +225,7 @@ caliber/
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~35% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | TODO | 0% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
-| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~45% |
+| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~50% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | TODO | 0% |
 | | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | TODO | 0% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | TODO | 0% |
@@ -421,7 +421,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-089** `[DONE]` · 5 pts — **Auth UI & session handling.** Login/register, role-aware routing, secure token storage, refresh. *AC:* both roles reach their views behind login. *Deps:* CAL-167
 - **CAL-090** `[WIP]` · 8 pts — **Employer view — Flow A UI.** Plain-language intake, editable spec/rubric, instant availability, explainable **paginated** ranked shortlist with live refine. *AC:* §15.1 visible end-to-end. *Deps:* CAL-058, CAL-166
 - **CAL-091** `[WIP]` · 8 pts — **Interview UI — Flow B (centrepiece).** Streamed adaptive Q&A (skeletons between turns), evidence-tagged report card reveal; graceful, low-latency. *AC:* live adaptive interview renders + scored card. *Deps:* CAL-065, CAL-165
-- **CAL-092** `[TODO]` · 8 pts — **Candidate view — Flow C UI.** One-time setup, time-advance ("run overnight"), wake-up view. *AC:* §15.3 visible end-to-end. *Deps:* CAL-073
+- **CAL-092** `[WIP]` · 8 pts — **Candidate view — Flow C UI.** One-time setup, time-advance ("run overnight"), wake-up view. *AC:* §15.3 visible end-to-end. *Deps:* CAL-073
 - **CAL-093** `[TODO]` · 8 pts — **Talent Radar dashboard UI.** Live pool, supply/demand, two-way alerts, time-to-shortlist headline (the closing visual); skeleton tiles + paginated lists. *AC:* §15.4 visible. *Deps:* CAL-079, CAL-165, CAL-166
 - **CAL-094** `[TODO]` · 5 pts — **Explainability & trust UI.** Per-score reasoning, watch-outs, thin-evidence flags, candidate contest, human-approval gate surfaced. *AC:* nothing reads as a black box. *Deps:* CAL-087
 - **CAL-096** `[TODO]` · 5 pts — **Accessibility baseline (WCAG 2.1 AA).** Semantic HTML, keyboard nav, focus, contrast, ARIA for streaming + skeletons, and **`prefers-reduced-motion`** honored across all transitions/parallax/3D effects. *AC:* axe checks pass on key screens; reduced-motion verified. *Deps:* CAL-088, CAL-168

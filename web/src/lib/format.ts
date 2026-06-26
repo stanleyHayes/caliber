@@ -1,4 +1,4 @@
-import type { Confidence, InterviewVerdict, Seniority } from '../api/types';
+import type { ApplicationStatus, Confidence, InterviewVerdict, Seniority } from '../api/types';
 
 export const pct = (v: number) => `${Math.round(v * 100)}%`;
 
@@ -38,4 +38,20 @@ export const verdictColor: Record<InterviewVerdict, 'default' | 'success' | 'war
   INTERVIEW_VERDICT_ADVANCE: 'success',
   INTERVIEW_VERDICT_HOLD: 'warning',
   INTERVIEW_VERDICT_DECLINE: 'error',
+};
+
+export const applicationStatusLabel: Record<ApplicationStatus, string> = {
+  APPLICATION_STATUS_UNSPECIFIED: 'Unknown',
+  APPLICATION_STATUS_DRAFTED: 'Drafted',
+  APPLICATION_STATUS_SUBMITTED: 'Submitted',
+  APPLICATION_STATUS_SCREENING: 'Screening',
+  APPLICATION_STATUS_SCREENED: 'Screened',
+};
+
+export const applicationStatusColor: Record<ApplicationStatus, 'default' | 'info' | 'warning' | 'success'> = {
+  APPLICATION_STATUS_UNSPECIFIED: 'default',
+  APPLICATION_STATUS_DRAFTED: 'default',
+  APPLICATION_STATUS_SUBMITTED: 'info',
+  APPLICATION_STATUS_SCREENING: 'warning',
+  APPLICATION_STATUS_SCREENED: 'success',
 };

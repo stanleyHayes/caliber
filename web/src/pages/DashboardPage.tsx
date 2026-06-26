@@ -56,9 +56,14 @@ export function DashboardPage() {
               </Button>
             )}
             {role === 'USER_ROLE_CANDIDATE' && (
-              <Button component={Link} to="/interview" variant="contained">
-                Take a screening interview
-              </Button>
+              <Stack direction="row" spacing={1}>
+                <Button component={Link} to="/interview" variant="contained">
+                  Take a screening interview
+                </Button>
+                <Button component={Link} to="/agent" variant="outlined">
+                  Run your agent
+                </Button>
+              </Stack>
             )}
           </Stack>
         </CardContent>
