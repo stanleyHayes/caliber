@@ -65,6 +65,15 @@ func ComputeFit(rubric []RubricSignal, candidate []CandidateSignal) Fit {
 	return fit
 }
 
+// CoversMustHaves reports whether every must-have rubric signal is evidenced at
+// or above MinMustHaveScore by the candidate, using the same token-aware matching
+// as ComputeFit. It is the single must-have predicate shared by the two-way
+// matcher and the candidate agent, so Radar surfacing and actual agent
+// eligibility never diverge.
+func CoversMustHaves(rubric []RubricSignal, candidate []CandidateSignal) bool {
+	return ComputeFit(rubric, candidate).MustHavesMet
+}
+
 // candidateLevel finds a candidate's level for a normalized rubric key, matching
 // an exact normalized name or one that carries the key as a whole token.
 func candidateLevel(candidate []CandidateSignal, key string) (float64, bool) {

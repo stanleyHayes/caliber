@@ -58,13 +58,18 @@ no-fabrication invariant and favours human review over false rejection.
 
 `internal/app/matching/fairness_test.go` (metamorphic, runs in CI):
 
-- **`TestScoringIsInvariantToProtectedAttributes`** — two candidates with
-  identical competencies are scored through the real pipeline; one carries a
-  summary saturated with protected attributes. The test captures the exact text
-  sent to the scorer and embedder and asserts (a) the two scoring prompts are
-  byte-identical and (b) no protected-attribute term appears in either model
-  input. Perturbing only the protected dimensions leaves the model's view
-  unchanged.
+- **`TestScoringDependsOnlyOnCompetenciesNotIdentity`** — two candidates with
+  identical competencies are scored through the real pipeline; one carries
+  protected attributes in its summary and a different passport status. The test
+  captures the exact text sent to the scorer and embedder and asserts (a) the two
+  scoring prompts are byte-identical and (b) no summary-borne protected term
+  reaches either model input. This soundly proves the scorer's view depends only
+  on competencies, not identity-bearing fields: a regression that fed the summary
+  in would break both assertions.
+- **`TestEvidenceQuotesAreScoredVerbatim`** — pins the residual surface honestly:
+  a protected term inside a CV evidence quote *does* reach the scorer (the
+  candidate's own words are scored verbatim, never silently dropped), so the
+  defense there is the asserted system-prompt instruction, not input exclusion.
 - **`TestBiasedRubricIsRejectedBeforeScoring`** — a rubric naming a protected
   attribute aborts the run before any embedding, recall, or scoring.
 - **`TestHardFilterGatesAreBiasSafe`** — the gate identifiers themselves pass

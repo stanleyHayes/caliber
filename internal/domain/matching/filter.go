@@ -59,6 +59,21 @@ type Requirements struct {
 	MustHaves []string
 }
 
+// NewRequirements builds the hard-constraint set from a role's logistical facts.
+// RemoteAllowed is derived from the location/availability text mentioning
+// "remote" (a remote role disables the location gate). Centralizing this here
+// keeps every caller's gate identical — shortlist, the candidate agent, the
+// two-way matcher, and the Radar alert feed.
+func NewRequirements(location, availability string, salaryCeiling float64, salaryCurrency string, mustHaves []string) Requirements {
+	return Requirements{
+		Location:       location,
+		RemoteAllowed:  strings.Contains(strings.ToLower(location+" "+availability), "remote"),
+		SalaryCeiling:  salaryCeiling,
+		SalaryCurrency: salaryCurrency,
+		MustHaves:      mustHaves,
+	}
+}
+
 // ScreenLogistics evaluates the pre-scoring gates that depend only on candidate
 // facts (location, salary expectation). It returns one Exclusion per failed
 // gate; an empty slice means the candidate clears these gates. Running before

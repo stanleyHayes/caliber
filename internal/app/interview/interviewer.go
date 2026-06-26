@@ -219,9 +219,9 @@ func (s *Interviewer) markScreened(ctx context.Context, candidateID kernel.ID) {
 
 func questionPrompt(rl *role.Role, iv *interviewdom.Interview) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "ROLE: %s\nRUBRIC:\n", rl.Spec.Title)
+	fmt.Fprintf(&b, "ROLE: %s\nRUBRIC:\n", guard.Sanitize(rl.Spec.Title))
 	for _, c := range rl.Rubric.Competencies {
-		fmt.Fprintf(&b, "- %s\n", c.Name)
+		fmt.Fprintf(&b, "- %s\n", guard.Sanitize(c.Name))
 	}
 	b.WriteString(transcript(iv))
 	b.WriteString("Ask the next question.")
@@ -230,9 +230,9 @@ func questionPrompt(rl *role.Role, iv *interviewdom.Interview) string {
 
 func scorePrompt(rl *role.Role, iv *interviewdom.Interview) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "ROLE: %s\nRUBRIC:\n", rl.Spec.Title)
+	fmt.Fprintf(&b, "ROLE: %s\nRUBRIC:\n", guard.Sanitize(rl.Spec.Title))
 	for _, c := range rl.Rubric.Competencies {
-		fmt.Fprintf(&b, "- %s\n", c.Name)
+		fmt.Fprintf(&b, "- %s\n", guard.Sanitize(c.Name))
 	}
 	b.WriteString(transcript(iv))
 	b.WriteString("Score the interview now.")
@@ -247,7 +247,7 @@ func transcript(iv *interviewdom.Interview) string {
 	for _, t := range iv.Turns {
 		// Candidate answers are untrusted: sanitize each before it enters the
 		// prompt, and fence the whole transcript as data (questions are ours).
-		fmt.Fprintf(&b, "Q%d (%s): %s\nA: %s\n", t.Ordinal, t.CompetencyTag, t.Question, guard.Sanitize(t.Answer))
+		fmt.Fprintf(&b, "Q%d (%s): %s\nA: %s\n", t.Ordinal, guard.Sanitize(t.CompetencyTag), guard.Sanitize(t.Question), guard.Sanitize(t.Answer))
 	}
 	return "TRANSCRIPT:\n" + guard.Fence("INTERVIEW_TRANSCRIPT", b.String()) + "\n"
 }

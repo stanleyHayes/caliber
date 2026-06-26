@@ -20,7 +20,6 @@ import (
 const (
 	defaultScanLimit = 20
 	defaultMinFit    = 0.6
-	minProfileLevel  = 2.0
 	assessMaxTokens  = 768
 )
 
@@ -152,41 +151,37 @@ func (r *AgentRunner) assess(ctx context.Context, rl *role.Role, profile *talent
 }
 
 func requirementsFor(rl *role.Role) matchingdom.Requirements {
-	loc := rl.Spec.Location
-	return matchingdom.Requirements{
-		Location:       loc,
-		RemoteAllowed:  strings.Contains(strings.ToLower(loc), "remote"),
-		SalaryCeiling:  rl.Spec.SalaryBand.High,
-		SalaryCurrency: rl.Spec.SalaryBand.Currency,
-	}
+	return matchingdom.NewRequirements(
+		rl.Spec.Location, rl.Spec.Availability,
+		rl.Spec.SalaryBand.High, rl.Spec.SalaryBand.Currency, nil)
 }
 
 // profileCoversMustHaves reports whether the verified profile evidences every
 // must-have rubric competency at or above the minimum level.
 func profileCoversMustHaves(profile *talent.TalentProfile, rl *role.Role) bool {
-	levels := make(map[string]float64, len(profile.Competencies))
+	cand := make([]matchingdom.CandidateSignal, 0, len(profile.Competencies))
 	for _, c := range profile.Competencies {
-		levels[strings.ToLower(strings.TrimSpace(c.Name))] = c.Level
+		cand = append(cand, matchingdom.CandidateSignal{Name: c.Name, Level: c.Level})
 	}
+	rubric := make([]matchingdom.RubricSignal, 0, len(rl.Rubric.Competencies))
 	for _, c := range rl.Rubric.Competencies {
-		if c.MustHave && levels[strings.ToLower(strings.TrimSpace(c.Name))] < minProfileLevel {
-			return false
-		}
+		rubric = append(rubric, matchingdom.RubricSignal{Name: c.Name, Weight: c.Weight, MustHave: c.MustHave})
 	}
-	return true
+	// Token-aware, shared with the two-way matcher so Radar and agent agree.
+	return matchingdom.CoversMustHaves(rubric, cand)
 }
 
 func assessPrompt(rl *role.Role, profile *talent.TalentProfile) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "ROLE: %s\nRUBRIC:\n", rl.Spec.Title)
+	fmt.Fprintf(&b, "ROLE: %s\nRUBRIC:\n", guard.Sanitize(rl.Spec.Title))
 	for _, c := range rl.Rubric.Competencies {
-		fmt.Fprintf(&b, "- %s\n", c.Name)
+		fmt.Fprintf(&b, "- %s\n", guard.Sanitize(c.Name))
 	}
 	// Evidence quotes originate from the candidate's CV (untrusted origin), so
 	// sanitize and fence them before they re-enter a prompt.
 	var prof strings.Builder
 	for _, c := range profile.Competencies {
-		fmt.Fprintf(&prof, "- %s (level %.1f): %s\n", c.Name, c.Level, guard.Sanitize(c.EvidenceQuote))
+		fmt.Fprintf(&prof, "- %s (level %.1f): %s\n", guard.Sanitize(c.Name), c.Level, guard.Sanitize(c.EvidenceQuote))
 	}
 	b.WriteString("VERIFIED PROFILE COMPETENCIES:\n")
 	b.WriteString(guard.Fence("VERIFIED_PROFILE", prof.String()))
