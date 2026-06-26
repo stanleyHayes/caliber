@@ -70,6 +70,7 @@ func (s *DashboardServer) GetAlerts(ctx context.Context, req *caliberv1.GetAlert
 	for _, al := range alerts {
 		out = append(out, &caliberv1.MatchAlert{
 			Id:          al.ID.String(),
+			Type:        alertTypeToProto(al.Type),
 			RoleId:      al.RoleID.String(),
 			CandidateId: al.CandidateID.String(),
 			Message:     al.Message,
@@ -100,5 +101,17 @@ func passportStatusToProto(s talent.PassportStatus) caliberv1.PassportStatus {
 		return caliberv1.PassportStatus_PASSPORT_STATUS_VERIFIED
 	default:
 		return caliberv1.PassportStatus_PASSPORT_STATUS_UNSPECIFIED
+	}
+}
+
+// alertTypeToProto maps a domain two-way alert type to its proto enum.
+func alertTypeToProto(t string) caliberv1.AlertType {
+	switch t {
+	case dashboardapp.AlertCandidateForRole:
+		return caliberv1.AlertType_ALERT_TYPE_CANDIDATE_FOR_ROLE
+	case dashboardapp.AlertRoleForCandidate:
+		return caliberv1.AlertType_ALERT_TYPE_ROLE_FOR_CANDIDATE
+	default:
+		return caliberv1.AlertType_ALERT_TYPE_UNSPECIFIED
 	}
 }

@@ -393,7 +393,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 
 - **CAL-076** `[WIP]` · 5 pts — **Live, paginated candidate pool view.** Aggregated pool with passport status. *AC:* reflects current seed state; paginated. *Deps:* CAL-045
 - **CAL-077** `[WIP]` · 5 pts — **Supply/demand snapshot by role family.** Counts and gaps per role family. *AC:* numbers reconcile with seed data. *Deps:* CAL-076
-- **CAL-078** `[TODO]` · 5 pts — **Two-way match alerts.** "New strong candidate for an open role" / "new role fits a passive candidate." *AC:* alerts generated from EPIC-07 two-way matching; paginated. *Deps:* CAL-053
+- **CAL-078** `[DONE]` · 5 pts — **Two-way match alerts.** `Aggregator.Alerts` computes a deterministic bias-safe fit (CAL-053 `ComputeFit`) for every passive candidate against each open role and emits a `candidate_for_role` alert per strong pair plus one best-fit `role_for_candidate` alert per candidate; alert IDs are deterministic (`type:role:candidate`) and the feed is paginated. gRPC `GetAlerts` maps the alert type to the `AlertType` enum end-to-end. *AC:* alerts generated from EPIC-07 two-way matching; paginated. *Deps:* CAL-053
 - **CAL-079** `[WIP]` · 5 pts — **Time-to-shortlist metric.** Headline metric showing collapse from weeks → hours. *AC:* computed and displayed as the closing visual. *Deps:* CAL-059
 - **CAL-080** `[TODO]` · 4 pts — **Dashboard aggregation performance.** Cache/precompute snapshots for snappy live rendering. *AC:* dashboard loads within demo budget. *Deps:* CAL-076
 
