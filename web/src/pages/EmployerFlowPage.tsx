@@ -19,6 +19,7 @@ export function EmployerFlowPage() {
   const [text, setText] = useState('');
   const [result, setResult] = useState<GenerateRoleResponse | null>(null);
   const [editing, setEditing] = useState(false);
+  const [roleVersion, setRoleVersion] = useState(0);
 
   const onGenerate = () => {
     if (!user || text.trim().length === 0) {
@@ -83,6 +84,7 @@ export function EmployerFlowPage() {
               role={result.role}
               onSaved={(role) => {
                 setResult({ ...result, role });
+                setRoleVersion((v) => v + 1); // re-rank the shortlist against the edited rubric
                 setEditing(false);
               }}
               onCancel={() => setEditing(false)}
@@ -99,7 +101,7 @@ export function EmployerFlowPage() {
             </>
           )}
           <Divider />
-          <ShortlistSection roleId={result.role.id} />
+          <ShortlistSection roleId={result.role.id} version={roleVersion} />
         </Stack>
       )}
     </Stack>
