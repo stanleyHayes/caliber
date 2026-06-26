@@ -10,6 +10,15 @@ export function useGenerateRole() {
   });
 }
 
+export function useRoles(employerId: string | undefined) {
+  return useQuery({
+    queryKey: ['roles', employerId],
+    queryFn: () => flowApi.listRoles(employerId as string),
+    enabled: Boolean(employerId),
+    retry: 0,
+  });
+}
+
 export function useUpdateRole() {
   return useMutation({
     mutationFn: ({ roleId, spec, rubric }: { roleId: string; spec: RoleSpec; rubric: Rubric }) =>

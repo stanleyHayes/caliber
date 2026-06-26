@@ -292,3 +292,7 @@ export interface TalentProfile {
 export interface ProfileResponse {
   profile: TalentProfile;
 }
+
+export interface ListRolesResponse {
+  roles: Role[];
+}

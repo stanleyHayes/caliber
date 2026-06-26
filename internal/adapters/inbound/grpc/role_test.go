@@ -91,3 +91,18 @@ func TestUpdateRoleSpecNotFound(t *testing.T) {
 	})
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
+
+func TestListRolesHandler(t *testing.T) {
+	srv := newServer()
+	emp := kernel.NewID()
+	for _, txt := range []string{"Go engineer Accra", "Frontend engineer Kumasi"} {
+		_, err := srv.GenerateRoleSpec(context.Background(),
+			&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: txt})
+		require.NoError(t, err)
+	}
+	resp, err := srv.ListRoles(context.Background(),
+		&caliberv1.ListRolesRequest{EmployerId: emp.String(), Page: &caliberv1.PageRequest{Page: 1, PageSize: 10}})
+	require.NoError(t, err)
+	assert.Len(t, resp.GetRoles(), 2)
+	assert.Equal(t, int64(2), resp.GetPage().GetTotalItems())
+}

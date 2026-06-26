@@ -51,9 +51,14 @@ export function DashboardPage() {
               </Typography>
             </Box>
             {(role === 'USER_ROLE_EMPLOYER' || role === 'USER_ROLE_RECRUITER') && (
-              <Button component={Link} to="/roles/new" variant="contained">
-                Describe a role
-              </Button>
+              <Stack direction="row" spacing={1}>
+                <Button component={Link} to="/roles/new" variant="contained">
+                  Describe a role
+                </Button>
+                <Button component={Link} to="/roles" variant="outlined">
+                  Your roles
+                </Button>
+              </Stack>
             )}
             {role === 'USER_ROLE_CANDIDATE' && (
               <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>

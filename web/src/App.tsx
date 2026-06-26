@@ -13,6 +13,7 @@ import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RadarPage } from './pages/RadarPage';
+import { RolesPage } from './pages/RolesPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { queryClient } from './query/client';
 
@@ -26,6 +27,7 @@ export function App() {
               <Route path="/" element={<LandingPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route path="/app" element={<DashboardPage />} />
+                <Route path="/roles" element={<RolesPage />} />
                 <Route path="/roles/new" element={<EmployerFlowPage />} />
                 <Route path="/interview" element={<InterviewPage />} />
                 <Route path="/profile" element={<ProfilePage />} />

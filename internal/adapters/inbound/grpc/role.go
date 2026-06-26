@@ -54,3 +54,17 @@ func (s *RoleServer) UpdateRoleSpec(
 	}
 	return &caliberv1.UpdateRoleSpecResponse{Role: roleToProto(r)}, nil
 }
+
+// ListRoles returns a page of an employer's roles.
+func (s *RoleServer) ListRoles(ctx context.Context, req *caliberv1.ListRolesRequest) (*caliberv1.ListRolesResponse, error) {
+	page := pageFromProto(req.GetPage())
+	roles, total, err := s.editor.List(ctx, kernel.ID(req.GetEmployerId()), page)
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	out := make([]*caliberv1.Role, 0, len(roles))
+	for _, r := range roles {
+		out = append(out, roleToProto(r))
+	}
+	return &caliberv1.ListRolesResponse{Roles: out, Page: pageResponseToProto(page, total)}, nil
+}

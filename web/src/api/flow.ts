@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { GenerateRoleResponse, Role, RoleSpec, Rubric, ShortlistResponse } from './types';
+import type { GenerateRoleResponse, ListRolesResponse, Role, RoleSpec, Rubric, ShortlistResponse } from './types';
 
 export const flowApi = {
   generateRole: (employerId: string, freeText: string) =>
@@ -7,6 +7,10 @@ export const flowApi = {
       method: 'POST',
       body: { employer_id: employerId, free_text: freeText },
     }),
+  listRoles: (employerId: string, pageSize = 50) =>
+    apiFetch<ListRolesResponse>(
+      `/v1/roles?employer_id=${encodeURIComponent(employerId)}&page.page=1&page.page_size=${pageSize}`,
+    ),
   updateRole: (roleId: string, spec: RoleSpec, rubric: Rubric) =>
     apiFetch<{ role: Role }>(`/v1/roles/${encodeURIComponent(roleId)}`, {
       method: 'PATCH',

@@ -42,3 +42,11 @@ func (e *SpecEditor) Update(ctx context.Context, roleID kernel.ID, spec role.Rol
 	}
 	return r, nil
 }
+
+// List returns a page of an employer's roles, newest first, with the total.
+func (e *SpecEditor) List(ctx context.Context, employerID kernel.ID, page kernel.Page) ([]*role.Role, int64, error) {
+	if employerID.IsZero() {
+		return nil, 0, kernel.Invalid("roles: employer id is required")
+	}
+	return e.roles.ListByEmployer(ctx, employerID, page)
+}
