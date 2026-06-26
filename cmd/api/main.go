@@ -24,6 +24,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
 	"github.com/xcreativs/caliber/internal/app"
 	identityapp "github.com/xcreativs/caliber/internal/app/identity"
+	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
 	"github.com/xcreativs/caliber/internal/app/provisioning"
 	"github.com/xcreativs/caliber/internal/app/roles"
@@ -110,6 +111,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	svc.AccessVerifier = tokens
 
 	svc.Role = grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, roleRepo, time.Now), roles.NewSpecEditor(roleRepo))
+	svc.Interview = grpcadapter.NewInterviewServer(interviewapp.NewInterviewer(roleRepo, memory.NewInterviewRepo(), model, 0))
 	return svc, cleanup, nil
 }
 

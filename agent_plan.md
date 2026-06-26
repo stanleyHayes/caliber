@@ -221,7 +221,7 @@ caliber/
 | | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | TODO | 0% |
 | | EPIC-07 | Matching & Ranking Engine | 7 | 37 | WIP | ~70% |
 | | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~45% |
-| | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | WIP | ~30% |
+| | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | WIP | ~50% |
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | TODO | 0% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | TODO | 0% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
@@ -369,10 +369,10 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 
 - **CAL-060** `[DONE]` · 8 pts — **Interview state machine (FSM).** States: open → ask → analyze → adapt → … → close; max-K questions or T-minutes cap. *AC:* deterministic transitions; unit-tested. *Deps:* CAL-030
 - **CAL-061** `[DONE]` · 5 pts — **Opening-question generation.** From rubric + profile. *AC:* question ties to a rubric competency. *Deps:* CAL-060, CAL-038
-- **CAL-062** `[WIP]` · 8 pts — **Adaptive questioning loop.** Analyze each answer → update per-competency evidence coverage → select next question probing weakest/most-claimed competency, with follow-ups. *AC:* questions adapt to prior answers (not a fixed script). *Deps:* CAL-061
+- **CAL-062** `[DONE]` · 8 pts — **Adaptive questioning loop.** Analyze each answer → update per-competency evidence coverage → select next question probing weakest/most-claimed competency, with follow-ups. *AC:* questions adapt to prior answers (not a fixed script). *Deps:* CAL-061
 - **CAL-063** `[TODO]` · 5 pts — **Honest-signal pressure.** Detect vague/evasive answers; push for concrete examples. *AC:* evasive answers flagged in transcript. *Deps:* CAL-062
 - **CAL-064** `[DONE]` · 8 pts — **Scored report card generation.** Per-competency scores + evidence quote each, overall verdict, confidence, recommended next step. *AC:* matches Appendix A.3; every score cites a transcript quote. *Deps:* CAL-062
-- **CAL-065** `[TODO]` · 5 pts — **Streamed interview session.** Stream questions/turns (gRPC server-stream / SSE); low-latency; pre-warm session. *AC:* turns render live; cancellable. *Deps:* CAL-034, CAL-060
+- **CAL-065** `[DONE]` · 5 pts — **Streamed interview session.** `StartInterview` server-stream + a per-interview broker that forwards each `SubmitAnswer`'s next question (and the final report card) onto the open stream; `GetReportCard` unary. Cancellable via stream context. Smoke-tested over the gateway SSE: 4 adaptive questions + evidence-tagged report card. *Deps:* CAL-034, CAL-060
 - **CAL-066** `[TODO]` · 3 pts — **Transcript & report card persistence + Passport update.** Store `Interview`, `InterviewTurn`s, report card; update Talent Passport. *AC:* transcript + card stored and viewable. *Deps:* CAL-064, CAL-014
 - **CAL-067** `[TODO]` · 5 pts — **Async interview scoring job.** Heavy scoring via Asynq when not inline. *AC:* report card produced reliably off the request path. *Deps:* CAL-025, CAL-064
 - **CAL-068** `[TODO]` · 8 pts — **Flow B acceptance tests (centrepiece).** Adaptive (not scripted), per-competency scores with evidence + verdict + confidence, Passport updated. *AC:* §15.2 pass; latency within demo budget. *Deps:* CAL-064, CAL-065
