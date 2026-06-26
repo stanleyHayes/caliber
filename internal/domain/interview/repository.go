@@ -13,3 +13,5 @@ type InterviewRepository interface { //nolint:revive // domain name fixed by the
 	Update(ctx context.Context, i *Interview) error
 	ByCandidate(ctx context.Context, candidateID kernel.ID, page kernel.Page) ([]*Interview, int64, error)
 }
+
+//go:generate mockgen -source=repository.go -destination=../../mocks/interview.go -package=mocks

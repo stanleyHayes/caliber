@@ -181,3 +181,41 @@ func TestInterviewLifecycle(t *testing.T) {
 		t.Error("invalid mode should fail")
 	}
 }
+
+func TestAskAndAnswer(t *testing.T) {
+	iv, err := NewInterview(kernel.NewID(), kernel.NewID(), ModeText)
+	if err != nil {
+		t.Fatalf("NewInterview: %v", err)
+	}
+	// cannot ask before asking state
+	if err := iv.Ask("q", "Go"); err == nil {
+		t.Error("expected Ask to fail in the open state")
+	}
+	if err := iv.Transition(StateAsking); err != nil {
+		t.Fatalf("transition: %v", err)
+	}
+	if err := iv.Ask("Tell me about Go.", "Go"); err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	if iv.Pending == nil || iv.Pending.Ordinal != 1 {
+		t.Fatal("expected a pending question at ordinal 1")
+	}
+	// cannot ask twice while pending
+	if err := iv.Ask("another", "SQL"); err == nil {
+		t.Error("expected a second Ask to fail while pending")
+	}
+	// answering clears pending and records a turn
+	if err := iv.Answer("I built services in Go."); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	if iv.Pending != nil {
+		t.Error("expected pending to be cleared after Answer")
+	}
+	if len(iv.Turns) != 1 || iv.Turns[0].Answer != "I built services in Go." {
+		t.Errorf("expected one recorded turn, got %d", len(iv.Turns))
+	}
+	// answering with no pending fails
+	if err := iv.Answer("x"); err == nil {
+		t.Error("expected Answer to fail with no pending question")
+	}
+}

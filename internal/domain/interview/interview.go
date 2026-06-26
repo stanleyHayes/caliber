@@ -1,6 +1,17 @@
 package interview
 
-import "github.com/xcreativs/caliber/internal/domain/kernel"
+import (
+	"strings"
+
+	"github.com/xcreativs/caliber/internal/domain/kernel"
+)
+
+// PendingQuestion is a question that has been asked but not yet answered.
+type PendingQuestion struct {
+	Ordinal       int
+	Text          string
+	CompetencyTag string
+}
 
 // Interview is an adaptive screening session driven by the state machine.
 type Interview struct {
@@ -10,6 +21,7 @@ type Interview struct {
 	Mode        InterviewMode
 	State       State
 	Turns       []InterviewTurn
+	Pending     *PendingQuestion
 	Report      *ReportCard
 }
 
@@ -51,6 +63,42 @@ func (i *Interview) AddTurn(t InterviewTurn) error {
 		return err
 	}
 	i.Turns = append(i.Turns, t)
+	return nil
+}
+
+// Ask records the next question as pending (awaiting an answer). It is valid
+// only while asking and when no question is already outstanding.
+func (i *Interview) Ask(text, competencyTag string) error {
+	if i.State != StateAsking {
+		return kernel.Invalid("interview: can only ask a question while asking")
+	}
+	if i.Pending != nil {
+		return kernel.Invalid("interview: a question is already awaiting an answer")
+	}
+	if strings.TrimSpace(text) == "" {
+		return kernel.Invalid("interview: question text is required")
+	}
+	i.Pending = &PendingQuestion{Ordinal: len(i.Turns) + 1, Text: text, CompetencyTag: competencyTag}
+	return nil
+}
+
+// Answer records the answer to the pending question as a completed turn and
+// clears the pending question.
+func (i *Interview) Answer(answer string) error {
+	if i.Pending == nil {
+		return kernel.Invalid("interview: no question is awaiting an answer")
+	}
+	turn := InterviewTurn{
+		ID:            kernel.NewID(),
+		Ordinal:       i.Pending.Ordinal,
+		Question:      i.Pending.Text,
+		Answer:        answer,
+		CompetencyTag: i.Pending.CompetencyTag,
+	}
+	if err := i.AddTurn(turn); err != nil {
+		return err
+	}
+	i.Pending = nil
 	return nil
 }
 
