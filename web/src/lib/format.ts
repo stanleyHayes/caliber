@@ -1,4 +1,4 @@
-import type { Confidence, Seniority } from '../api/types';
+import type { Confidence, InterviewVerdict, Seniority } from '../api/types';
 
 export const pct = (v: number) => `${Math.round(v * 100)}%`;
 
@@ -25,3 +25,17 @@ export const confidenceColor: Record<Confidence, 'default' | 'info' | 'warning' 
 };
 
 export const shortId = (id: string) => (id.length > 8 ? id.slice(0, 8) : id);
+
+export const verdictLabel: Record<InterviewVerdict, string> = {
+  INTERVIEW_VERDICT_UNSPECIFIED: 'Unscored',
+  INTERVIEW_VERDICT_ADVANCE: 'Advance',
+  INTERVIEW_VERDICT_HOLD: 'Hold',
+  INTERVIEW_VERDICT_DECLINE: 'Decline',
+};
+
+export const verdictColor: Record<InterviewVerdict, 'default' | 'success' | 'warning' | 'error'> = {
+  INTERVIEW_VERDICT_UNSPECIFIED: 'default',
+  INTERVIEW_VERDICT_ADVANCE: 'success',
+  INTERVIEW_VERDICT_HOLD: 'warning',
+  INTERVIEW_VERDICT_DECLINE: 'error',
+};

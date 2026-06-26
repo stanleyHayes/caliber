@@ -151,3 +151,46 @@ export interface Shortlist {
 export interface ShortlistResponse {
   shortlist: Shortlist;
 }
+
+// ----- Flow B: AI screening interview (caliber.v1 InterviewService) -----
+
+export type InterviewVerdict =
+  | 'INTERVIEW_VERDICT_UNSPECIFIED'
+  | 'INTERVIEW_VERDICT_ADVANCE'
+  | 'INTERVIEW_VERDICT_HOLD'
+  | 'INTERVIEW_VERDICT_DECLINE';
+
+export interface InterviewQuestion {
+  interviewId: string;
+  ordinal: number;
+  text: string;
+  competencyTag: string;
+}
+
+export interface InterviewStatusEvent {
+  state: string;
+  message: string;
+}
+
+export interface InterviewCompetencyScore {
+  competency: string;
+  score: number; // 0..5
+  evidence: string;
+}
+
+export interface InterviewReportCard {
+  interviewId: string;
+  roleId: string;
+  candidateId: string;
+  verdict: InterviewVerdict;
+  confidence: Confidence;
+  scores: InterviewCompetencyScore[];
+  recommendedNextStep: string;
+}
+
+// One server-stream event (the StartInterviewResponse oneof, camelCase).
+export interface InterviewEvent {
+  status?: InterviewStatusEvent;
+  question?: InterviewQuestion;
+  reportCard?: InterviewReportCard;
+}

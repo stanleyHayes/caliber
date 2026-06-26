@@ -1,5 +1,6 @@
 import { Alert, Box, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
 import { useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 
 import type { GenerateRoleResponse } from '../api/types';
 import { DotsButton } from '../components/DotsButton';
@@ -91,7 +92,10 @@ export function EmployerFlowPage() {
             />
           ) : (
             <>
-              <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+              <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                <Button component={RouterLink} to={`/interview?roleId=${result.role.id}`} variant="text">
+                  Run a screening interview
+                </Button>
                 <Button variant="outlined" onClick={() => setEditing(true)}>
                   Refine spec &amp; rubric
                 </Button>
