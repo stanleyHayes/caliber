@@ -5,6 +5,7 @@ import { AppShell } from './components/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { SessionBootstrap } from './components/SessionBootstrap';
 import { DashboardPage } from './pages/DashboardPage';
+import { LandingPage } from './pages/LandingPage';
 import { AgentPage } from './pages/AgentPage';
 import { EmployerFlowPage } from './pages/EmployerFlowPage';
 import { InterviewPage } from './pages/InterviewPage';
@@ -21,8 +22,9 @@ export function App() {
         <SessionBootstrap>
           <Routes>
             <Route element={<AppShell />}>
+              <Route path="/" element={<LandingPage />} />
               <Route element={<ProtectedRoute />}>
-                <Route path="/" element={<DashboardPage />} />
+                <Route path="/app" element={<DashboardPage />} />
                 <Route path="/roles/new" element={<EmployerFlowPage />} />
                 <Route path="/interview" element={<InterviewPage />} />
                 <Route path="/agent" element={<AgentPage />} />

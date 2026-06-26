@@ -13,7 +13,7 @@ export function LoginPage() {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login.mutate({ email, password }, { onSuccess: () => navigate('/', { replace: true }) });
+    login.mutate({ email, password }, { onSuccess: () => navigate('/app', { replace: true }) });
   };
 
   return (

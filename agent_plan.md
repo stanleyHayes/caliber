@@ -225,7 +225,7 @@ caliber/
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~35% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | WIP | ~40% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
-| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~60% |
+| | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~63% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | TODO | 0% |
 | | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | TODO | 0% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | TODO | 0% |
@@ -480,7 +480,7 @@ Beyond the win: harden security, SEO, observability, quality, deployment, and sc
 - **CAL-127** `[TODO]` · 3 pts — **Internationalization & localization readiness.** hreflang scaffolding, locale-aware routing (Ghana/West Africa first). *AC:* i18n structure in place. *Deps:* CAL-121
 - **CAL-128** `[TODO]` · 4 pts — **Analytics & Search Console.** Privacy-respecting analytics, Web Vitals reporting, Search Console verification. *AC:* traffic + vitals visible. *Deps:* CAL-121
 - **CAL-129** `[TODO]` · 5 pts — **Performance budgets in CI.** Lighthouse CI gate on PRs for public pages. *AC:* regressions block merge. *Deps:* CAL-125, CAL-003
-- **CAL-170** `[TODO]` · 5 pts — **Marketing-site animation kit.** Parallax sections, 3D reveal-on-scroll, and the circular-reveal theme toggle on public/marketing pages — built with Motion, lazy/IntersectionObserver-driven, within the Core Web Vitals budget (CAL-125) and gated behind `prefers-reduced-motion`. *AC:* effects render; Lighthouse perf budget still met; reduced-motion disables them. *Deps:* CAL-121, CAL-125, CAL-168
+- **CAL-170** `[WIP]` · 5 pts — **Marketing-site animation kit.** Parallax sections, 3D reveal-on-scroll, and the circular-reveal theme toggle on public/marketing pages — built with Motion, lazy/IntersectionObserver-driven, within the Core Web Vitals budget (CAL-125) and gated behind `prefers-reduced-motion`. *AC:* effects render; Lighthouse perf budget still met; reduced-motion disables them. *Deps:* CAL-121, CAL-125, CAL-168
 
 ## EPIC-18 · Observability & Operations
 **Goal:** See everything in production. OpenTelemetry + Prometheus/Grafana/Loki.

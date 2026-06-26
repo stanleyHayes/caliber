@@ -31,7 +31,7 @@ export function RegisterPage() {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    register.mutate({ name, email, password, role }, { onSuccess: () => navigate('/', { replace: true }) });
+    register.mutate({ name, email, password, role }, { onSuccess: () => navigate('/app', { replace: true }) });
   };
 
   return (

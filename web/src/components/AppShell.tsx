@@ -18,7 +18,7 @@ export function AppShell() {
           <Typography
             variant="h6"
             component={Link}
-            to="/"
+            to={accessToken ? '/app' : '/'}
             sx={{ flexGrow: 1, textDecoration: 'none', color: 'text.primary', fontFamily: (t) => t.typography.h6.fontFamily }}
           >
             Caliber
@@ -29,10 +29,19 @@ export function AppShell() {
             </Button>
           )}
           <ModeToggle />
-          {accessToken && (
+          {accessToken ? (
             <Button onClick={() => logout.mutate()} sx={{ ml: 1 }} color="inherit">
               Sign out{user ? ` (${user.name})` : ''}
             </Button>
+          ) : (
+            <>
+              <Button component={Link} to="/login" color="inherit" sx={{ ml: 1 }}>
+                Sign in
+              </Button>
+              <Button component={Link} to="/register" variant="contained" sx={{ ml: 1 }}>
+                Get started
+              </Button>
+            </>
           )}
         </Toolbar>
       </AppBar>
