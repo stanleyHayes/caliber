@@ -182,3 +182,23 @@ func seniorityFromProto(s caliberv1.Seniority) role.Seniority {
 		return role.SeniorityUnspecified
 	}
 }
+
+// pageFromProto builds a clamped domain page from a proto PageRequest.
+func pageFromProto(p *caliberv1.PageRequest) kernel.Page {
+	return kernel.NewPage(max(int(p.GetPage()), 1), int(p.GetPageSize()))
+}
+
+// pageResponseToProto builds a proto PageResponse from a page and total count.
+func pageResponseToProto(page kernel.Page, total int64) *caliberv1.PageResponse {
+	size := page.Limit()
+	var totalPages int32
+	if size > 0 {
+		totalPages = int32((total + int64(size) - 1) / int64(size)) //nolint:gosec // bounded page count
+	}
+	return &caliberv1.PageResponse{
+		Page:       int32(page.Number), //nolint:gosec // bounded page number
+		PageSize:   int32(size),        //nolint:gosec // bounded page size (<=100)
+		TotalItems: total,
+		TotalPages: totalPages,
+	}
+}

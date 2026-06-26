@@ -23,6 +23,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
 	"github.com/xcreativs/caliber/internal/app"
+	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
 	identityapp "github.com/xcreativs/caliber/internal/app/identity"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
@@ -96,6 +97,10 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 			postgres.NewRecaller(pool), embedder, model, postgres.NewMatchRepo(pool),
 		)
 		svc.Match = grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(roleRepo, shortlister))
+		appRepo := postgres.NewApplicationRepo(pool)
+		agentRunner := candidateagentapp.NewAgentRunner(
+			postgres.NewCandidateRepo(pool), postgres.NewTalentProfileRepo(pool), roleRepo, appRepo, model)
+		svc.Agent = grpcadapter.NewAgentServer(agentRunner, appRepo)
 		log.Info("persistence selected", "provider", "postgres")
 	} else {
 		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories (matching disabled)")

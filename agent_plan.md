@@ -222,7 +222,7 @@ caliber/
 | | EPIC-07 | Matching & Ranking Engine | 7 | 37 | WIP | ~70% |
 | | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~45% |
 | | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | WIP | ~50% |
-| | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~20% |
+| | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~35% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | TODO | 0% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
 | | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~45% |
@@ -384,8 +384,8 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-070** `[WIP]` · 8 pts — **Candidate-agent job (autonomous loop).** Scan open roles → score fit (reuse EPIC-07) → hard filters → for strong matches, tailor a truthful application. *AC:* runs as an Asynq job over the seeded role pool. *Deps:* CAL-050, CAL-025
 - **CAL-071** `[WIP]` · 5 pts — **No-fabrication guardrail (hard invariant).** Agent may only surface/rephrase verified profile content; never invents skills/experience. *AC:* asserted in code AND prompt; test proves tailored content traces to profile. *Deps:* CAL-070
 - **CAL-072** `[WIP]` · 5 pts — **Application tailoring & submission (in-platform).** Generate role-specific application from verified content; submit within the platform; optionally complete/queue screening. *AC:* `Application{source: agent, tailored_summary, status}` written. *Deps:* CAL-070
-- **CAL-073** `[TODO]` · 5 pts — **Time-advance action (demo engine).** Controlled "run overnight" advances agent state live — no real external submission, no waiting. *AC:* one action produces visible new state. *Deps:* CAL-027, CAL-072
-- **CAL-074** `[TODO]` · 3 pts — **Wake-up view data.** Summary: new matches, applications tailored/submitted, completed screening + score, employer interest. *AC:* matches the §6.3 wake-up narrative. *Deps:* CAL-073
+- **CAL-073** `[WIP]` · 5 pts — **Time-advance action (demo engine).** Controlled "run overnight" advances agent state live — no real external submission, no waiting. *AC:* one action produces visible new state. *Deps:* CAL-027, CAL-072
+- **CAL-074** `[WIP]` · 3 pts — **Wake-up view data.** Summary: new matches, applications tailored/submitted, completed screening + score, employer interest. *AC:* matches the §6.3 wake-up narrative. *Deps:* CAL-073
 - **CAL-075** `[TODO]` · 7 pts — **Flow C acceptance tests.** Setup builds a usable profile; time-advance yields tailored applications + ≥1 completed screening; **no application content untraceable to the verified profile**. *AC:* §15.3 pass. *Deps:* CAL-072, CAL-071
 
 ## EPIC-11 · Talent Radar Dashboard
