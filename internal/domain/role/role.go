@@ -64,3 +64,19 @@ func (r *Role) Open() error {
 
 // Close transitions the role to closed.
 func (r *Role) Close() { r.Status = RoleClosed }
+
+// Revise replaces the role's spec and rubric after validating both, keeping the
+// title in sync with the spec. The caller normalizes rubric weights beforehand
+// (re-weighting); Revise rejects an invalid spec or rubric.
+func (r *Role) Revise(spec RoleSpec, rubric Rubric) error {
+	if err := spec.Validate(); err != nil {
+		return err
+	}
+	if err := rubric.Validate(); err != nil {
+		return err
+	}
+	r.Spec = spec
+	r.Rubric = rubric
+	r.Title = spec.Title
+	return nil
+}

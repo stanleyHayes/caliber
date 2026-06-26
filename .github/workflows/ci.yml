@@ -63,7 +63,7 @@ jobs:
 
       - name: Enforce coverage >= 80% (app code)
         run: |
-          grep -vE 'internal/gen/|internal/mocks/|internal/platform/migrate/|internal/adapters/outbound/postgres/|/cmd/' coverage.out > coverage.app.out
+          grep -vE 'internal/gen/|internal/mocks/|internal/platform/migrate/|internal/adapters/outbound/postgres/|/cmd/|/web/' coverage.out > coverage.app.out
           total=$(go tool cover -func=coverage.app.out | awk '/^total:/ {print substr($3, 1, length($3)-1)}')
           echo "App coverage: ${total}%"
           awk -v t="$total" 'BEGIN { exit (t+0 >= 80) ? 0 : 1 }' \

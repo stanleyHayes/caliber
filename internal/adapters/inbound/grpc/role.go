@@ -13,11 +13,14 @@ import (
 type RoleServer struct {
 	caliberv1.UnimplementedRoleServiceServer
 
-	gen *roles.SpecGenerator
+	gen    *roles.SpecGenerator
+	editor *roles.SpecEditor
 }
 
-// NewRoleServer builds the role gRPC service from its use-case.
-func NewRoleServer(gen *roles.SpecGenerator) *RoleServer { return &RoleServer{gen: gen} }
+// NewRoleServer builds the role gRPC service from its use-cases.
+func NewRoleServer(gen *roles.SpecGenerator, editor *roles.SpecEditor) *RoleServer {
+	return &RoleServer{gen: gen, editor: editor}
+}
 
 // GenerateRoleSpec turns a free-text hiring need into a structured, persisted Role.
 func (s *RoleServer) GenerateRoleSpec(
@@ -29,4 +32,25 @@ func (s *RoleServer) GenerateRoleSpec(
 		return nil, errToStatus(err)
 	}
 	return &caliberv1.GenerateRoleSpecResponse{Role: roleToProto(r)}, nil
+}
+
+// GetRole returns a persisted role by id.
+func (s *RoleServer) GetRole(ctx context.Context, req *caliberv1.GetRoleRequest) (*caliberv1.GetRoleResponse, error) {
+	r, err := s.editor.Get(ctx, kernel.ID(req.GetRoleId()))
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	return &caliberv1.GetRoleResponse{Role: roleToProto(r)}, nil
+}
+
+// UpdateRoleSpec applies an edited spec and rubric (re-weighting) to a role.
+func (s *RoleServer) UpdateRoleSpec(
+	ctx context.Context,
+	req *caliberv1.UpdateRoleSpecRequest,
+) (*caliberv1.UpdateRoleSpecResponse, error) {
+	r, err := s.editor.Update(ctx, kernel.ID(req.GetRoleId()), specFromProto(req.GetSpec()), rubricFromProto(req.GetRubric()))
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	return &caliberv1.UpdateRoleSpecResponse{Role: roleToProto(r)}, nil
 }

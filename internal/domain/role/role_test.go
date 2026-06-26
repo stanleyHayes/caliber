@@ -145,3 +145,23 @@ func TestNewRoleAndTransitions(t *testing.T) {
 		t.Error("invalid rubric should fail")
 	}
 }
+
+func TestRoleRevise(t *testing.T) {
+	r, err := NewRole(kernel.NewID(), validSpec(), validRubric(), time.Unix(1, 0))
+	if err != nil {
+		t.Fatalf("NewRole: %v", err)
+	}
+	newSpec := RoleSpec{Title: "Staff Engineer", Location: "Kumasi", Seniority: SenioritySenior}
+	if err := r.Revise(newSpec, validRubric()); err != nil {
+		t.Fatalf("Revise: %v", err)
+	}
+	if r.Title != "Staff Engineer" || r.Spec.Seniority != SenioritySenior {
+		t.Errorf("revise did not apply spec: title=%q seniority=%v", r.Title, r.Spec.Seniority)
+	}
+	if err := r.Revise(RoleSpec{Title: ""}, validRubric()); err == nil {
+		t.Error("expected an invalid spec to be rejected")
+	}
+	if err := r.Revise(validSpec(), Rubric{}); err == nil {
+		t.Error("expected an empty rubric to be rejected")
+	}
+}
