@@ -24,6 +24,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
 	"github.com/xcreativs/caliber/internal/app"
 	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
+	contestapp "github.com/xcreativs/caliber/internal/app/contest"
 	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
 	identityapp "github.com/xcreativs/caliber/internal/app/identity"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
@@ -153,6 +154,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	svc.Agent = grpcadapter.NewAgentServer(
 		candidateagentapp.NewAgentRunner(repos.candidates, repos.profiles, repos.roles, repos.apps, model), repos.apps)
 	svc.Dashboard = grpcadapter.NewDashboardServer(dashboardapp.NewAggregator(repos.candidates, repos.profiles, repos.users, repos.roles))
+	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(memory.NewContestRepo(), memory.NewAuditRepo(), time.Now))
 	return svc, cleanup, nil
 }
 

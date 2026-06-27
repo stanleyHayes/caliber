@@ -23,6 +23,7 @@ type Services struct {
 	Agent     caliberv1.CandidateAgentServiceServer
 	Dashboard caliberv1.DashboardServiceServer
 	Talent    caliberv1.TalentServiceServer
+	Contest   caliberv1.ContestServiceServer
 
 	// AccessVerifier, when set, installs the auth interceptor that authenticates
 	// bearer access tokens and injects the principal into each request context.
@@ -71,6 +72,11 @@ func NewGRPCServer(svc Services) *grpc.Server {
 		dashboardSvc = caliberv1.UnimplementedDashboardServiceServer{}
 	}
 	caliberv1.RegisterDashboardServiceServer(s, dashboardSvc)
+	contestSvc := svc.Contest
+	if contestSvc == nil {
+		contestSvc = caliberv1.UnimplementedContestServiceServer{}
+	}
+	caliberv1.RegisterContestServiceServer(s, contestSvc)
 	caliberv1.RegisterAuditServiceServer(s, caliberv1.UnimplementedAuditServiceServer{})
 	reflection.Register(s)
 	return s
@@ -89,6 +95,7 @@ func RegisterGateway(ctx context.Context, mux *runtime.ServeMux, endpoint string
 		caliberv1.RegisterInterviewServiceHandlerFromEndpoint,
 		caliberv1.RegisterCandidateAgentServiceHandlerFromEndpoint,
 		caliberv1.RegisterDashboardServiceHandlerFromEndpoint,
+		caliberv1.RegisterContestServiceHandlerFromEndpoint,
 		caliberv1.RegisterAuditServiceHandlerFromEndpoint,
 	} {
 		if err := reg(ctx, mux, endpoint, opts); err != nil {

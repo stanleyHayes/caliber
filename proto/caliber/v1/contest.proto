@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package caliber.v1;
+
+import "caliber/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Candidate assessment contests (CAL-083): a candidate disputes an assessment
+// (a shortlist match or an interview report card), resolved by a human reviewer.
+// A fairness control — explainable, audited, and human-in-the-loop.
+service ContestService {
+  // RaiseContest opens a contest on the authenticated candidate's behalf.
+  rpc RaiseContest(RaiseContestRequest) returns (RaiseContestResponse) {
+    option (google.api.http) = {
+      post: "/v1/contests"
+      body: "*"
+    };
+  }
+  // ListMyContests lists the authenticated candidate's contests, newest first.
+  rpc ListMyContests(ListMyContestsRequest) returns (ListMyContestsResponse) {
+    option (google.api.http) = {get: "/v1/contests"};
+  }
+  // ResolveContest resolves an open contest as a reviewer (employer/recruiter).
+  rpc ResolveContest(ResolveContestRequest) returns (ResolveContestResponse) {
+    option (google.api.http) = {
+      post: "/v1/contests/{contest_id}/resolve"
+      body: "*"
+    };
+  }
+}
+
+// ContestSubject is the kind of assessment a contest disputes.
+enum ContestSubject {
+  CONTEST_SUBJECT_UNSPECIFIED = 0;
+  CONTEST_SUBJECT_MATCH = 1;
+  CONTEST_SUBJECT_REPORT_CARD = 2;
+}
+
+// ContestStatus is the lifecycle state of a contest.
+enum ContestStatus {
+  CONTEST_STATUS_UNSPECIFIED = 0;
+  CONTEST_STATUS_OPEN = 1;
+  CONTEST_STATUS_UPHELD = 2;
+  CONTEST_STATUS_DISMISSED = 3;
+}
+
+message Contest {
+  string id = 1;
+  string candidate_id = 2;
+  ContestSubject subject = 3;
+  string subject_id = 4;
+  string reason = 5;
+  ContestStatus status = 6;
+  string resolution = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp resolved_at = 9;
+}
+
+message RaiseContestRequest {
+  ContestSubject subject = 1;
+  string subject_id = 2;
+  string reason = 3;
+}
+message RaiseContestResponse {
+  Contest contest = 1;
+}
+
+message ListMyContestsRequest {
+  PageRequest page = 1;
+}
+message ListMyContestsResponse {
+  repeated Contest contests = 1;
+  PageResponse page = 2;
+}
+
+message ResolveContestRequest {
+  string contest_id = 1;
+  bool uphold = 2;
+  string note = 3;
+}
+message ResolveContestResponse {
+  Contest contest = 1;
+}
