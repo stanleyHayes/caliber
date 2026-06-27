@@ -14,6 +14,7 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/audit"
 	agentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/guard"
+	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
 	"github.com/xcreativs/caliber/internal/domain/role"
@@ -23,6 +24,7 @@ import (
 const (
 	defaultScanLimit = 20
 	defaultMinFit    = 0.6
+	insightWindow    = 50 // how many of a candidate's interviews/matches to scan for the wake-up view
 )
 
 // AgentRunner scans the open-role pool on a candidate's behalf.
@@ -35,10 +37,24 @@ type AgentRunner struct {
 	minFit     float64
 	audit      audit.AuditRepository
 	now        app.Clock
+	screenings interviewdom.InterviewRepository
+	interest   matchingdom.MatchRepository
 }
 
 // Option configures an AgentRunner.
 type Option func(*AgentRunner)
+
+// WithWakeUpInsights lets the agent complete the wake-up view (CAL-074) with the
+// candidate's screening and employer-interest counts: ScreeningsCompleted from
+// their interviews that have a report card, EmployersInterested from the roles
+// they currently appear in a shortlist for. Optional — without it those counts
+// stay zero and the agent runs unchanged.
+func WithWakeUpInsights(screenings interviewdom.InterviewRepository, interest matchingdom.MatchRepository) Option {
+	return func(r *AgentRunner) {
+		r.screenings = screenings
+		r.interest = interest
+	}
+}
 
 // WithAuditTrail records every autonomous submission to the audit trail, so the
 // candidate (and a human overseer) can review exactly what the agent did on the
@@ -95,7 +111,33 @@ func (r *AgentRunner) Run(ctx context.Context, candidateID kernel.ID, scanLimit 
 	if err != nil {
 		return agentdom.WakeUpView{}, err
 	}
-	return r.scanRoles(ctx, candidateID, cand, profile, roles)
+	view, err := r.scanRoles(ctx, candidateID, cand, profile, roles)
+	if err != nil {
+		return agentdom.WakeUpView{}, err
+	}
+	r.enrichInsights(ctx, candidateID, &view)
+	return view, nil
+}
+
+// enrichInsights fills the wake-up view's screening and employer-interest counts
+// from the candidate's interviews and shortlist matches, when those readers are
+// wired. Best-effort: a read error leaves a count at zero rather than failing the
+// run — the agent's primary work (matches, applications) already succeeded.
+func (r *AgentRunner) enrichInsights(ctx context.Context, candidateID kernel.ID, view *agentdom.WakeUpView) {
+	if r.screenings != nil {
+		if ivs, _, err := r.screenings.ByCandidate(ctx, candidateID, kernel.NewPage(1, insightWindow)); err == nil {
+			for _, iv := range ivs {
+				if iv.Report != nil {
+					view.ScreeningsCompleted++
+				}
+			}
+		}
+	}
+	if r.interest != nil {
+		if _, total, err := r.interest.ForCandidate(ctx, candidateID, kernel.NewPage(1, 1)); err == nil {
+			view.EmployersInterested = int(total)
+		}
+	}
 }
 
 // scanRoles considers each eligible role, applying for honest strong matches and

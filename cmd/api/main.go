@@ -34,6 +34,8 @@ import (
 	"github.com/xcreativs/caliber/internal/app/roles"
 	candidateagentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/identity"
+	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
+	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	"github.com/xcreativs/caliber/internal/platform/config"
@@ -79,6 +81,8 @@ type repositories struct {
 	candidates talent.CandidateRepository
 	profiles   talent.TalentProfileRepository
 	apps       candidateagentdom.ApplicationRepository
+	interviews interviewdom.InterviewRepository
+	matchRepo  matchingdom.MatchRepository
 }
 
 // openRepositories selects in-memory (dev) or Postgres repositories. With a
@@ -90,6 +94,10 @@ func openRepositories(
 	repos := repositories{
 		roles: memory.NewRoleRepo(), users: memory.NewUserRepo(), refresh: memory.NewRefreshStore(),
 		candidates: memory.NewCandidateRepo(), profiles: memory.NewTalentProfileRepo(), apps: memory.NewApplicationRepo(),
+		// Interviews are in-memory regardless of provider until CAL-066 lands a
+		// Postgres adapter; the match repo is shared so Flow C's wake-up view can
+		// read the shortlist matches Flow A produced.
+		interviews: memory.NewInterviewRepo(), matchRepo: memory.NewMatchRepo(),
 	}
 	cleanup := func() {}
 	if cfg.DatabaseURL == "" {
@@ -97,7 +105,7 @@ func openRepositories(
 		seedDemo(ctx, cfg, repos, log)
 		shortlister := matchingapp.NewShortlister(
 			repos.roles, repos.candidates, repos.profiles,
-			memory.NewRecaller(repos.candidates), embedder, model, memory.NewMatchRepo())
+			memory.NewRecaller(repos.candidates), embedder, model, repos.matchRepo)
 		match := grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister), rejections)
 		return repos, match, cleanup, nil
 	}
@@ -115,8 +123,9 @@ func openRepositories(
 	repos.candidates = postgres.NewCandidateRepo(pool)
 	repos.profiles = postgres.NewTalentProfileRepo(pool)
 	repos.apps = postgres.NewApplicationRepo(pool)
+	repos.matchRepo = postgres.NewMatchRepo(pool)
 	shortlister := matchingapp.NewShortlister(
-		repos.roles, repos.candidates, repos.profiles, postgres.NewRecaller(pool), embedder, model, postgres.NewMatchRepo(pool))
+		repos.roles, repos.candidates, repos.profiles, postgres.NewRecaller(pool), embedder, model, repos.matchRepo)
 	log.Info("persistence selected", "provider", "postgres")
 	return repos, grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister), rejections), pool.Close, nil
 }
@@ -162,11 +171,12 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	svc.Role = grpcadapter.NewRoleServer(
 		roles.NewSpecGenerator(model, repos.roles, time.Now), roles.NewSpecEditor(repos.roles), availability)
 	svc.Interview = grpcadapter.NewInterviewServer(
-		interviewapp.NewInterviewer(repos.roles, memory.NewInterviewRepo(), model, 0, interviewapp.WithPassportUpdater(repos.profiles)))
+		interviewapp.NewInterviewer(repos.roles, repos.interviews, model, 0, interviewapp.WithPassportUpdater(repos.profiles)))
 	svc.Talent = grpcadapter.NewTalentServer(profilesapp.NewProfileBuilder(repos.candidates, repos.profiles, model))
 	svc.Agent = grpcadapter.NewAgentServer(
 		candidateagentapp.NewAgentRunner(repos.candidates, repos.profiles, repos.roles, repos.apps, model,
-			candidateagentapp.WithAuditTrail(auditRepo, time.Now)), repos.apps)
+			candidateagentapp.WithAuditTrail(auditRepo, time.Now),
+			candidateagentapp.WithWakeUpInsights(repos.interviews, repos.matchRepo)), repos.apps)
 	svc.Dashboard = grpcadapter.NewDashboardServer(dashboardapp.NewAggregator(repos.candidates, repos.profiles, repos.users, repos.roles))
 	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(memory.NewContestRepo(), auditRepo, time.Now))
 	svc.Audit = grpcadapter.NewAuditServer(auditRepo)

@@ -13,6 +13,7 @@ import (
 	agentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/audit"
 	agentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
+	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/domain/talent"
@@ -244,4 +245,48 @@ func TestRunDoesNotAuditWhenNothingSubmitted(t *testing.T) {
 	view, err := runner.Run(context.Background(), cid, 10)
 	require.NoError(t, err)
 	assert.Equal(t, 0, view.ApplicationsSubmitted)
+}
+
+func TestRunEnrichesWakeUpInsights(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	screenings := mocks.NewMockInterviewRepository(ctrl)
+	interest := mocks.NewMockMatchRepository(ctrl)
+	cid := kernel.NewID()
+	cand := candidate(t, "Accra")
+	profile := profileWith(t, cid, talent.ProfileCompetency{Name: "Go", Level: 4, EvidenceQuote: "x"})
+
+	d.candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(profile, nil)
+	d.roles.EXPECT().ListOpen(gomock.Any(), gomock.Any()).Return([]*role.Role{}, int64(0), nil)
+
+	// Two interviews; only one carries a completed report card.
+	completed := &interviewdom.Interview{Report: &interviewdom.ReportCard{}}
+	inProgress := &interviewdom.Interview{}
+	screenings.EXPECT().ByCandidate(gomock.Any(), cid, gomock.Any()).
+		Return([]*interviewdom.Interview{completed, inProgress}, int64(2), nil)
+	interest.EXPECT().ForCandidate(gomock.Any(), cid, gomock.Any()).Return(nil, int64(3), nil)
+
+	runner := agentapp.NewAgentRunner(d.candidates, d.profiles, d.roles, d.apps, d.llm,
+		agentapp.WithWakeUpInsights(screenings, interest))
+	view, err := runner.Run(context.Background(), cid, 10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, view.ScreeningsCompleted, "one interview has a completed report card")
+	assert.Equal(t, 3, view.EmployersInterested, "three shortlist matches => three employers interested")
+}
+
+func TestRunWithoutInsightReadersLeavesCountsZero(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	cid := kernel.NewID()
+	d.candidates.EXPECT().ByID(gomock.Any(), cid).Return(candidate(t, "Accra"), nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(
+		profileWith(t, cid, talent.ProfileCompetency{Name: "Go", Level: 4, EvidenceQuote: "x"}), nil)
+	d.roles.EXPECT().ListOpen(gomock.Any(), gomock.Any()).Return([]*role.Role{}, int64(0), nil)
+
+	// No WithWakeUpInsights: the agent runs unchanged and the counts stay zero.
+	view, err := d.runner().Run(context.Background(), cid, 10)
+	require.NoError(t, err)
+	assert.Zero(t, view.ScreeningsCompleted)
+	assert.Zero(t, view.EmployersInterested)
 }
