@@ -8,21 +8,32 @@ import (
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
 
+// AvailabilityCounter reports how many candidates are an immediate, honest fit
+// for a role — logistically compatible with a verified profile already covering
+// the must-haves — without LLM scoring. It backs the instant pool-depth signal.
+type AvailabilityCounter interface {
+	CountAvailable(ctx context.Context, roleID kernel.ID) (int, error)
+}
+
 // RoleServer implements caliberv1.RoleServiceServer (currently the Flow A.1
 // spec generation; remaining methods fall back to Unimplemented).
 type RoleServer struct {
 	caliberv1.UnimplementedRoleServiceServer
 
-	gen    *roles.SpecGenerator
-	editor *roles.SpecEditor
+	gen     *roles.SpecGenerator
+	editor  *roles.SpecEditor
+	counter AvailabilityCounter
 }
 
-// NewRoleServer builds the role gRPC service from its use-cases.
-func NewRoleServer(gen *roles.SpecGenerator, editor *roles.SpecEditor) *RoleServer {
-	return &RoleServer{gen: gen, editor: editor}
+// NewRoleServer builds the role gRPC service from its use-cases. counter is
+// optional: when nil, generated roles report 0 available matches.
+func NewRoleServer(gen *roles.SpecGenerator, editor *roles.SpecEditor, counter AvailabilityCounter) *RoleServer {
+	return &RoleServer{gen: gen, editor: editor, counter: counter}
 }
 
-// GenerateRoleSpec turns a free-text hiring need into a structured, persisted Role.
+// GenerateRoleSpec turns a free-text hiring need into a structured, persisted Role
+// and returns the instant "N strong matches already in your pool" signal
+// (CAL-055/037) alongside it.
 func (s *RoleServer) GenerateRoleSpec(
 	ctx context.Context,
 	req *caliberv1.GenerateRoleSpecRequest,
@@ -31,7 +42,14 @@ func (s *RoleServer) GenerateRoleSpec(
 	if err != nil {
 		return nil, errToStatus(err)
 	}
-	return &caliberv1.GenerateRoleSpecResponse{Role: roleToProto(r)}, nil
+	resp := &caliberv1.GenerateRoleSpecResponse{Role: roleToProto(r)}
+	// Best-effort teaser: a counting hiccup must not fail role creation.
+	if s.counter != nil {
+		if n, cerr := s.counter.CountAvailable(ctx, r.ID); cerr == nil {
+			resp.AvailableMatches = int32(n) //nolint:gosec // pool count is small, bounded by recallWindow
+		}
+	}
+	return resp, nil
 }
 
 // GetRole returns a persisted role by id.

@@ -124,6 +124,59 @@ func (s *Shortlister) GenerateShortlist(ctx context.Context, roleID kernel.ID, l
 	return result, nil
 }
 
+// CountAvailable reports how many candidates in the pool are an immediate, honest
+// fit for the role — logistically compatible AND with a verified profile that
+// already covers the role's must-have competencies — WITHOUT any LLM scoring. It
+// powers the instant "N strong matches already in your pool" signal shown the
+// moment a role spec is created (CAL-055/037); the scored shortlist then refines it.
+func (s *Shortlister) CountAvailable(ctx context.Context, roleID kernel.ID) (int, error) {
+	rl, err := s.roles.ByID(ctx, roleID)
+	if err != nil {
+		return 0, err
+	}
+	// Bias-safety holds here too: only rubric competencies inform availability.
+	if berr := matchingdom.EnsureBiasSafe(competencyNames(rl.Rubric)); berr != nil {
+		return 0, berr
+	}
+	emb, err := s.embedder.Embed(ctx, roleText(rl))
+	if err != nil {
+		return 0, err
+	}
+	candidateIDs, err := s.recaller.Recall(ctx, emb, recallWindow)
+	if err != nil {
+		return 0, err
+	}
+	req := requirementsFor(rl)
+	rubric := rubricSignals(rl)
+	count := 0
+	for _, cid := range candidateIDs {
+		if s.availableFit(ctx, req, rubric, cid) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// availableFit reports whether a candidate is an immediate paper-fit: logistically
+// compatible and with a verified profile covering the role's must-have competencies.
+// Missing candidate/profile data is treated as "not a fit", never an error.
+func (s *Shortlister) availableFit(
+	ctx context.Context, req matchingdom.Requirements, rubric []matchingdom.RubricSignal, cid kernel.ID,
+) bool {
+	cand, err := s.candidates.ByID(ctx, cid)
+	if err != nil {
+		return false
+	}
+	if len(req.ScreenLogistics(cid, cand.Location, cand.Intake.SalaryFloor, cand.Intake.SalaryCurrency)) > 0 {
+		return false
+	}
+	profile, err := s.profiles.ByCandidateID(ctx, cid)
+	if err != nil {
+		return false
+	}
+	return matchingdom.CoversMustHaves(rubric, candidateSignals(profile))
+}
+
 // screenAndScore evaluates every recalled candidate through the hard filters
 // and scores the survivors, collecting matches and exclusions.
 func (s *Shortlister) screenAndScore(

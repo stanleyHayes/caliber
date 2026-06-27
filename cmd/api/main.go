@@ -155,7 +155,12 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 
 	// These read/act on candidate + role data only (no pgvector), so they run in
 	// both the in-memory dev path and the Postgres path.
-	svc.Role = grpcadapter.NewRoleServer(roles.NewSpecGenerator(model, repos.roles, time.Now), roles.NewSpecEditor(repos.roles))
+	var availability grpcadapter.AvailabilityCounter
+	if match != nil {
+		availability = match.AvailabilityCounter() // the shortlister backs the instant pool-depth signal
+	}
+	svc.Role = grpcadapter.NewRoleServer(
+		roles.NewSpecGenerator(model, repos.roles, time.Now), roles.NewSpecEditor(repos.roles), availability)
 	svc.Interview = grpcadapter.NewInterviewServer(
 		interviewapp.NewInterviewer(repos.roles, memory.NewInterviewRepo(), model, 0, interviewapp.WithPassportUpdater(repos.profiles)))
 	svc.Talent = grpcadapter.NewTalentServer(profilesapp.NewProfileBuilder(repos.candidates, repos.profiles, model))

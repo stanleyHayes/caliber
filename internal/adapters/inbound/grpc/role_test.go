@@ -19,7 +19,7 @@ import (
 
 func newServer() *RoleServer {
 	repo := memory.NewRoleRepo()
-	return NewRoleServer(roles.NewSpecGenerator(llm.NewDev(), repo, time.Now), roles.NewSpecEditor(repo))
+	return NewRoleServer(roles.NewSpecGenerator(llm.NewDev(), repo, time.Now), roles.NewSpecEditor(repo), nil)
 }
 
 func generatedRole(t *testing.T, srv *RoleServer) *caliberv1.Role {
@@ -39,6 +39,19 @@ func TestGenerateRoleSpecHandler(t *testing.T) {
 	assert.Equal(t, caliberv1.RoleStatus_ROLE_STATUS_DRAFT, got.GetStatus())
 	assert.NotEmpty(t, got.GetRubric().GetCompetencies())
 	assert.NotNil(t, got.GetSpec().GetSalaryBand())
+}
+
+type stubCounter struct{ n int }
+
+func (c stubCounter) CountAvailable(context.Context, kernel.ID) (int, error) { return c.n, nil }
+
+func TestGenerateRoleSpecSurfacesAvailableMatches(t *testing.T) {
+	repo := memory.NewRoleRepo()
+	srv := NewRoleServer(roles.NewSpecGenerator(llm.NewDev(), repo, time.Now), roles.NewSpecEditor(repo), stubCounter{n: 7})
+	resp, err := srv.GenerateRoleSpec(context.Background(),
+		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer in Accra"})
+	require.NoError(t, err)
+	assert.Equal(t, int32(7), resp.GetAvailableMatches(), "the instant pool-depth signal is returned with the role")
 }
 
 func TestGenerateRoleSpecInvalid(t *testing.T) {

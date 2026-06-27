@@ -322,3 +322,35 @@ func TestGenerateShortlistPoolDepthExceedsPage(t *testing.T) {
 	assert.Len(t, res.Matches, 2, "the page returns only the top two")
 	assert.Equal(t, 3, res.PoolDepth, "but the pool depth reflects all three strong matches")
 }
+
+// TestCountAvailable proves the cheap, no-LLM instant signal (CAL-055/037):
+// candidates that are logistically compatible AND whose verified profile covers
+// the role's must-haves are counted; a location mismatch and a missing must-have
+// are both excluded — and the scorer is never called.
+func TestCountAvailable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := validRole(t) // must-have: Go; location: Accra
+	cGood, cLagos, cNoGo := kernel.NewID(), kernel.NewID(), kernel.NewID()
+
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1}, nil)
+	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return([]kernel.ID{cGood, cLagos, cNoGo}, nil)
+
+	d.candidates.EXPECT().ByID(gomock.Any(), cGood).Return(candidateAt(t, "Accra"), nil)
+	d.candidates.EXPECT().ByID(gomock.Any(), cLagos).Return(candidateAt(t, "Lagos"), nil) // gated pre-profile
+	d.candidates.EXPECT().ByID(gomock.Any(), cNoGo).Return(candidateAt(t, "Accra"), nil)
+
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cGood).Return(profileFor(t, cGood), nil) // has Go
+	// cLagos never has its profile loaded (logistically gated first).
+	noGo, perr := talent.NewTalentProfile(cNoGo, "summary",
+		[]talent.ProfileCompetency{{Name: "Python", Level: 5, EvidenceQuote: "built ETL"}})
+	require.NoError(t, perr)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cNoGo).Return(noGo, nil)
+
+	// No scorer.Complete expectation: CountAvailable must not invoke the LLM.
+	n, err := d.shortlister().CountAvailable(context.Background(), rl.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "only the Accra candidate covering the Go must-have counts")
+}

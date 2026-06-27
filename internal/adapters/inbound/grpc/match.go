@@ -27,6 +27,17 @@ func NewMatchServer(
 	return &MatchServer{shortlister: shortlister, refiner: refiner, rejections: rejections}
 }
 
+// AvailabilityCounter exposes the shortlister as the cheap pool-availability
+// counter behind the instant pool-depth signal (consumed by RoleServer). Returns
+// a nil counter when no shortlister is wired (e.g. partially-built test servers).
+//nolint:ireturn // intentionally hands RoleServer the optional counter interface, nil-safe.
+func (s *MatchServer) AvailabilityCounter() AvailabilityCounter {
+	if s.shortlister == nil {
+		return nil
+	}
+	return s.shortlister
+}
+
 // GenerateShortlist returns an explainable ranked shortlist for a role.
 func (s *MatchServer) GenerateShortlist(
 	ctx context.Context, req *caliberv1.GenerateShortlistRequest,
