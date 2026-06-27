@@ -2,7 +2,7 @@ import { Card, CardContent, Skeleton, Stack } from '@mui/material';
 
 export function CardSkeleton({ lines = 3 }: { lines?: number }) {
   return (
-    <Card variant="outlined">
+    <Card variant="outlined" role="status" aria-label="Loading content">
       <CardContent>
         <Stack spacing={1.2}>
           <Skeleton variant="text" width="45%" height={28} />

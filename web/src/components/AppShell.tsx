@@ -13,6 +13,27 @@ export function AppShell() {
   const logout = useLogout();
   return (
     <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
+      <Box
+        component="a"
+        href="#main-content"
+        sx={{
+          position: 'absolute',
+          left: 8,
+          top: -48,
+          px: 2,
+          py: 1,
+          bgcolor: 'background.paper',
+          color: 'text.primary',
+          border: 1,
+          borderColor: 'divider',
+          borderRadius: 1,
+          zIndex: (t) => t.zIndex.tooltip + 1,
+          transition: 'top 0.15s ease',
+          '&:focus-visible': { top: 8 },
+        }}
+      >
+        Skip to main content
+      </Box>
       <AppBar position="sticky" color="default" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Toolbar>
           <Typography
@@ -23,6 +44,7 @@ export function AppShell() {
           >
             Caliber
           </Typography>
+          <Box component="nav" aria-label="Primary" sx={{ display: 'flex', alignItems: 'center' }}>
           {accessToken && (
             <Button component={Link} to="/radar" color="inherit" sx={{ mr: 1 }}>
               Radar
@@ -43,9 +65,10 @@ export function AppShell() {
               </Button>
             </>
           )}
+          </Box>
         </Toolbar>
       </AppBar>
-      <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
+      <Container component="main" id="main-content" maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}

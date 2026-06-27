@@ -33,7 +33,7 @@ function Dots() {
 // DotsButton shows width-stable animated dots while loading instead of a spinner.
 export function DotsButton({ loading, children, disabled, ...props }: ButtonProps & { loading?: boolean }) {
   return (
-    <Button {...props} disabled={disabled ?? loading}>
+    <Button {...props} disabled={disabled ?? loading} aria-busy={loading ?? false}>
       {loading ? <Dots /> : children}
     </Button>
   );
