@@ -151,6 +151,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	identitySvc := identityapp.NewService(repos.users, authadapter.NewArgon2idHasher(), tokens, repos.refresh, time.Now, idOpts...)
 	svc.Identity = grpcadapter.NewIdentityServer(identitySvc)
 	svc.AccessVerifier = tokens
+	svc.RateLimiter = grpcadapter.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst, time.Now)
 
 	// These read/act on candidate + role data only (no pgvector), so they run in
 	// both the in-memory dev path and the Postgres path.

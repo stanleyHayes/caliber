@@ -29,13 +29,24 @@ type Services struct {
 	// AccessVerifier, when set, installs the auth interceptor that authenticates
 	// bearer access tokens and injects the principal into each request context.
 	AccessVerifier app.TokenService
+
+	// RateLimiter, when set, installs the token-bucket rate-limit interceptor
+	// (CAL-112). It runs after auth so it can key by the authenticated principal.
+	RateLimiter *RateLimiter
 }
 
 // NewGRPCServer builds a gRPC server with every Caliber service registered.
 func NewGRPCServer(svc Services) *grpc.Server {
-	var opts []grpc.ServerOption
+	var interceptors []grpc.UnaryServerInterceptor
 	if svc.AccessVerifier != nil {
-		opts = append(opts, grpc.UnaryInterceptor(NewAuthInterceptor(svc.AccessVerifier)))
+		interceptors = append(interceptors, NewAuthInterceptor(svc.AccessVerifier))
+	}
+	if svc.RateLimiter != nil {
+		interceptors = append(interceptors, NewRateLimitInterceptor(svc.RateLimiter))
+	}
+	var opts []grpc.ServerOption
+	if len(interceptors) > 0 {
+		opts = append(opts, grpc.ChainUnaryInterceptor(interceptors...))
 	}
 	svc = withStubs(svc)
 	s := grpc.NewServer(opts...)

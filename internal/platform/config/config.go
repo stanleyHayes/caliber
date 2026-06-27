@@ -32,6 +32,9 @@ type Config struct {
 	RefreshTokenTTL      time.Duration
 
 	SeedDemo bool // load the demo dataset into the in-memory dev stack
+
+	RateLimitRPS   float64 // per-principal sustained request rate (token-bucket refill/sec)
+	RateLimitBurst float64 // per-principal burst ceiling (max tokens)
 }
 
 // Load reads configuration from the environment, applying sane defaults.
@@ -55,6 +58,10 @@ func Load() (Config, error) {
 		AccessTokenTTL:       getdur("CALIBER_ACCESS_TOKEN_TTL", 15*time.Minute),
 		RefreshTokenTTL:      getdur("CALIBER_REFRESH_TOKEN_TTL", 7*24*time.Hour),
 		SeedDemo:             getbool("CALIBER_SEED_DEMO", true),
+		// Generous defaults: no human-driven session approaches these, but they
+		// cap floods and runaway clients on the expensive AI endpoints (CAL-112).
+		RateLimitRPS:   getfloat("CALIBER_RATE_LIMIT_RPS", 30),
+		RateLimitBurst: getfloat("CALIBER_RATE_LIMIT_BURST", 60),
 	}
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
 		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")
@@ -94,6 +101,20 @@ func getbool(key string, def bool) bool {
 		return def
 	}
 	return b
+}
+
+// getfloat parses a float from the environment, falling back to def when unset
+// or malformed.
+func getfloat(key string, def float64) float64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return def
+	}
+	return f
 }
 
 func getenv(key, def string) string {
