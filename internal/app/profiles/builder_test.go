@@ -48,6 +48,34 @@ func TestCreateFromCVCreatesProfileAndMergesIntake(t *testing.T) {
 	assert.InDelta(t, 9000.0, updatedCand.Intake.SalaryFloor, 0.01)
 }
 
+func TestCreateFromCVDropsUnevidencedCompetencies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	llm := mocks.NewMockLLMClient(ctrl)
+	cid := kernel.NewID()
+	cand, err := talent.NewCandidate(kernel.NewID(), "", talent.CandidateIntake{})
+	require.NoError(t, err)
+
+	// The model returns two competencies; the second has no evidence quote — a
+	// no-fabrication violation that must never enter the verified profile.
+	const mixed = `{"summary":"Engineer.","competencies":[` +
+		`{"name":"Go","level":4,"evidence_quote":"built services in Go","source_span":"line 3"},` +
+		`{"name":"Rust","level":5,"evidence_quote":"   ","source_span":""}]}`
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: mixed}, nil)
+	candidates.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(nil, kernel.NotFound("none"))
+	profiles.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+
+	out, err := profilesapp.NewProfileBuilder(candidates, profiles, llm).
+		CreateFromCV(context.Background(), cid, "I built services in Go", talent.CandidateIntake{})
+	require.NoError(t, err)
+	require.Len(t, out.Competencies, 1, "the unevidenced 'Rust' competency is dropped")
+	assert.Equal(t, "Go", out.Competencies[0].Name)
+	assert.NotEmpty(t, out.Competencies[0].EvidenceQuote, "every surviving competency carries CV evidence")
+}
+
 func TestCreateFromCVRejectsEmptyCV(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	b := profilesapp.NewProfileBuilder(mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl), mocks.NewMockLLMClient(ctrl))

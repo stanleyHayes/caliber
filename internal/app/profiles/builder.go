@@ -56,9 +56,16 @@ func (b *ProfileBuilder) CreateFromCV(
 	}
 	comps := make([]talent.ProfileCompetency, 0, len(parsed.Competencies))
 	for _, c := range parsed.Competencies {
+		// No-fabrication at the extraction boundary (CAL-044): only admit a
+		// competency the model backed with a CV evidence quote. An unevidenced
+		// skill is dropped — never added to the verified profile — so every
+		// competency in a Talent Passport traces to a real span of the CV.
+		if strings.TrimSpace(c.EvidenceQuote) == "" {
+			continue
+		}
 		comps = append(comps, talent.ProfileCompetency{Name: c.Name, Level: c.Level, EvidenceQuote: c.EvidenceQuote, SourceSpan: c.SourceSpan})
 	}
-	fresh, err := talent.NewTalentProfile(candidateID, parsed.Summary, comps) // validates competencies + evidence
+	fresh, err := talent.NewTalentProfile(candidateID, parsed.Summary, comps) // validates competency names + levels
 	if err != nil {
 		return nil, err
 	}
