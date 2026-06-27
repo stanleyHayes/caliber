@@ -45,7 +45,7 @@ func Run(ctx context.Context, cfg config.Config, log *slog.Logger, svc grpcadapt
 
 	httpSrv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           httpserver.NewRouter(mux, cfg.IsProd()),
+		Handler:           httpserver.NewRouter(mux, cfg.IsProd(), log),
 		ReadHeaderTimeout: shutdownTimeout,
 	}
 	go func() {
