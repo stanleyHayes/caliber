@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { AppShell } from './components/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { RouteSeo } from './components/RouteSeo';
 import { SessionBootstrap } from './components/SessionBootstrap';
 import { DashboardPage } from './pages/DashboardPage';
 import { LandingPage } from './pages/LandingPage';
@@ -22,6 +23,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <SessionBootstrap>
+          <RouteSeo />
           <Routes>
             <Route element={<AppShell />}>
               <Route path="/" element={<LandingPage />} />

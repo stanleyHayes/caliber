@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+Disallow: /app
+Disallow: /roles
+Disallow: /interview
+Disallow: /profile
+Disallow: /agent
+Disallow: /radar
+
+Sitemap: https://projectcaliber.app/sitemap.xml
