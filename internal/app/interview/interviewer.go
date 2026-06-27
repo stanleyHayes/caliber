@@ -200,6 +200,12 @@ func (s *Interviewer) markScreened(ctx context.Context, candidateID kernel.ID) {
 	_ = s.profiles.Update(ctx, profile)
 }
 
+// honestSignalDirective steers the next question to extract concrete evidence
+// when the candidate's last answer was vague or evasive (CAL-063).
+const honestSignalDirective = "The candidate's last answer was vague or lacked concrete detail. " +
+	"Ask a focused follow-up that presses for a specific, real example — what they personally did, " +
+	"the situation, and a measurable outcome — rather than moving on to a new topic.\n"
+
 func questionPrompt(rl *role.Role, iv *interviewdom.Interview) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "ROLE: %s\nRUBRIC:\n", guard.Sanitize(rl.Spec.Title))
@@ -207,8 +213,20 @@ func questionPrompt(rl *role.Role, iv *interviewdom.Interview) string {
 		fmt.Fprintf(&b, "- %s\n", guard.Sanitize(c.Name))
 	}
 	b.WriteString(transcript(iv))
+	if lastAnswerVague(iv) {
+		b.WriteString(honestSignalDirective)
+	}
 	b.WriteString("Ask the next question.")
 	return b.String()
+}
+
+// lastAnswerVague reports whether the most recent completed turn's answer reads
+// as vague/evasive, so the next question can apply honest-signal pressure.
+func lastAnswerVague(iv *interviewdom.Interview) bool {
+	if len(iv.Turns) == 0 {
+		return false
+	}
+	return interviewdom.VagueAnswer(iv.Turns[len(iv.Turns)-1].Answer)
 }
 
 func scorePrompt(rl *role.Role, iv *interviewdom.Interview) string {

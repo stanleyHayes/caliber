@@ -226,3 +226,48 @@ func TestAnswerMarksPassportScreenedOnCompletion(t *testing.T) {
 	require.NotNil(t, updated)
 	assert.Equal(t, talent.PassportScreened, updated.PassportStatus, "passport advanced to screened")
 }
+
+func TestAnswerAppliesHonestSignalPressureOnVagueAnswer(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	iv := askingInterview(t, rl.ID)
+	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	var captured app.LLMRequest
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req app.LLMRequest) (app.LLMResponse, error) {
+			captured = req
+			return app.LLMResponse{Text: questionJSON}, nil
+		})
+	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	_, _, err := interviewer.Answer(context.Background(), iv.ID, "It was good, basically various stuff.")
+	require.NoError(t, err)
+	assert.Contains(t, captured.Prompt, "presses for a specific, real example",
+		"a vague answer must trigger honest-signal pressure on the next question (CAL-063)")
+}
+
+func TestAnswerNoPressureOnConcreteAnswer(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	iv := askingInterview(t, rl.ID)
+	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	var captured app.LLMRequest
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req app.LLMRequest) (app.LLMResponse, error) {
+			captured = req
+			return app.LLMResponse{Text: questionJSON}, nil
+		})
+	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	_, _, err := interviewer.Answer(context.Background(), iv.ID,
+		"I led the migration of our payments service to Go and cut p99 latency by 40%.")
+	require.NoError(t, err)
+	assert.NotContains(t, captured.Prompt, "presses for a specific, real example",
+		"a concrete answer should not trigger the pressure directive")
+}
