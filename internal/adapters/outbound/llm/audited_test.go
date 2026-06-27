@@ -119,3 +119,15 @@ func TestSlogRecorder_DoesNotPanic(t *testing.T) {
 		r.Record(app.AICallRecord{Operation: "cv_extract", Model: "dev", PromptChars: 10})
 	})
 }
+
+func TestMemoryRecorderStats(t *testing.T) {
+	r := llm.NewMemoryRecorder(10)
+	r.Record(app.AICallRecord{Operation: "score", Latency: 100 * time.Millisecond, Failed: false})
+	r.Record(app.AICallRecord{Operation: "score", Latency: 300 * time.Millisecond, Failed: true})
+
+	stats := r.Stats()
+	assert.Equal(t, 2, stats.TotalCalls)
+	assert.Equal(t, 1, stats.FailedCalls)
+	assert.InDelta(t, 0.5, stats.FailureRate, 1e-9)
+	assert.Equal(t, 2, stats.ByOperation["score"].Calls)
+}

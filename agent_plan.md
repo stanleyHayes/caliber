@@ -493,7 +493,7 @@ Beyond the win: harden security, SEO, observability, quality, deployment, and sc
 - **CAL-134** `[TODO]` · 5 pts — **Alerting & SLOs.** Define SLOs (availability, latency, error rate, AI failure rate); alert routing. *AC:* alerts fire on breach. *Deps:* CAL-133
 - **CAL-135** `[TODO]` · 3 pts — **Error tracking & on-call runbooks.** Error grouping; incident runbooks. *AC:* known failure modes documented. *Deps:* CAL-132
 - **CAL-136** `[TODO]` · 4 pts — **Audit & compliance reporting.** Reportable audit-log views (approvals/overrides/agent actions). *AC:* exportable audit reports. *Deps:* CAL-084
-- **CAL-137** `[TODO]` · 5 pts — **AI quality monitoring.** Track structured-output failure rate, refusal/latency, guardrail trips; eval harness. *AC:* AI regressions visible. *Deps:* CAL-036
+- **CAL-137** `[WIP]` · 5 pts — **AI quality monitoring.** Track structured-output failure rate, refusal/latency, guardrail trips; eval harness. *AC:* AI regressions visible. *Deps:* CAL-036 **[Started]** `app.SummarizeAIQuality` computes an AI-quality summary over the redacted AICallRecord traces — call volume, failure rate, p50/p95 latency, per-operation breakdown, and an input/output char (token-proxy) cost signal — exposed as `MemoryRecorder.Stats()` (PII-free). Tests cover aggregation, rates, and percentiles. **Remaining:** structured-output(JSON)-specific + refusal + guardrail-trip counters, and surfacing via a metrics endpoint (ties to CAL-131 Prometheus).
 
 ## EPIC-19 · Quality, Testing & Performance Engineering
 **Goal:** The ≥80% gate is the floor; build the full pyramid and prove it scales.

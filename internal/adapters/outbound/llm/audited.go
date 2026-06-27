@@ -112,3 +112,10 @@ func (m *MemoryRecorder) Snapshot() []app.AICallRecord {
 	copy(out, m.records)
 	return out
 }
+
+// Stats summarizes the retained traces for AI-quality monitoring (CAL-137):
+// call volume, failure rate, latency percentiles, and a token-proxy cost signal,
+// per operation. Computed over the redacted traces, so it carries no PII.
+func (m *MemoryRecorder) Stats() app.AIQualityStats {
+	return app.SummarizeAIQuality(m.Snapshot())
+}
