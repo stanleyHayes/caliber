@@ -11,6 +11,7 @@ import (
 
 	"github.com/xcreativs/caliber/internal/app"
 	agentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
+	"github.com/xcreativs/caliber/internal/domain/audit"
 	agentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
@@ -177,4 +178,70 @@ func TestRunNoProfileDoesNothing(t *testing.T) {
 	view, err := d.runner().Run(context.Background(), cid, 10)
 	require.NoError(t, err)
 	assert.Zero(t, view.ApplicationsSubmitted)
+}
+
+func agentClock() time.Time { return time.Unix(1700000000, 0) }
+
+func TestRunAuditsAutonomousSubmission(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	auditRepo := mocks.NewMockAuditRepository(ctrl)
+	cid := kernel.NewID()
+	cand := candidate(t, "Accra")
+	profile := profileWith(t, cid, talent.ProfileCompetency{Name: "Go", Level: 4, EvidenceQuote: "built services"})
+	rl := openRole(t, []role.Competency{{Name: "Go", Weight: 0.6, MustHave: true}, {Name: "SQL", Weight: 0.4}})
+
+	d.candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(profile, nil)
+	d.roles.EXPECT().ListOpen(gomock.Any(), gomock.Any()).Return([]*role.Role{rl}, int64(1), nil)
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: assessJSON}, nil)
+
+	var created *agentdom.Application
+	d.apps.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, a *agentdom.Application) error { created = a; return nil })
+
+	var logged *audit.AuditEntry
+	auditRepo.EXPECT().Append(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, e *audit.AuditEntry) error { logged = e; return nil })
+
+	runner := agentapp.NewAgentRunner(d.candidates, d.profiles, d.roles, d.apps, d.llm,
+		agentapp.WithAuditTrail(auditRepo, agentClock))
+	view, err := runner.Run(context.Background(), cid, 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, view.ApplicationsSubmitted)
+
+	// Every autonomous action leaves an auditable trail attributed to the candidate.
+	require.NotNil(t, logged, "an autonomous submission must be logged")
+	require.NotNil(t, created)
+	assert.Equal(t, audit.ActionAgentSubmit, logged.Action)
+	assert.Equal(t, cid, logged.ActorUserID, "the candidate is the actor; the agent is their delegated proxy")
+	assert.Equal(t, "application", logged.Entity)
+	assert.Equal(t, created.ID, logged.EntityID)
+	assert.Contains(t, logged.AfterJSON, rl.ID.String(), "the trail records which role the agent applied to")
+	assert.Contains(t, logged.AfterJSON, "autonomous")
+}
+
+func TestRunDoesNotAuditWhenNothingSubmitted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	auditRepo := mocks.NewMockAuditRepository(ctrl)
+	cid := kernel.NewID()
+	cand := candidate(t, "Accra")
+	profile := profileWith(t, cid, talent.ProfileCompetency{Name: "Go", Level: 4, EvidenceQuote: "built services"})
+	rl := openRole(t, []role.Competency{{Name: "Go", Weight: 1, MustHave: true}})
+
+	d.candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(profile, nil)
+	d.roles.EXPECT().ListOpen(gomock.Any(), gomock.Any()).Return([]*role.Role{rl}, int64(1), nil)
+	// The agent assesses the match but decides not to apply.
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(
+		app.LLMResponse{Text: `{"fit_score":0.2,"apply":false,"tailored_summary":""}`}, nil)
+	// No submission => nothing to audit. Append must never be called.
+	auditRepo.EXPECT().Append(gomock.Any(), gomock.Any()).Times(0)
+
+	runner := agentapp.NewAgentRunner(d.candidates, d.profiles, d.roles, d.apps, d.llm,
+		agentapp.WithAuditTrail(auditRepo, agentClock))
+	view, err := runner.Run(context.Background(), cid, 10)
+	require.NoError(t, err)
+	assert.Equal(t, 0, view.ApplicationsSubmitted)
 }

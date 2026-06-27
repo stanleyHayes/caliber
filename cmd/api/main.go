@@ -159,7 +159,8 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 		interviewapp.NewInterviewer(repos.roles, memory.NewInterviewRepo(), model, 0, interviewapp.WithPassportUpdater(repos.profiles)))
 	svc.Talent = grpcadapter.NewTalentServer(profilesapp.NewProfileBuilder(repos.candidates, repos.profiles, model))
 	svc.Agent = grpcadapter.NewAgentServer(
-		candidateagentapp.NewAgentRunner(repos.candidates, repos.profiles, repos.roles, repos.apps, model), repos.apps)
+		candidateagentapp.NewAgentRunner(repos.candidates, repos.profiles, repos.roles, repos.apps, model,
+			candidateagentapp.WithAuditTrail(auditRepo, time.Now)), repos.apps)
 	svc.Dashboard = grpcadapter.NewDashboardServer(dashboardapp.NewAggregator(repos.candidates, repos.profiles, repos.users, repos.roles))
 	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(memory.NewContestRepo(), auditRepo, time.Now))
 	svc.Audit = grpcadapter.NewAuditServer(auditRepo)

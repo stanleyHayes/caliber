@@ -5,11 +5,13 @@ package candidateagent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/app/prompts"
+	"github.com/xcreativs/caliber/internal/domain/audit"
 	agentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/guard"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -31,6 +33,22 @@ type AgentRunner struct {
 	apps       agentdom.ApplicationRepository
 	llm        app.LLMClient
 	minFit     float64
+	audit      audit.AuditRepository
+	now        app.Clock
+}
+
+// Option configures an AgentRunner.
+type Option func(*AgentRunner)
+
+// WithAuditTrail records every autonomous submission to the audit trail, so the
+// candidate (and a human overseer) can review exactly what the agent did on the
+// candidate's behalf — the audited-agent invariant. Without it the agent still
+// runs; submissions simply go unlogged (e.g. in unit tests).
+func WithAuditTrail(repo audit.AuditRepository, now app.Clock) Option {
+	return func(r *AgentRunner) {
+		r.audit = repo
+		r.now = now
+	}
 }
 
 // NewAgentRunner wires the use-case.
@@ -40,8 +58,13 @@ func NewAgentRunner(
 	roles role.RoleRepository,
 	apps agentdom.ApplicationRepository,
 	llm app.LLMClient,
+	opts ...Option,
 ) *AgentRunner {
-	return &AgentRunner{candidates: candidates, profiles: profiles, roles: roles, apps: apps, llm: llm, minFit: defaultMinFit}
+	r := &AgentRunner{candidates: candidates, profiles: profiles, roles: roles, apps: apps, llm: llm, minFit: defaultMinFit}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
 }
 
 type llmAssessment struct {
@@ -155,7 +178,34 @@ func (r *AgentRunner) consider(
 	if err := r.apps.Create(ctx, application); err != nil {
 		return false, "", err
 	}
+	r.recordSubmission(ctx, candidateID, application.ID, rl.ID)
 	return true, fmt.Sprintf("Applied to %q on your behalf.", rl.Title), nil
+}
+
+// recordSubmission logs an autonomous application to the audit trail. It is
+// best-effort: the application is the real artifact and the candidate's agent
+// legitimately made it, so a logging hiccup must not undo it. The candidate is
+// the actor — the agent is their delegated proxy — and the action is recorded as
+// agent_submit so an overseer can tell autonomous applications from manual ones.
+// A no-op when no audit trail is configured.
+func (r *AgentRunner) recordSubmission(ctx context.Context, candidateID, applicationID, roleID kernel.ID) {
+	if r.audit == nil {
+		return
+	}
+	snapshot, err := json.Marshal(struct {
+		RoleID     string `json:"role_id"`
+		Autonomous bool   `json:"autonomous"`
+	}{RoleID: roleID.String(), Autonomous: true})
+	if err != nil {
+		return
+	}
+	entry, err := audit.NewAuditEntry(
+		candidateID, audit.ActionAgentSubmit, "application", applicationID, "", string(snapshot), r.now(),
+	)
+	if err != nil {
+		return
+	}
+	_ = r.audit.Append(ctx, entry)
 }
 
 func (r *AgentRunner) assess(ctx context.Context, rl *role.Role, profile *talent.TalentProfile) (llmAssessment, error) {
