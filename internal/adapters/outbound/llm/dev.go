@@ -6,6 +6,8 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/xcreativs/caliber/internal/app"
@@ -35,9 +37,10 @@ func (d *Dev) Complete(_ context.Context, req app.LLMRequest) (app.LLMResponse, 
 		doc = devAgent(req.Prompt)
 	case prompts.IDCVExtract:
 		doc = devExtract(req.Prompt)
+	case prompts.IDShortlistScore:
+		doc = devScore(req.Prompt)
 	default:
-		// IDShortlistScore, IDRoleSpec, and any unset Source resolve to the
-		// role-spec generator (the shortlist scorer has no dedicated dev shape).
+		// IDRoleSpec and any unset Source resolve to the role-spec generator.
 		doc = devRoleSpec(req.Prompt)
 	}
 	b, err := json.Marshal(doc)
@@ -196,3 +199,81 @@ func firstLine(s string) string {
 }
 
 var _ app.LLMClient = (*Dev)(nil)
+
+// Compiled-once parsers for the dev scoring prompt.
+var (
+	scoreRubricLine = regexp.MustCompile(`^- (.+?) \(weight`)
+	scoreCandLine   = regexp.MustCompile(`^- (.+?) \(level ([\d.]+)\): (.*)$`)
+)
+
+// devScore produces a deterministic shortlist score from the scoring prompt: each
+// rubric competency is scored by the candidate's evidenced level (0 when not
+// evidenced, which trips the must-have gate), and the overall score is the mean
+// normalized to [0,1]. It is grounded entirely in the prompt — never fabricated.
+func devScore(prompt string) map[string]any {
+	rubric := scoreRubricNames(prompt)
+	levels, evidence := candidateLevels(prompt)
+	breakdown := make([]map[string]any, 0, len(rubric))
+	var sum float64
+	allCovered := true
+	for _, name := range rubric {
+		key := strings.ToLower(strings.TrimSpace(name))
+		lvl, ok := levels[key]
+		ev := evidence[key]
+		if !ok {
+			lvl, ev, allCovered = 0, "not evidenced in the verified profile", false
+		}
+		sum += lvl
+		breakdown = append(breakdown, map[string]any{"competency": name, "score": lvl, "evidence": ev})
+	}
+	overall := 0.0
+	if len(rubric) > 0 {
+		overall = (sum / float64(len(rubric))) / 5.0
+	}
+	confidence := "medium"
+	if allCovered {
+		confidence = "high"
+	}
+	return map[string]any{
+		"overall_score": overall,
+		"confidence":    confidence,
+		"breakdown":     breakdown,
+		"rationale":     "Scored against the rubric using the candidate's verified competencies.",
+		"watch_outs":    []string{},
+		"thin_evidence": !allCovered,
+	}
+}
+
+// scoreRubricNames extracts the rubric competency names from a scoring prompt.
+func scoreRubricNames(prompt string) []string {
+	var names []string
+	inRubric := false
+	for ln := range strings.SplitSeq(prompt, "\n") {
+		switch {
+		case strings.HasPrefix(ln, "RUBRIC:"):
+			inRubric = true
+		case strings.HasPrefix(ln, "CANDIDATE COMPETENCIES:"):
+			inRubric = false
+		case inRubric:
+			if m := scoreRubricLine.FindStringSubmatch(ln); m != nil {
+				names = append(names, m[1])
+			}
+		}
+	}
+	return names
+}
+
+// candidateLevels maps normalized candidate competency names to level + evidence.
+func candidateLevels(prompt string) (map[string]float64, map[string]string) {
+	levels := map[string]float64{}
+	evidence := map[string]string{}
+	for ln := range strings.SplitSeq(prompt, "\n") {
+		if m := scoreCandLine.FindStringSubmatch(ln); m != nil {
+			key := strings.ToLower(strings.TrimSpace(m[1]))
+			lvl, _ := strconv.ParseFloat(m[2], 64)
+			levels[key] = lvl
+			evidence[key] = m[3]
+		}
+	}
+	return levels, evidence
+}

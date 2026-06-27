@@ -92,9 +92,13 @@ func openRepositories(
 	}
 	cleanup := func() {}
 	if cfg.DatabaseURL == "" {
-		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories (shortlist recall disabled)")
+		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories (in-memory shortlist recall)")
 		seedDemo(ctx, cfg, repos, log)
-		return repos, nil, cleanup, nil
+		shortlister := matchingapp.NewShortlister(
+			repos.roles, repos.candidates, repos.profiles,
+			memory.NewRecaller(repos.candidates), embedder, model, memory.NewMatchRepo())
+		match := grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister))
+		return repos, match, cleanup, nil
 	}
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
