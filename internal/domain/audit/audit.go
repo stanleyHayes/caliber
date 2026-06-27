@@ -21,6 +21,10 @@ const (
 	ActionOverrideScore = "override_score"
 	// ActionAgentSubmit records an automated agent submitting an action.
 	ActionAgentSubmit = "agent_submit"
+	// ActionContestRaised records a candidate disputing an assessment.
+	ActionContestRaised = "contest_raised"
+	// ActionContestResolved records a reviewer resolving a contest.
+	ActionContestResolved = "contest_resolved"
 )
 
 // AuditEntry is an immutable, append-only record of a single auditable action.
@@ -74,6 +78,8 @@ func NewAuditEntry(
 		Timestamp:   ts,
 	}, nil
 }
+
+//go:generate mockgen -source=audit.go -destination=../../mocks/audit.go -package=mocks
 
 // AuditRepository is the persistence port for the append-only audit trail.
 type AuditRepository interface { //nolint:revive // domain name is fixed by the audit context spec
