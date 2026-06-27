@@ -10,6 +10,7 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/guard"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
+	"github.com/xcreativs/caliber/internal/domain/salary"
 )
 
 // SpecGenerator turns a free-text hiring need into a structured, persisted Role.
@@ -59,6 +60,11 @@ func (g *SpecGenerator) Generate(ctx context.Context, employerID kernel.ID, free
 		return nil, err
 	}
 	spec, rubric := toDomain(parsed)
+	if spec.SalaryBand.IsZero() {
+		// Realism fallback (CAL-039): a generated spec with no compensation gets a
+		// plausible Ghana-market band rather than being left blank.
+		spec.SalaryBand = salary.Lookup(spec.Title, spec.Seniority)
+	}
 	r, err := role.NewRole(employerID, spec, rubric, g.now())
 	if err != nil {
 		return nil, err
