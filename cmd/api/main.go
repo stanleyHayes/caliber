@@ -84,7 +84,8 @@ type repositories struct {
 // openRepositories selects in-memory (dev) or Postgres repositories. With a
 // database it also builds the pgvector-backed shortlist service.
 func openRepositories(
-	ctx context.Context, cfg config.Config, model app.LLMClient, embedder app.Embedder, log *slog.Logger,
+	ctx context.Context, cfg config.Config, model app.LLMClient, embedder app.Embedder,
+	rejections *matchingapp.RejectionRecorder, log *slog.Logger,
 ) (repositories, *grpcadapter.MatchServer, func(), error) {
 	repos := repositories{
 		roles: memory.NewRoleRepo(), users: memory.NewUserRepo(), refresh: memory.NewRefreshStore(),
@@ -97,7 +98,7 @@ func openRepositories(
 		shortlister := matchingapp.NewShortlister(
 			repos.roles, repos.candidates, repos.profiles,
 			memory.NewRecaller(repos.candidates), embedder, model, memory.NewMatchRepo())
-		match := grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister))
+		match := grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister), rejections)
 		return repos, match, cleanup, nil
 	}
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
@@ -117,7 +118,7 @@ func openRepositories(
 	shortlister := matchingapp.NewShortlister(
 		repos.roles, repos.candidates, repos.profiles, postgres.NewRecaller(pool), embedder, model, postgres.NewMatchRepo(pool))
 	log.Info("persistence selected", "provider", "postgres")
-	return repos, grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister)), pool.Close, nil
+	return repos, grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister), rejections), pool.Close, nil
 }
 
 func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (grpcadapter.Services, func(), error) {
@@ -129,7 +130,9 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 		return svc, cleanup, errors.New("CALIBER_DATABASE_URL is required in production")
 	}
 
-	repos, match, cleanup, err := openRepositories(ctx, cfg, model, embedder, log)
+	auditRepo := memory.NewAuditRepo()
+	rejections := matchingapp.NewRejectionRecorder(auditRepo, time.Now)
+	repos, match, cleanup, err := openRepositories(ctx, cfg, model, embedder, rejections, log)
 	if err != nil {
 		return svc, cleanup, err
 	}
@@ -158,7 +161,6 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	svc.Agent = grpcadapter.NewAgentServer(
 		candidateagentapp.NewAgentRunner(repos.candidates, repos.profiles, repos.roles, repos.apps, model), repos.apps)
 	svc.Dashboard = grpcadapter.NewDashboardServer(dashboardapp.NewAggregator(repos.candidates, repos.profiles, repos.users, repos.roles))
-	auditRepo := memory.NewAuditRepo()
 	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(memory.NewContestRepo(), auditRepo, time.Now))
 	svc.Audit = grpcadapter.NewAuditServer(auditRepo)
 	return svc, cleanup, nil

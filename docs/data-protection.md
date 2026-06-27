@@ -22,8 +22,12 @@ companion to [fairness.md](fairness.md).
 - **Logs/telemetry are PII-free.** The prompt-injection telemetry hook records
   only category labels, never prompt content (CAL-035). The AI-call audit record
   (CAL-036) stores sizes, latency, model, and prompt id/version — never prompt or
-  response text. The contest/audit trail stores actor id, action, entity, and
-  entity id — never the free-text reason/note.
+  response text. The audit trail stores actor id, action, entity, and entity id;
+  it does not retain *candidate-authored* text (a contest's dispute wording is
+  kept on the contest, not copied into the trail). A rejection is the deliberate
+  exception: it records the employer's own justification (CAL-081), because an
+  unexplained decline is exactly what the human-approval gate exists to prevent —
+  the decider's words, not candidate PII.
 - **Untrusted-by-default.** All candidate/role text is sanitised and fenced
   before it reaches a model (CAL-119), and treated as data, never instructions.
 - **No protected attributes in scoring inputs** (CAL-085) — they are not even

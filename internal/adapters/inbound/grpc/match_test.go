@@ -56,7 +56,7 @@ func TestGenerateShortlistHandler(t *testing.T) {
 	require.NoError(t, err)
 	cid := kernel.NewID()
 
-	srv := NewMatchServer(shortlisterWithOneMatch(t, ctrl, rl, cid), nil)
+	srv := NewMatchServer(shortlisterWithOneMatch(t, ctrl, rl, cid), nil, nil)
 	resp, err := srv.GenerateShortlist(context.Background(),
 		&caliberv1.GenerateShortlistRequest{RoleId: rl.ID.String(), Page: &caliberv1.PageRequest{PageSize: 5}})
 	require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestGenerateShortlistHandlerError(t *testing.T) {
 	s := matchingapp.NewShortlister(roles, mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl),
 		mocks.NewMockCandidateRecaller(ctrl), mocks.NewMockEmbedder(ctrl), mocks.NewMockLLMClient(ctrl),
 		mocks.NewMockMatchRepository(ctrl))
-	_, err := NewMatchServer(s, nil).GenerateShortlist(context.Background(), &caliberv1.GenerateShortlistRequest{RoleId: "x"})
+	_, err := NewMatchServer(s, nil, nil).GenerateShortlist(context.Background(), &caliberv1.GenerateShortlistRequest{RoleId: "x"})
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
@@ -111,7 +111,7 @@ func TestGenerateShortlistHandlerExclusions(t *testing.T) {
 
 	s := matchingapp.NewShortlister(roles, candidates, mocks.NewMockTalentProfileRepository(ctrl),
 		recaller, embedder, mocks.NewMockLLMClient(ctrl), mocks.NewMockMatchRepository(ctrl))
-	resp, err := NewMatchServer(s, nil).GenerateShortlist(context.Background(),
+	resp, err := NewMatchServer(s, nil, nil).GenerateShortlist(context.Background(),
 		&caliberv1.GenerateShortlistRequest{RoleId: rl.ID.String()})
 	require.NoError(t, err)
 
@@ -154,7 +154,7 @@ func TestRefineShortlistHandler(t *testing.T) {
 	matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil)
 
 	shortlister := matchingapp.NewShortlister(roles, candidates, profiles, recaller, embedder, scorer, matchRepo)
-	srv := NewMatchServer(shortlister, matchingapp.NewRefiner(roles, shortlister))
+	srv := NewMatchServer(shortlister, matchingapp.NewRefiner(roles, shortlister), nil)
 	resp, err := srv.RefineShortlist(context.Background(), &caliberv1.RefineShortlistRequest{
 		RoleId: rl.ID.String(),
 		Spec:   &caliberv1.RoleSpec{Title: "Backend Engineer", Location: "Accra", Seniority: caliberv1.Seniority_SENIORITY_MID},

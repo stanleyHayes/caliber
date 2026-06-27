@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	MatchingService_GenerateShortlist_FullMethodName = "/caliber.v1.MatchingService/GenerateShortlist"
 	MatchingService_RefineShortlist_FullMethodName   = "/caliber.v1.MatchingService/RefineShortlist"
+	MatchingService_RecordRejection_FullMethodName   = "/caliber.v1.MatchingService/RecordRejection"
 )
 
 // MatchingServiceClient is the client API for MatchingService service.
@@ -34,6 +35,10 @@ type MatchingServiceClient interface {
 	GenerateShortlist(ctx context.Context, in *GenerateShortlistRequest, opts ...grpc.CallOption) (*GenerateShortlistResponse, error)
 	// Re-rank live after the employer tightens criteria (CAL-057).
 	RefineShortlist(ctx context.Context, in *RefineShortlistRequest, opts ...grpc.CallOption) (*RefineShortlistResponse, error)
+	// Record a human-approved rejection of a candidate for a role (CAL-081). The
+	// AI never auto-rejects; only an authenticated employer/recruiter may decline,
+	// and every decline is logged to the audit trail.
+	RecordRejection(ctx context.Context, in *RecordRejectionRequest, opts ...grpc.CallOption) (*RecordRejectionResponse, error)
 }
 
 type matchingServiceClient struct {
@@ -64,6 +69,16 @@ func (c *matchingServiceClient) RefineShortlist(ctx context.Context, in *RefineS
 	return out, nil
 }
 
+func (c *matchingServiceClient) RecordRejection(ctx context.Context, in *RecordRejectionRequest, opts ...grpc.CallOption) (*RecordRejectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordRejectionResponse)
+	err := c.cc.Invoke(ctx, MatchingService_RecordRejection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MatchingServiceServer is the server API for MatchingService service.
 // All implementations must embed UnimplementedMatchingServiceServer
 // for forward compatibility.
@@ -75,6 +90,10 @@ type MatchingServiceServer interface {
 	GenerateShortlist(context.Context, *GenerateShortlistRequest) (*GenerateShortlistResponse, error)
 	// Re-rank live after the employer tightens criteria (CAL-057).
 	RefineShortlist(context.Context, *RefineShortlistRequest) (*RefineShortlistResponse, error)
+	// Record a human-approved rejection of a candidate for a role (CAL-081). The
+	// AI never auto-rejects; only an authenticated employer/recruiter may decline,
+	// and every decline is logged to the audit trail.
+	RecordRejection(context.Context, *RecordRejectionRequest) (*RecordRejectionResponse, error)
 	mustEmbedUnimplementedMatchingServiceServer()
 }
 
@@ -90,6 +109,9 @@ func (UnimplementedMatchingServiceServer) GenerateShortlist(context.Context, *Ge
 }
 func (UnimplementedMatchingServiceServer) RefineShortlist(context.Context, *RefineShortlistRequest) (*RefineShortlistResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RefineShortlist not implemented")
+}
+func (UnimplementedMatchingServiceServer) RecordRejection(context.Context, *RecordRejectionRequest) (*RecordRejectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordRejection not implemented")
 }
 func (UnimplementedMatchingServiceServer) mustEmbedUnimplementedMatchingServiceServer() {}
 func (UnimplementedMatchingServiceServer) testEmbeddedByValue()                         {}
@@ -148,6 +170,24 @@ func _MatchingService_RefineShortlist_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MatchingService_RecordRejection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordRejectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MatchingServiceServer).RecordRejection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MatchingService_RecordRejection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MatchingServiceServer).RecordRejection(ctx, req.(*RecordRejectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MatchingService_ServiceDesc is the grpc.ServiceDesc for MatchingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -162,6 +202,10 @@ var MatchingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RefineShortlist",
 			Handler:    _MatchingService_RefineShortlist_Handler,
+		},
+		{
+			MethodName: "RecordRejection",
+			Handler:    _MatchingService_RecordRejection_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

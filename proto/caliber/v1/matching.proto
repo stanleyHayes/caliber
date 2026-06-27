@@ -20,6 +20,15 @@ service MatchingService {
       body: "*"
     };
   }
+  // Record a human-approved rejection of a candidate for a role (CAL-081). The
+  // AI never auto-rejects; only an authenticated employer/recruiter may decline,
+  // and every decline is logged to the audit trail.
+  rpc RecordRejection(RecordRejectionRequest) returns (RecordRejectionResponse) {
+    option (google.api.http) = {
+      post: "/v1/roles/{role_id}/rejections"
+      body: "*"
+    };
+  }
 }
 
 // Per-competency contribution to a match (Appendix A.2 breakdown item).
@@ -76,4 +85,18 @@ message RefineShortlistRequest {
 }
 message RefineShortlistResponse {
   Shortlist shortlist = 1;
+}
+
+// A human-approved decision to decline a candidate for a role (CAL-081).
+// human_approved must be true — it is the explicit affirmation that a human, not
+// the AI, made this call; the system has no automated rejection path. The
+// approving human's identity is taken from the auth context, never this body.
+message RecordRejectionRequest {
+  string role_id = 1;
+  string candidate_id = 2;
+  string reason = 3;         // plain-English justification (a decline is explainable)
+  bool human_approved = 4;   // must be true
+}
+message RecordRejectionResponse {
+  string audit_entry_id = 1; // the logged approval that now stands as the record
 }

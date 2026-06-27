@@ -29,7 +29,7 @@ func TestShortlistExplainabilityContract(t *testing.T) {
 	require.NoError(t, err)
 	cid := kernel.NewID()
 
-	srv := NewMatchServer(shortlisterWithOneMatch(t, ctrl, rl, cid), nil)
+	srv := NewMatchServer(shortlisterWithOneMatch(t, ctrl, rl, cid), nil, nil)
 	resp, err := srv.GenerateShortlist(context.Background(),
 		&caliberv1.GenerateShortlistRequest{RoleId: rl.ID.String(), Page: &caliberv1.PageRequest{PageSize: 10}})
 	require.NoError(t, err)

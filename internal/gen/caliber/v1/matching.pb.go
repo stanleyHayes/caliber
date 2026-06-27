@@ -533,6 +533,122 @@ func (x *RefineShortlistResponse) GetShortlist() *Shortlist {
 	return nil
 }
 
+// A human-approved decision to decline a candidate for a role (CAL-081).
+// human_approved must be true — it is the explicit affirmation that a human, not
+// the AI, made this call; the system has no automated rejection path. The
+// approving human's identity is taken from the auth context, never this body.
+type RecordRejectionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoleId        string                 `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
+	CandidateId   string                 `protobuf:"bytes,2,opt,name=candidate_id,json=candidateId,proto3" json:"candidate_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`                                     // plain-English justification (a decline is explainable)
+	HumanApproved bool                   `protobuf:"varint,4,opt,name=human_approved,json=humanApproved,proto3" json:"human_approved,omitempty"` // must be true
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordRejectionRequest) Reset() {
+	*x = RecordRejectionRequest{}
+	mi := &file_caliber_v1_matching_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordRejectionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordRejectionRequest) ProtoMessage() {}
+
+func (x *RecordRejectionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_caliber_v1_matching_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordRejectionRequest.ProtoReflect.Descriptor instead.
+func (*RecordRejectionRequest) Descriptor() ([]byte, []int) {
+	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RecordRejectionRequest) GetRoleId() string {
+	if x != nil {
+		return x.RoleId
+	}
+	return ""
+}
+
+func (x *RecordRejectionRequest) GetCandidateId() string {
+	if x != nil {
+		return x.CandidateId
+	}
+	return ""
+}
+
+func (x *RecordRejectionRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *RecordRejectionRequest) GetHumanApproved() bool {
+	if x != nil {
+		return x.HumanApproved
+	}
+	return false
+}
+
+type RecordRejectionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AuditEntryId  string                 `protobuf:"bytes,1,opt,name=audit_entry_id,json=auditEntryId,proto3" json:"audit_entry_id,omitempty"` // the logged approval that now stands as the record
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordRejectionResponse) Reset() {
+	*x = RecordRejectionResponse{}
+	mi := &file_caliber_v1_matching_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordRejectionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordRejectionResponse) ProtoMessage() {}
+
+func (x *RecordRejectionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_caliber_v1_matching_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordRejectionResponse.ProtoReflect.Descriptor instead.
+func (*RecordRejectionResponse) Descriptor() ([]byte, []int) {
+	return file_caliber_v1_matching_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RecordRejectionResponse) GetAuditEntryId() string {
+	if x != nil {
+		return x.AuditEntryId
+	}
+	return ""
+}
+
 var File_caliber_v1_matching_proto protoreflect.FileDescriptor
 
 const file_caliber_v1_matching_proto_rawDesc = "" +
@@ -581,10 +697,18 @@ const file_caliber_v1_matching_proto_rawDesc = "" +
 	"\x06rubric\x18\x03 \x01(\v2\x12.caliber.v1.RubricR\x06rubric\x12+\n" +
 	"\x04page\x18\x04 \x01(\v2\x17.caliber.v1.PageRequestR\x04page\"N\n" +
 	"\x17RefineShortlistResponse\x123\n" +
-	"\tshortlist\x18\x01 \x01(\v2\x15.caliber.v1.ShortlistR\tshortlist2\xa9\x02\n" +
+	"\tshortlist\x18\x01 \x01(\v2\x15.caliber.v1.ShortlistR\tshortlist\"\x93\x01\n" +
+	"\x16RecordRejectionRequest\x12\x17\n" +
+	"\arole_id\x18\x01 \x01(\tR\x06roleId\x12!\n" +
+	"\fcandidate_id\x18\x02 \x01(\tR\vcandidateId\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12%\n" +
+	"\x0ehuman_approved\x18\x04 \x01(\bR\rhumanApproved\"?\n" +
+	"\x17RecordRejectionResponse\x12$\n" +
+	"\x0eaudit_entry_id\x18\x01 \x01(\tR\fauditEntryId2\xb1\x03\n" +
 	"\x0fMatchingService\x12\x87\x01\n" +
 	"\x11GenerateShortlist\x12$.caliber.v1.GenerateShortlistRequest\x1a%.caliber.v1.GenerateShortlistResponse\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v1/roles/{role_id}/shortlist\x12\x8b\x01\n" +
-	"\x0fRefineShortlist\x12\".caliber.v1.RefineShortlistRequest\x1a#.caliber.v1.RefineShortlistResponse\"/\x82\xd3\xe4\x93\x02):\x01*\"$/v1/roles/{role_id}/shortlist:refineB\xa8\x01\n" +
+	"\x0fRefineShortlist\x12\".caliber.v1.RefineShortlistRequest\x1a#.caliber.v1.RefineShortlistResponse\"/\x82\xd3\xe4\x93\x02):\x01*\"$/v1/roles/{role_id}/shortlist:refine\x12\x85\x01\n" +
+	"\x0fRecordRejection\x12\".caliber.v1.RecordRejectionRequest\x1a#.caliber.v1.RecordRejectionResponse\")\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/roles/{role_id}/rejectionsB\xa8\x01\n" +
 	"\x0ecom.caliber.v1B\rMatchingProtoP\x01Z>github.com/xcreativs/caliber/internal/gen/caliber/v1;caliberv1\xa2\x02\x03CXX\xaa\x02\n" +
 	"Caliber.V1\xca\x02\n" +
 	"Caliber\\V1\xe2\x02\x16Caliber\\V1\\GPBMetadata\xea\x02\vCaliber::V1b\x06proto3"
@@ -601,7 +725,7 @@ func file_caliber_v1_matching_proto_rawDescGZIP() []byte {
 	return file_caliber_v1_matching_proto_rawDescData
 }
 
-var file_caliber_v1_matching_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_caliber_v1_matching_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_caliber_v1_matching_proto_goTypes = []any{
 	(*MatchBreakdownItem)(nil),        // 0: caliber.v1.MatchBreakdownItem
 	(*Match)(nil),                     // 1: caliber.v1.Match
@@ -611,30 +735,34 @@ var file_caliber_v1_matching_proto_goTypes = []any{
 	(*GenerateShortlistResponse)(nil), // 5: caliber.v1.GenerateShortlistResponse
 	(*RefineShortlistRequest)(nil),    // 6: caliber.v1.RefineShortlistRequest
 	(*RefineShortlistResponse)(nil),   // 7: caliber.v1.RefineShortlistResponse
-	(Confidence)(0),                   // 8: caliber.v1.Confidence
-	(*PageResponse)(nil),              // 9: caliber.v1.PageResponse
-	(*PageRequest)(nil),               // 10: caliber.v1.PageRequest
-	(*RoleSpec)(nil),                  // 11: caliber.v1.RoleSpec
-	(*Rubric)(nil),                    // 12: caliber.v1.Rubric
+	(*RecordRejectionRequest)(nil),    // 8: caliber.v1.RecordRejectionRequest
+	(*RecordRejectionResponse)(nil),   // 9: caliber.v1.RecordRejectionResponse
+	(Confidence)(0),                   // 10: caliber.v1.Confidence
+	(*PageResponse)(nil),              // 11: caliber.v1.PageResponse
+	(*PageRequest)(nil),               // 12: caliber.v1.PageRequest
+	(*RoleSpec)(nil),                  // 13: caliber.v1.RoleSpec
+	(*Rubric)(nil),                    // 14: caliber.v1.Rubric
 }
 var file_caliber_v1_matching_proto_depIdxs = []int32{
-	8,  // 0: caliber.v1.Match.confidence:type_name -> caliber.v1.Confidence
+	10, // 0: caliber.v1.Match.confidence:type_name -> caliber.v1.Confidence
 	0,  // 1: caliber.v1.Match.breakdown:type_name -> caliber.v1.MatchBreakdownItem
 	1,  // 2: caliber.v1.Shortlist.matches:type_name -> caliber.v1.Match
-	9,  // 3: caliber.v1.Shortlist.page:type_name -> caliber.v1.PageResponse
+	11, // 3: caliber.v1.Shortlist.page:type_name -> caliber.v1.PageResponse
 	3,  // 4: caliber.v1.Shortlist.exclusions:type_name -> caliber.v1.CandidateExclusion
-	10, // 5: caliber.v1.GenerateShortlistRequest.page:type_name -> caliber.v1.PageRequest
+	12, // 5: caliber.v1.GenerateShortlistRequest.page:type_name -> caliber.v1.PageRequest
 	2,  // 6: caliber.v1.GenerateShortlistResponse.shortlist:type_name -> caliber.v1.Shortlist
-	11, // 7: caliber.v1.RefineShortlistRequest.spec:type_name -> caliber.v1.RoleSpec
-	12, // 8: caliber.v1.RefineShortlistRequest.rubric:type_name -> caliber.v1.Rubric
-	10, // 9: caliber.v1.RefineShortlistRequest.page:type_name -> caliber.v1.PageRequest
+	13, // 7: caliber.v1.RefineShortlistRequest.spec:type_name -> caliber.v1.RoleSpec
+	14, // 8: caliber.v1.RefineShortlistRequest.rubric:type_name -> caliber.v1.Rubric
+	12, // 9: caliber.v1.RefineShortlistRequest.page:type_name -> caliber.v1.PageRequest
 	2,  // 10: caliber.v1.RefineShortlistResponse.shortlist:type_name -> caliber.v1.Shortlist
 	4,  // 11: caliber.v1.MatchingService.GenerateShortlist:input_type -> caliber.v1.GenerateShortlistRequest
 	6,  // 12: caliber.v1.MatchingService.RefineShortlist:input_type -> caliber.v1.RefineShortlistRequest
-	5,  // 13: caliber.v1.MatchingService.GenerateShortlist:output_type -> caliber.v1.GenerateShortlistResponse
-	7,  // 14: caliber.v1.MatchingService.RefineShortlist:output_type -> caliber.v1.RefineShortlistResponse
-	13, // [13:15] is the sub-list for method output_type
-	11, // [11:13] is the sub-list for method input_type
+	8,  // 13: caliber.v1.MatchingService.RecordRejection:input_type -> caliber.v1.RecordRejectionRequest
+	5,  // 14: caliber.v1.MatchingService.GenerateShortlist:output_type -> caliber.v1.GenerateShortlistResponse
+	7,  // 15: caliber.v1.MatchingService.RefineShortlist:output_type -> caliber.v1.RefineShortlistResponse
+	9,  // 16: caliber.v1.MatchingService.RecordRejection:output_type -> caliber.v1.RecordRejectionResponse
+	14, // [14:17] is the sub-list for method output_type
+	11, // [11:14] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
 	11, // [11:11] is the sub-list for extension extendee
 	0,  // [0:11] is the sub-list for field type_name
@@ -653,7 +781,7 @@ func file_caliber_v1_matching_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_caliber_v1_matching_proto_rawDesc), len(file_caliber_v1_matching_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
