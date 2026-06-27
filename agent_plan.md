@@ -341,7 +341,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-043** `[WIP]` · 5 pts — **Competency extraction use-case.** Text → structured profile JSON (competencies, seniority, history). *AC:* fixed schema; covered by tests. *Deps:* CAL-031
 - **CAL-044** `[WIP]` · 5 pts — **Evidence-linking.** Each extracted competency cites its CV source span. *AC:* recruiter can see source of each claim. *Deps:* CAL-043
 - **CAL-045** `[WIP]` · 5 pts — **Profile embedding + Talent Profile persistence.** Store structured profile + summary embedding. *AC:* `TalentProfile` + `profile_embedding` written. *Deps:* CAL-033, CAL-014
-- **CAL-046** `[TODO]` · 3 pts — **Guided intake answers.** Capture target titles, location, salary floor, deal-breakers; merge into profile. *AC:* intake feeds matching filters. *Deps:* CAL-043
+- **CAL-046** `[DONE]` · 3 pts — **Guided intake answers.** Intake (target titles, location, salary floor, deal-breakers) is captured + merged into the candidate. All now feed matching filters: location + salary via `ScreenLogistics`, and **deal-breakers** via the new `matchingdom.ViolatesDealBreaker` (whole-token phrase match over the role's text, shared `kernel.HasPhrase`) wired into BOTH the two-way matcher and the candidate-agent eligibility gate — a role whose text states a candidate's deal-breaker is never surfaced or applied to. (Target-title *relevance* ranking deferred: naive title-token matching over/under-filters; needs title normalization.) *AC:* intake feeds matching filters. *Deps:* CAL-043
 
 ## EPIC-07 · Matching & Ranking Engine
 **Goal:** Rank candidates against a Role Spec with scores a human can trust — recall → precision → hard filters. (Spec §8.3, Appendix A.2.)

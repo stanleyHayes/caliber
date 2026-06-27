@@ -110,6 +110,10 @@ func (r *AgentRunner) eligible(cand *talent.Candidate, profile *talent.TalentPro
 	if len(req.ScreenLogistics(cand.ID, cand.Location, cand.Intake.SalaryFloor, cand.Intake.SalaryCurrency)) > 0 {
 		return false
 	}
+	if matchingdom.ViolatesDealBreaker(cand.Intake.DealBreakers,
+		rl.Spec.Title+" "+rl.Spec.Availability+" "+strings.Join(rl.Spec.Responsibilities, " ")) {
+		return false // the agent never applies where the candidate declared a deal-breaker
+	}
 	return profileCoversMustHaves(profile, rl)
 }
 

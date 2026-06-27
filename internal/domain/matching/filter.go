@@ -58,6 +58,21 @@ type Requirements struct {
 	MustHaves []string
 }
 
+// ViolatesDealBreaker reports whether any of the candidate's stated deal-breakers
+// appears as a whole-token phrase in the role's text — a candidate-declared
+// reason not to surface or apply to the role (e.g. a deal-breaker "on-call" when
+// the role text says "on-call rotation"). Empty deal-breakers never exclude.
+func ViolatesDealBreaker(dealBreakers []string, roleText string) bool {
+	haystack := kernel.Tokens(strings.ToLower(roleText))
+	for _, db := range dealBreakers {
+		phrase := kernel.Tokens(strings.ToLower(strings.TrimSpace(db)))
+		if kernel.HasPhrase(haystack, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
 // NewRequirements builds the hard-constraint set from a role's logistical facts.
 // RemoteAllowed is derived ONLY from the location field carrying "remote" as a
 // whole token (e.g. "Remote" or "Accra / Remote"). It deliberately does NOT scan

@@ -3,6 +3,7 @@ package matching
 import (
 	"context"
 	"sort"
+	"strings"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
@@ -94,6 +95,10 @@ func rankRoleFits(cand *talent.Candidate, signals []matchingdom.CandidateSignal,
 func evaluateRoleFit(cand *talent.Candidate, signals []matchingdom.CandidateSignal, rl *role.Role) (RoleFit, bool) {
 	if !logisticsClear(cand, rl) {
 		return RoleFit{}, false
+	}
+	if matchingdom.ViolatesDealBreaker(cand.Intake.DealBreakers,
+		rl.Spec.Title+" "+rl.Spec.Availability+" "+strings.Join(rl.Spec.Responsibilities, " ")) {
+		return RoleFit{}, false // candidate-declared deal-breaker present in the role
 	}
 	rubric := rubricSignals(rl)
 	if matchingdom.EnsureBiasSafe(signalNames(rubric)) != nil {
