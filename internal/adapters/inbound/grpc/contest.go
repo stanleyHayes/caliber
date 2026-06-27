@@ -48,7 +48,7 @@ func (s *ContestServer) RaiseContest(
 func (s *ContestServer) ListMyContests(
 	ctx context.Context, req *caliberv1.ListMyContestsRequest,
 ) (*caliberv1.ListMyContestsResponse, error) {
-	principal, err := RequireAuth(ctx)
+	principal, err := RequireRole(ctx, identity.RoleCandidate)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -65,6 +65,10 @@ func (s *ContestServer) ListMyContests(
 }
 
 // ResolveContest resolves an open contest as a reviewer (employer/recruiter).
+// POC simplification: any reviewer may resolve any contest (every resolution is
+// audited). Multi-tenant production should additionally verify the reviewer owns
+// the contested assessment, and validate that subject_id references a real
+// candidate-owned match/report card.
 func (s *ContestServer) ResolveContest(
 	ctx context.Context, req *caliberv1.ResolveContestRequest,
 ) (*caliberv1.ResolveContestResponse, error) {

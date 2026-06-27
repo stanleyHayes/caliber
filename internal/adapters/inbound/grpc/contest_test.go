@@ -46,6 +46,11 @@ func TestContestServer_RaiseAndListAsCandidate(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, list.GetContests(), 1)
 	assert.Equal(t, int64(1), list.GetPage().GetTotalItems())
+
+	// listing is candidate-only: an employer is forbidden, not given an empty list
+	_, err = srv.ListMyContests(asRole(context.Background(), identity.RoleEmployer),
+		&caliberv1.ListMyContestsRequest{Page: &caliberv1.PageRequest{Page: 1, PageSize: 10}})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
 func TestContestServer_RaiseRejectsNonCandidate(t *testing.T) {
