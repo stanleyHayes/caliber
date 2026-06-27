@@ -24,6 +24,7 @@ type Services struct {
 	Dashboard caliberv1.DashboardServiceServer
 	Talent    caliberv1.TalentServiceServer
 	Contest   caliberv1.ContestServiceServer
+	Audit     caliberv1.AuditServiceServer
 
 	// AccessVerifier, when set, installs the auth interceptor that authenticates
 	// bearer access tokens and injects the principal into each request context.
@@ -36,50 +37,52 @@ func NewGRPCServer(svc Services) *grpc.Server {
 	if svc.AccessVerifier != nil {
 		opts = append(opts, grpc.UnaryInterceptor(NewAuthInterceptor(svc.AccessVerifier)))
 	}
+	svc = withStubs(svc)
 	s := grpc.NewServer(opts...)
-	role := svc.Role
-	if role == nil {
-		role = caliberv1.UnimplementedRoleServiceServer{}
-	}
-	identitySvc := svc.Identity
-	if identitySvc == nil {
-		identitySvc = caliberv1.UnimplementedIdentityServiceServer{}
-	}
-	caliberv1.RegisterIdentityServiceServer(s, identitySvc)
-	caliberv1.RegisterRoleServiceServer(s, role)
-	talentSvc := svc.Talent
-	if talentSvc == nil {
-		talentSvc = caliberv1.UnimplementedTalentServiceServer{}
-	}
-	caliberv1.RegisterTalentServiceServer(s, talentSvc)
-	match := svc.Match
-	if match == nil {
-		match = caliberv1.UnimplementedMatchingServiceServer{}
-	}
-	caliberv1.RegisterMatchingServiceServer(s, match)
-	interviewSvc := svc.Interview
-	if interviewSvc == nil {
-		interviewSvc = caliberv1.UnimplementedInterviewServiceServer{}
-	}
-	caliberv1.RegisterInterviewServiceServer(s, interviewSvc)
-	agentSvc := svc.Agent
-	if agentSvc == nil {
-		agentSvc = caliberv1.UnimplementedCandidateAgentServiceServer{}
-	}
-	caliberv1.RegisterCandidateAgentServiceServer(s, agentSvc)
-	dashboardSvc := svc.Dashboard
-	if dashboardSvc == nil {
-		dashboardSvc = caliberv1.UnimplementedDashboardServiceServer{}
-	}
-	caliberv1.RegisterDashboardServiceServer(s, dashboardSvc)
-	contestSvc := svc.Contest
-	if contestSvc == nil {
-		contestSvc = caliberv1.UnimplementedContestServiceServer{}
-	}
-	caliberv1.RegisterContestServiceServer(s, contestSvc)
-	caliberv1.RegisterAuditServiceServer(s, caliberv1.UnimplementedAuditServiceServer{})
+	caliberv1.RegisterIdentityServiceServer(s, svc.Identity)
+	caliberv1.RegisterRoleServiceServer(s, svc.Role)
+	caliberv1.RegisterTalentServiceServer(s, svc.Talent)
+	caliberv1.RegisterMatchingServiceServer(s, svc.Match)
+	caliberv1.RegisterInterviewServiceServer(s, svc.Interview)
+	caliberv1.RegisterCandidateAgentServiceServer(s, svc.Agent)
+	caliberv1.RegisterDashboardServiceServer(s, svc.Dashboard)
+	caliberv1.RegisterContestServiceServer(s, svc.Contest)
+	caliberv1.RegisterAuditServiceServer(s, svc.Audit)
 	reflection.Register(s)
 	return s
+}
+
+// withStubs fills any unset service with its generated Unimplemented stub, so a
+// partially-wired Services value still registers every service cleanly.
+func withStubs(svc Services) Services {
+	if svc.Identity == nil {
+		svc.Identity = caliberv1.UnimplementedIdentityServiceServer{}
+	}
+	if svc.Role == nil {
+		svc.Role = caliberv1.UnimplementedRoleServiceServer{}
+	}
+	if svc.Talent == nil {
+		svc.Talent = caliberv1.UnimplementedTalentServiceServer{}
+	}
+	if svc.Match == nil {
+		svc.Match = caliberv1.UnimplementedMatchingServiceServer{}
+	}
+	if svc.Interview == nil {
+		svc.Interview = caliberv1.UnimplementedInterviewServiceServer{}
+	}
+	if svc.Agent == nil {
+		svc.Agent = caliberv1.UnimplementedCandidateAgentServiceServer{}
+	}
+	if svc.Dashboard == nil {
+		svc.Dashboard = caliberv1.UnimplementedDashboardServiceServer{}
+	}
+	if svc.Contest == nil {
+		svc.Contest = caliberv1.UnimplementedContestServiceServer{}
+	}
+	if svc.Audit == nil {
+		svc.Audit = caliberv1.UnimplementedAuditServiceServer{}
+	}
+	return svc
 }
 
 type gatewayRegistrar func(context.Context, *runtime.ServeMux, string, []grpc.DialOption) error

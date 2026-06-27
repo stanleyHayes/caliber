@@ -158,7 +158,9 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	svc.Agent = grpcadapter.NewAgentServer(
 		candidateagentapp.NewAgentRunner(repos.candidates, repos.profiles, repos.roles, repos.apps, model), repos.apps)
 	svc.Dashboard = grpcadapter.NewDashboardServer(dashboardapp.NewAggregator(repos.candidates, repos.profiles, repos.users, repos.roles))
-	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(memory.NewContestRepo(), memory.NewAuditRepo(), time.Now))
+	auditRepo := memory.NewAuditRepo()
+	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(memory.NewContestRepo(), auditRepo, time.Now))
+	svc.Audit = grpcadapter.NewAuditServer(auditRepo)
 	return svc, cleanup, nil
 }
 
