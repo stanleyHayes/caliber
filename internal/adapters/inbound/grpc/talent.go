@@ -3,11 +3,15 @@ package grpcadapter
 import (
 	"context"
 
+	"github.com/xcreativs/caliber/internal/adapters/outbound/cvtext"
 	profilesapp "github.com/xcreativs/caliber/internal/app/profiles"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
+
+// maxCVFileBytes caps an uploaded CV file to bound memory + abuse (CAL-042).
+const maxCVFileBytes = 10 << 20 // 10 MiB
 
 // TalentServer implements caliberv1.TalentServiceServer (Talent Passport).
 type TalentServer struct {
@@ -17,18 +21,38 @@ type TalentServer struct {
 }
 
 // NewTalentServer builds the talent gRPC service from its use-case.
-func NewTalentServer(builder *profilesapp.ProfileBuilder) *TalentServer { return &TalentServer{builder: builder} }
+func NewTalentServer(builder *profilesapp.ProfileBuilder) *TalentServer {
+	return &TalentServer{builder: builder}
+}
 
-// CreateProfileFromCV parses a CV + intake into an evidence-linked profile.
+// CreateProfileFromCV parses a CV (raw text or an uploaded file) + intake into an
+// evidence-linked profile.
 func (s *TalentServer) CreateProfileFromCV(
 	ctx context.Context, req *caliberv1.CreateProfileFromCVRequest,
 ) (*caliberv1.CreateProfileFromCVResponse, error) {
+	cvText, err := resolveCVText(req)
+	if err != nil {
+		return nil, errToStatus(err)
+	}
 	profile, err := s.builder.CreateFromCV(
-		ctx, kernel.ID(req.GetCandidateId()), req.GetCvText(), intakeFromProto(req.GetIntake()))
+		ctx, kernel.ID(req.GetCandidateId()), cvText, intakeFromProto(req.GetIntake()))
 	if err != nil {
 		return nil, errToStatus(err)
 	}
 	return &caliberv1.CreateProfileFromCVResponse{Profile: talentProfileToProto(profile)}, nil
+}
+
+// resolveCVText prefers an uploaded file (parsed to plain text, size-capped) over
+// raw cv_text; the builder rejects an empty result.
+func resolveCVText(req *caliberv1.CreateProfileFromCVRequest) (string, error) {
+	file := req.GetCvFile()
+	if len(file) == 0 {
+		return req.GetCvText(), nil
+	}
+	if len(file) > maxCVFileBytes {
+		return "", kernel.Invalidf("talent: CV file exceeds the %d MiB limit", maxCVFileBytes>>20)
+	}
+	return cvtext.Extract(req.GetCvFilename(), file)
 }
 
 // GetTalentProfile returns a candidate's talent profile.
