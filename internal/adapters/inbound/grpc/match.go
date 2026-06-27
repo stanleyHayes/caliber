@@ -31,7 +31,9 @@ func (s *MatchServer) GenerateShortlist(
 	if err != nil {
 		return nil, errToStatus(err)
 	}
-	return &caliberv1.GenerateShortlistResponse{Shortlist: shortlistToProto(result)}, nil
+	sl := shortlistToProto(result)
+	sl.Page = pageResponseToProto(pageFromProto(req.GetPage()), int64(len(result.Matches)))
+	return &caliberv1.GenerateShortlistResponse{Shortlist: sl}, nil
 }
 
 // RefineShortlist applies edited spec/rubric overrides to the role and re-ranks.
@@ -44,7 +46,9 @@ func (s *MatchServer) RefineShortlist(
 	if err != nil {
 		return nil, errToStatus(err)
 	}
-	return &caliberv1.RefineShortlistResponse{Shortlist: shortlistToProto(result)}, nil
+	sl := shortlistToProto(result)
+	sl.Page = pageResponseToProto(pageFromProto(req.GetPage()), int64(len(result.Matches)))
+	return &caliberv1.RefineShortlistResponse{Shortlist: sl}, nil
 }
 
 func pageLimit(p *caliberv1.PageRequest) int {
