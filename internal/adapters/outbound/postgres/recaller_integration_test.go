@@ -35,6 +35,7 @@ func TestRecallByEmbedding(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping testcontainers integration test in -short mode")
 	}
+	skipIfNoDocker(t)
 	ctx := context.Background()
 	ctr, err := tcpostgres.Run(ctx, "pgvector/pgvector:pg17",
 		tcpostgres.WithDatabase("caliber"), tcpostgres.WithUsername("caliber"), tcpostgres.WithPassword("caliber"),

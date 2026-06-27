@@ -1,7 +1,7 @@
 MODULE := github.com/xcreativs/caliber
 GOBIN  := $(shell go env GOPATH)/bin
 
-.PHONY: help mocks tools proto sqlc lint test cover build run-api run-worker tidy
+.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci run-api run-worker tidy
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
@@ -25,14 +25,23 @@ proto: ## resolve deps, lint, and generate from proto (needs PATH=$$PATH:$(GOBIN
 lint: ## run golangci-lint (enforces hexagonal import boundaries)
 	golangci-lint run ./...
 
-test: ## run tests with race + coverage
+vet: ## run go vet
+	go vet ./...
+
+test: ## run tests with race + coverage (Docker-gated integration tests skip fast if Docker is down)
 	go test -race -coverprofile=coverage.out ./...
+
+test-short: ## run tests fast, skipping the testcontainers integration tests
+	go test -short ./...
 
 cover: test ## show total coverage
 	go tool cover -func=coverage.out | tail -1
 
 build: ## compile everything
 	go build ./...
+
+ci: build vet lint test ## run the full local CI (build, vet, lint, race tests) — run this before pushing
+	@echo "local CI passed — safe to push"
 
 run-api: ## run the API + REST gateway
 	go run ./cmd/api

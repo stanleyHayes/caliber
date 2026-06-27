@@ -27,6 +27,7 @@ func TestMigrationsApplyAgainstPgvector(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping testcontainers integration test in -short mode")
 	}
+	skipIfNoDocker(t)
 	ctx := context.Background()
 	ctr, err := postgres.Run(ctx, "pgvector/pgvector:pg17",
 		postgres.WithDatabase("caliber"),
