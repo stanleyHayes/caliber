@@ -15,11 +15,22 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/talent"
 )
 
+// recallWindow is the recall + scoring budget per shortlist run: how many
+// candidates are pulled and scored before paginating. It is deliberately larger
+// than a display page so PoolDepth reflects the true count of strong matches in
+// the pool, not just the current page. For the POC's pool sizes this captures the
+// whole pool, so the "N strong matches" signal (CAL-055) is exact; at large scale
+// it bounds the count to the top of the recall (heavy scoring moves async, CAL-067).
+const recallWindow = 100
+
 // ShortlistResult is the outcome of a shortlist run: the surviving ranked
 // matches and the candidates removed by hard filters, each with a reason.
 type ShortlistResult struct {
 	Matches    []*matchingdom.Match
 	Exclusions []matchingdom.Exclusion
+	// PoolDepth is the total number of strong matches found across the recalled
+	// pool, independent of how many are returned on the current page (CAL-055).
+	PoolDepth int
 }
 
 // Shortlister produces an explainable ranked shortlist for a role (Flow A):
@@ -88,7 +99,7 @@ func (s *Shortlister) GenerateShortlist(ctx context.Context, roleID kernel.ID, l
 	if err != nil {
 		return nil, err
 	}
-	candidateIDs, err := s.recaller.Recall(ctx, emb, limit)
+	candidateIDs, err := s.recaller.Recall(ctx, emb, recallWindow)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +111,17 @@ func (s *Shortlister) GenerateShortlist(ctx context.Context, roleID kernel.ID, l
 	sort.SliceStable(result.Matches, func(i, j int) bool {
 		return result.Matches[i].OverallScore > result.Matches[j].OverallScore
 	})
-	return result, s.persist(ctx, result.Matches)
+	if err := s.persist(ctx, result.Matches); err != nil {
+		return nil, err
+	}
+	// PoolDepth is the full count of strong matches; the returned Matches are the
+	// requested page (the top `limit`), so the "N in your pool" signal stays true
+	// even when the page shows fewer.
+	result.PoolDepth = len(result.Matches)
+	if limit > 0 && len(result.Matches) > limit {
+		result.Matches = result.Matches[:limit]
+	}
+	return result, nil
 }
 
 // screenAndScore evaluates every recalled candidate through the hard filters

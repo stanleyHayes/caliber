@@ -36,7 +36,7 @@ func (s *MatchServer) GenerateShortlist(
 		return nil, errToStatus(err)
 	}
 	sl := shortlistToProto(result)
-	sl.Page = pageResponseToProto(pageFromProto(req.GetPage()), int64(len(result.Matches)))
+	sl.Page = pageResponseToProto(pageFromProto(req.GetPage()), int64(result.PoolDepth))
 	return &caliberv1.GenerateShortlistResponse{Shortlist: sl}, nil
 }
 
@@ -51,7 +51,7 @@ func (s *MatchServer) RefineShortlist(
 		return nil, errToStatus(err)
 	}
 	sl := shortlistToProto(result)
-	sl.Page = pageResponseToProto(pageFromProto(req.GetPage()), int64(len(result.Matches)))
+	sl.Page = pageResponseToProto(pageFromProto(req.GetPage()), int64(result.PoolDepth))
 	return &caliberv1.RefineShortlistResponse{Shortlist: sl}, nil
 }
 
@@ -99,7 +99,7 @@ func shortlistToProto(result *matchingapp.ShortlistResult) *caliberv1.Shortlist 
 	}
 	return &caliberv1.Shortlist{
 		Matches:    protoMatches,
-		PoolDepth:  int32(len(protoMatches)), //nolint:gosec // shortlist length is small and bounded
+		PoolDepth:  int32(result.PoolDepth), //nolint:gosec // pool depth is small and bounded by recallWindow
 		Exclusions: exclusions,
 	}
 }

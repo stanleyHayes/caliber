@@ -88,7 +88,7 @@ func TestGenerateShortlistRanksAndPersists(t *testing.T) {
 
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
 	d.embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1, 0.2}, nil)
-	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), 10).Return([]kernel.ID{c1, c2}, nil)
+	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{c1, c2}, nil)
 	d.candidates.EXPECT().ByID(gomock.Any(), c1).Return(candidateAt(t, "Accra"), nil)
 	d.candidates.EXPECT().ByID(gomock.Any(), c2).Return(candidateAt(t, "Accra"), nil)
 	d.profiles.EXPECT().ByCandidateID(gomock.Any(), c1).Return(profileFor(t, c1), nil)
@@ -102,6 +102,7 @@ func TestGenerateShortlistRanksAndPersists(t *testing.T) {
 	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
 	require.NoError(t, err)
 	require.Len(t, res.Matches, 2)
+	assert.Equal(t, 2, res.PoolDepth, "pool depth equals the strong-match total")
 	assert.Empty(t, res.Exclusions)
 	assert.Equal(t, c2, res.Matches[0].CandidateID, "candidate scored 0.9 ranks first")
 	assert.InDelta(t, 0.9, res.Matches[0].OverallScore, 1e-9)
@@ -292,4 +293,32 @@ func TestGenerateShortlistRemoteRoleSkipsLocation(t *testing.T) {
 	require.Len(t, res.Matches, 1)
 	assert.Equal(t, cid, res.Matches[0].CandidateID)
 	assert.Empty(t, res.Exclusions)
+}
+
+// TestGenerateShortlistPoolDepthExceedsPage proves the CAL-055 fix: pool_depth is
+// the total strong-match count, not the page length. Three candidates all match,
+// but a page size of 2 returns only the top two — while PoolDepth still reports 3.
+func TestGenerateShortlistPoolDepthExceedsPage(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := validRole(t)
+	c1, c2, c3 := kernel.NewID(), kernel.NewID(), kernel.NewID()
+
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.1}, nil)
+	d.recaller.EXPECT().Recall(gomock.Any(), gomock.Any(), gomock.Any()).Return([]kernel.ID{c1, c2, c3}, nil)
+	for _, c := range []kernel.ID{c1, c2, c3} {
+		d.candidates.EXPECT().ByID(gomock.Any(), c).Return(candidateAt(t, "Accra"), nil)
+		d.profiles.EXPECT().ByCandidateID(gomock.Any(), c).Return(profileFor(t, c), nil)
+	}
+	// All three clear the must-have gate and are scored; all three are persisted.
+	d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score09}, nil)
+	d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score06}, nil)
+	d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score06}, nil)
+	d.matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil).Times(3)
+
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 2)
+	require.NoError(t, err)
+	assert.Len(t, res.Matches, 2, "the page returns only the top two")
+	assert.Equal(t, 3, res.PoolDepth, "but the pool depth reflects all three strong matches")
 }
