@@ -31,6 +31,9 @@ func NewAgentServer(runner *candidateagentapp.AgentRunner, apps agentdom.Applica
 // RunAgent runs an agent pass inline and returns a job id (the run is already
 // complete; an async queue lands with EPIC-03).
 func (s *AgentServer) RunAgent(ctx context.Context, req *caliberv1.RunAgentRequest) (*caliberv1.RunAgentResponse, error) {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+		return nil, errToStatus(err)
+	}
 	view, err := s.runner.Run(ctx, kernel.ID(req.GetCandidateId()), 0)
 	if err != nil {
 		return nil, errToStatus(err)
@@ -41,6 +44,9 @@ func (s *AgentServer) RunAgent(ctx context.Context, req *caliberv1.RunAgentReque
 
 // TimeAdvance runs the agent "overnight" and returns the wake-up view.
 func (s *AgentServer) TimeAdvance(ctx context.Context, req *caliberv1.TimeAdvanceRequest) (*caliberv1.TimeAdvanceResponse, error) {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+		return nil, errToStatus(err)
+	}
 	view, err := s.runner.Run(ctx, kernel.ID(req.GetCandidateId()), 0)
 	if err != nil {
 		return nil, errToStatus(err)
@@ -51,8 +57,11 @@ func (s *AgentServer) TimeAdvance(ctx context.Context, req *caliberv1.TimeAdvanc
 
 // GetWakeUpView returns the last remembered wake-up view (zero if none yet).
 func (s *AgentServer) GetWakeUpView(
-	_ context.Context, req *caliberv1.GetWakeUpViewRequest,
+	ctx context.Context, req *caliberv1.GetWakeUpViewRequest,
 ) (*caliberv1.GetWakeUpViewResponse, error) {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+		return nil, errToStatus(err)
+	}
 	s.mu.Lock()
 	view := s.wakeups[req.GetCandidateId()]
 	s.mu.Unlock()
@@ -63,6 +72,9 @@ func (s *AgentServer) GetWakeUpView(
 func (s *AgentServer) ListApplications(
 	ctx context.Context, req *caliberv1.ListApplicationsRequest,
 ) (*caliberv1.ListApplicationsResponse, error) {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+		return nil, errToStatus(err)
+	}
 	page := pageFromProto(req.GetPage())
 	apps, total, err := s.apps.ByCandidate(ctx, kernel.ID(req.GetCandidateId()), page)
 	if err != nil {

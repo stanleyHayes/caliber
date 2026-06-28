@@ -65,7 +65,7 @@ func TestFlowCEndToEnd(t *testing.T) {
 	srv := NewAgentServer(runner, appsRepo)
 
 	// "Run overnight".
-	resp, err := srv.TimeAdvance(ctx, &caliberv1.TimeAdvanceRequest{CandidateId: cand.ID.String()})
+	resp, err := srv.TimeAdvance(asCandidate(ctx, cand.ID), &caliberv1.TimeAdvanceRequest{CandidateId: cand.ID.String()})
 	require.NoError(t, err)
 	wake := resp.GetWakeUp()
 	assert.GreaterOrEqual(t, wake.GetApplicationsSubmitted(), int32(1), "the agent tailored and submitted an application")

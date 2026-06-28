@@ -8,10 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/app"
 	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/domain/talent"
@@ -47,16 +50,16 @@ func TestAgentTimeAdvanceThenWakeUpAndList(t *testing.T) {
 
 	srv := NewAgentServer(candidateagentapp.NewAgentRunner(candidates, profiles, roles, apps, llm), apps)
 
-	adv, err := srv.TimeAdvance(context.Background(), &caliberv1.TimeAdvanceRequest{CandidateId: cid.String()})
+	adv, err := srv.TimeAdvance(asCandidate(context.Background(), cid), &caliberv1.TimeAdvanceRequest{CandidateId: cid.String()})
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), adv.GetWakeUp().GetApplicationsSubmitted())
 	assert.NotEmpty(t, adv.GetWakeUp().GetHighlights())
 
-	wv, err := srv.GetWakeUpView(context.Background(), &caliberv1.GetWakeUpViewRequest{CandidateId: cid.String()})
+	wv, err := srv.GetWakeUpView(asCandidate(context.Background(), cid), &caliberv1.GetWakeUpViewRequest{CandidateId: cid.String()})
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), wv.GetWakeUp().GetApplicationsSubmitted(), "the last run is remembered")
 
-	la, err := srv.ListApplications(context.Background(),
+	la, err := srv.ListApplications(asCandidate(context.Background(), cid),
 		&caliberv1.ListApplicationsRequest{CandidateId: cid.String(), Page: &caliberv1.PageRequest{Page: 1, PageSize: 10}})
 	require.NoError(t, err)
 	require.Len(t, la.GetApplications(), 1)
@@ -74,7 +77,31 @@ func TestAgentGetWakeUpViewEmpty(t *testing.T) {
 			mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl),
 			mocks.NewMockRoleRepository(ctrl), memory.NewApplicationRepo(), mocks.NewMockLLMClient(ctrl)),
 		memory.NewApplicationRepo())
-	resp, err := srv.GetWakeUpView(context.Background(), &caliberv1.GetWakeUpViewRequest{CandidateId: kernel.NewID().String()})
+	cid := kernel.NewID()
+	resp, err := srv.GetWakeUpView(asCandidate(context.Background(), cid), &caliberv1.GetWakeUpViewRequest{CandidateId: cid.String()})
 	require.NoError(t, err)
 	assert.Equal(t, int32(0), resp.GetWakeUp().GetApplicationsSubmitted())
+}
+
+func asCandidate(ctx context.Context, candidateID kernel.ID) context.Context {
+	return context.WithValue(ctx, principalKey{}, app.Principal{UserID: candidateID, Role: identity.RoleCandidate.String()})
+}
+
+func TestAgentRequiresSelfCandidate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	srv := NewAgentServer(
+		candidateagentapp.NewAgentRunner(
+			mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl),
+			mocks.NewMockRoleRepository(ctrl), memory.NewApplicationRepo(), mocks.NewMockLLMClient(ctrl)),
+		memory.NewApplicationRepo())
+	target := kernel.NewID()
+
+	// A different candidate cannot run someone else's agent.
+	_, err := srv.TimeAdvance(asCandidate(context.Background(), kernel.NewID()),
+		&caliberv1.TimeAdvanceRequest{CandidateId: target.String()})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	// An unauthenticated caller is rejected.
+	_, err = srv.TimeAdvance(context.Background(), &caliberv1.TimeAdvanceRequest{CandidateId: target.String()})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }

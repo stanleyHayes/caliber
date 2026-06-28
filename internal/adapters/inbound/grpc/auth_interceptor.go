@@ -83,3 +83,19 @@ func RequireRole(ctx context.Context, allowed ...identity.Role) (app.Principal, 
 	}
 	return app.Principal{}, kernel.Forbidden("auth: insufficient permissions for this operation")
 }
+
+// requireSelfCandidate authorizes a candidate acting on their OWN data: the caller
+// must be a candidate whose id matches the target candidate id, preventing one
+// candidate from operating on another's agent/profile (IDOR). Registered
+// candidates have candidate.ID == user.ID (the provisioner), so the principal's
+// UserID is their candidate id.
+func requireSelfCandidate(ctx context.Context, candidateID string) error {
+	p, err := RequireRole(ctx, identity.RoleCandidate)
+	if err != nil {
+		return err
+	}
+	if p.UserID.String() != candidateID {
+		return kernel.Forbidden("auth: candidates may only act on their own data")
+	}
+	return nil
+}
