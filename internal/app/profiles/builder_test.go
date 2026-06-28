@@ -76,6 +76,61 @@ func TestCreateFromCVDropsUnevidencedCompetencies(t *testing.T) {
 	assert.NotEmpty(t, out.Competencies[0].EvidenceQuote, "every surviving competency carries CV evidence")
 }
 
+func TestCreateFromCVUpdatesExistingProfile(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	llm := mocks.NewMockLLMClient(ctrl)
+	cid := kernel.NewID()
+	cand, err := talent.NewCandidate(kernel.NewID(), "", talent.CandidateIntake{})
+	require.NoError(t, err)
+	existing, err := talent.NewTalentProfile(cid, "stale summary",
+		[]talent.ProfileCompetency{{Name: "COBOL", Level: 2, EvidenceQuote: "old cv", SourceSpan: "line 1"}})
+	require.NoError(t, err)
+
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: extractJSON}, nil)
+	candidates.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	// A profile already exists -> the upsert takes the update branch, not Create.
+	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(existing, nil)
+	var updated *talent.TalentProfile
+	profiles.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, p *talent.TalentProfile) error { updated = p; return nil })
+
+	out, err := profilesapp.NewProfileBuilder(candidates, profiles, llm).
+		CreateFromCV(context.Background(), cid, "I built services in Go", talent.CandidateIntake{})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Same(t, existing, out, "the existing profile record is updated in place, not replaced")
+	assert.Equal(t, "Senior engineer.", out.Summary, "summary is refreshed from the new extraction")
+	require.Len(t, out.Competencies, 1)
+	assert.Equal(t, "Go", out.Competencies[0].Name, "competencies are replaced, the stale COBOL entry is gone")
+}
+
+func TestGetProfileReturnsProfile(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	cid := kernel.NewID()
+	prof, err := talent.NewTalentProfile(cid, "summary",
+		[]talent.ProfileCompetency{{Name: "Go", Level: 4, EvidenceQuote: "built services", SourceSpan: "line 3"}})
+	require.NoError(t, err)
+	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(prof, nil)
+
+	b := profilesapp.NewProfileBuilder(mocks.NewMockCandidateRepository(ctrl), profiles, mocks.NewMockLLMClient(ctrl))
+	out, err := b.GetProfile(context.Background(), cid)
+	require.NoError(t, err)
+	assert.Equal(t, prof, out)
+}
+
+func TestGetProfileNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	profiles.EXPECT().ByCandidateID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("none"))
+	b := profilesapp.NewProfileBuilder(mocks.NewMockCandidateRepository(ctrl), profiles, mocks.NewMockLLMClient(ctrl))
+	_, err := b.GetProfile(context.Background(), kernel.NewID())
+	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
+}
+
 func TestCreateFromCVRejectsEmptyCV(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	b := profilesapp.NewProfileBuilder(mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl), mocks.NewMockLLMClient(ctrl))
