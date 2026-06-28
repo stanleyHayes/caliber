@@ -94,10 +94,12 @@ export function ShortlistSection({ roleId, version }: { roleId: string; version:
             <Stack spacing={1}>
               {exclusions.map((e, i) => (
                 <Box key={i}>
-                  <Typography variant="body2">
-                    <Chip size="small" variant="outlined" label={e.gate} sx={{ mr: 1 }} />
-                    {shortId(e.candidateId)}
-                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    <Chip size="small" variant="outlined" label={e.gate} />
+                    <Typography variant="body2" component="span">
+                      {shortId(e.candidateId)}
+                    </Typography>
+                  </Stack>
                   <Typography variant="caption" color="text.secondary">
                     {e.reason}
                   </Typography>
