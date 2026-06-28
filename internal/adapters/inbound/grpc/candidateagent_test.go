@@ -70,6 +70,54 @@ func TestAgentTimeAdvanceThenWakeUpAndList(t *testing.T) {
 	assert.Equal(t, int64(1), la.GetPage().GetTotalItems())
 }
 
+func TestAgentRunAgentRemembersWakeUp(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	roles := mocks.NewMockRoleRepository(ctrl)
+	llm := mocks.NewMockLLMClient(ctrl)
+	apps := memory.NewApplicationRepo()
+
+	cid := kernel.NewID()
+	cand, err := talent.NewCandidate(kernel.NewID(), "Accra", talent.CandidateIntake{})
+	require.NoError(t, err)
+	profile, err := talent.NewTalentProfile(cid, "s", []talent.ProfileCompetency{{Name: "Go", Level: 4, EvidenceQuote: "x"}})
+	require.NoError(t, err)
+	rl, err := role.NewRole(kernel.NewID(),
+		role.RoleSpec{Title: "Backend Engineer", Location: "Accra", Seniority: role.SeniorityMid},
+		role.Rubric{Competencies: []role.Competency{{Name: "Go", Weight: 0.6, MustHave: true}, {Name: "SQL", Weight: 0.4}}},
+		time.Unix(1, 0))
+	require.NoError(t, err)
+
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil).AnyTimes()
+	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(profile, nil).AnyTimes()
+	roles.EXPECT().ListOpen(gomock.Any(), gomock.Any()).Return([]*role.Role{rl}, int64(1), nil).AnyTimes()
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: agentAssessJSON}, nil).AnyTimes()
+
+	srv := NewAgentServer(candidateagentapp.NewAgentRunner(candidates, profiles, roles, apps, llm), apps)
+
+	// RunAgent completes inline and returns a job id.
+	run, err := srv.RunAgent(asCandidate(context.Background(), cid), &caliberv1.RunAgentRequest{CandidateId: cid.String()})
+	require.NoError(t, err)
+	assert.NotEmpty(t, run.GetJobId())
+
+	// The run is remembered: GetWakeUpView reflects the application it submitted.
+	wv, err := srv.GetWakeUpView(asCandidate(context.Background(), cid), &caliberv1.GetWakeUpViewRequest{CandidateId: cid.String()})
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), wv.GetWakeUp().GetApplicationsSubmitted(), "RunAgent remembers its wake-up view")
+}
+
+func TestAgentRunAgentRequiresSelfCandidate(t *testing.T) {
+	srv := NewAgentServer(nil, nil)
+	target := kernel.NewID()
+	// A different candidate cannot run someone else's agent.
+	_, err := srv.RunAgent(asCandidate(context.Background(), kernel.NewID()), &caliberv1.RunAgentRequest{CandidateId: target.String()})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	// Unauthenticated is rejected.
+	_, err = srv.RunAgent(context.Background(), &caliberv1.RunAgentRequest{CandidateId: target.String()})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
 func TestAgentGetWakeUpViewEmpty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	srv := NewAgentServer(
