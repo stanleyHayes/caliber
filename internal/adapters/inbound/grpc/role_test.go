@@ -8,6 +8,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/app/roles"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 
@@ -24,14 +25,14 @@ func newServer() *RoleServer {
 
 func generatedRole(t *testing.T, srv *RoleServer) *caliberv1.Role {
 	t.Helper()
-	gen, err := srv.GenerateRoleSpec(context.Background(),
+	gen, err := srv.GenerateRoleSpec(asRole(context.Background(), identity.RoleEmployer),
 		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer in Accra"})
 	require.NoError(t, err)
 	return gen.GetRole()
 }
 
 func TestGenerateRoleSpecHandler(t *testing.T) {
-	resp, err := newServer().GenerateRoleSpec(context.Background(),
+	resp, err := newServer().GenerateRoleSpec(asRole(context.Background(), identity.RoleEmployer),
 		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer in Accra"})
 	require.NoError(t, err)
 	got := resp.GetRole()
@@ -48,14 +49,14 @@ func (c stubCounter) CountAvailable(context.Context, kernel.ID) (int, error) { r
 func TestGenerateRoleSpecSurfacesAvailableMatches(t *testing.T) {
 	repo := memory.NewRoleRepo()
 	srv := NewRoleServer(roles.NewSpecGenerator(llm.NewDev(), repo, time.Now), roles.NewSpecEditor(repo), stubCounter{n: 7})
-	resp, err := srv.GenerateRoleSpec(context.Background(),
+	resp, err := srv.GenerateRoleSpec(asRole(context.Background(), identity.RoleEmployer),
 		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer in Accra"})
 	require.NoError(t, err)
 	assert.Equal(t, int32(7), resp.GetAvailableMatches(), "the instant pool-depth signal is returned with the role")
 }
 
 func TestGenerateRoleSpecInvalid(t *testing.T) {
-	_, err := newServer().GenerateRoleSpec(context.Background(),
+	_, err := newServer().GenerateRoleSpec(asRole(context.Background(), identity.RoleEmployer),
 		&caliberv1.GenerateRoleSpecRequest{EmployerId: "", FreeText: "x"})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
@@ -63,20 +64,20 @@ func TestGenerateRoleSpecInvalid(t *testing.T) {
 func TestGetRoleHandler(t *testing.T) {
 	srv := newServer()
 	id := generatedRole(t, srv).GetId()
-	got, err := srv.GetRole(context.Background(), &caliberv1.GetRoleRequest{RoleId: id})
+	got, err := srv.GetRole(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GetRoleRequest{RoleId: id})
 	require.NoError(t, err)
 	assert.Equal(t, id, got.GetRole().GetId())
 }
 
 func TestGetRoleNotFound(t *testing.T) {
-	_, err := newServer().GetRole(context.Background(), &caliberv1.GetRoleRequest{RoleId: kernel.NewID().String()})
+	_, err := newServer().GetRole(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GetRoleRequest{RoleId: kernel.NewID().String()})
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestUpdateRoleSpecReweights(t *testing.T) {
 	srv := newServer()
 	role := generatedRole(t, srv)
-	resp, err := srv.UpdateRoleSpec(context.Background(), &caliberv1.UpdateRoleSpecRequest{
+	resp, err := srv.UpdateRoleSpec(asRole(context.Background(), identity.RoleEmployer), &caliberv1.UpdateRoleSpecRequest{
 		RoleId: role.GetId(),
 		Spec:   role.GetSpec(),
 		Rubric: &caliberv1.Rubric{Competencies: []*caliberv1.Competency{
@@ -97,7 +98,7 @@ func TestUpdateRoleSpecReweights(t *testing.T) {
 
 func TestUpdateRoleSpecNotFound(t *testing.T) {
 	srv := newServer()
-	_, err := srv.UpdateRoleSpec(context.Background(), &caliberv1.UpdateRoleSpecRequest{
+	_, err := srv.UpdateRoleSpec(asRole(context.Background(), identity.RoleEmployer), &caliberv1.UpdateRoleSpecRequest{
 		RoleId: kernel.NewID().String(),
 		Spec:   &caliberv1.RoleSpec{Title: "X", Seniority: caliberv1.Seniority_SENIORITY_MID},
 		Rubric: &caliberv1.Rubric{Competencies: []*caliberv1.Competency{{Name: "Go", Weight: 1}}},
@@ -109,13 +110,25 @@ func TestListRolesHandler(t *testing.T) {
 	srv := newServer()
 	emp := kernel.NewID()
 	for _, txt := range []string{"Go engineer Accra", "Frontend engineer Kumasi"} {
-		_, err := srv.GenerateRoleSpec(context.Background(),
+		_, err := srv.GenerateRoleSpec(asRole(context.Background(), identity.RoleEmployer),
 			&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: txt})
 		require.NoError(t, err)
 	}
-	resp, err := srv.ListRoles(context.Background(),
+	resp, err := srv.ListRoles(asRole(context.Background(), identity.RoleEmployer),
 		&caliberv1.ListRolesRequest{EmployerId: emp.String(), Page: &caliberv1.PageRequest{Page: 1, PageSize: 10}})
 	require.NoError(t, err)
 	assert.Len(t, resp.GetRoles(), 2)
 	assert.Equal(t, int64(2), resp.GetPage().GetTotalItems())
+}
+
+func TestRoleWritesRequireReviewer(t *testing.T) {
+	srv := newServer()
+	// A candidate cannot create a role.
+	_, err := srv.GenerateRoleSpec(asRole(context.Background(), identity.RoleCandidate),
+		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer"})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	// An unauthenticated caller cannot create a role.
+	_, err = srv.GenerateRoleSpec(context.Background(),
+		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer"})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }

@@ -54,7 +54,7 @@ func TestFlowAEndToEnd(t *testing.T) {
 		roles.NewSpecGenerator(llm.NewDev(), roleRepo, time.Now), roles.NewSpecEditor(roleRepo), matchSrv.AvailabilityCounter())
 
 	// 1) Messy sentence -> structured spec + rubric + instant availability.
-	gen, err := roleSrv.GenerateRoleSpec(ctx, &caliberv1.GenerateRoleSpecRequest{
+	gen, err := roleSrv.GenerateRoleSpec(asRole(ctx, identity.RoleEmployer), &caliberv1.GenerateRoleSpecRequest{
 		EmployerId: kernel.NewID().String(),
 		FreeText:   "Senior Go engineer in Accra to lead our payments platform",
 	})
