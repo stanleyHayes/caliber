@@ -2,6 +2,7 @@ package contest_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -61,6 +62,37 @@ func TestListForCandidate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 	assert.Equal(t, want, got)
+}
+
+func TestListForSubject(t *testing.T) {
+	svc, contests, _ := deps(t)
+	sid := kernel.NewID()
+	want := []*contestdom.Contest{{ID: kernel.NewID(), SubjectID: sid}}
+	contests.EXPECT().BySubject(gomock.Any(), sid, gomock.Any()).Return(want, int64(1), nil)
+
+	got, total, err := svc.ListForSubject(context.Background(), sid, kernel.NewPage(1, 10))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	assert.Equal(t, want, got)
+}
+
+func TestRaise_PropagatesCreateFailure(t *testing.T) {
+	svc, contests, _ := deps(t) // no Append: a failed create logs no "raised" audit
+	contests.EXPECT().Create(gomock.Any(), gomock.Any()).Return(kernel.Conflict("dup"))
+
+	_, err := svc.Raise(context.Background(), kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "a real reason")
+	assert.Equal(t, kernel.KindConflict, kernel.KindOf(err))
+}
+
+func TestResolve_PropagatesUpdateFailure(t *testing.T) {
+	svc, contests, _ := deps(t) // no Append: a failed update logs no "resolved" audit
+	open, err := contestdom.NewContest(kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "missed evidence", clock())
+	require.NoError(t, err)
+	contests.EXPECT().ByID(gomock.Any(), open.ID).Return(open, nil)
+	contests.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("db down"))
+
+	_, err = svc.Resolve(context.Background(), kernel.NewID(), open.ID, true, "agreed")
+	require.Error(t, err)
 }
 
 func TestResolve_UpholdLoadsUpdatesAudits(t *testing.T) {
