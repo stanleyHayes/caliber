@@ -58,7 +58,7 @@ func TestGenerateShortlistHandler(t *testing.T) {
 	cid := kernel.NewID()
 
 	srv := NewMatchServer(shortlisterWithOneMatch(t, ctrl, rl, cid), nil, nil)
-	resp, err := srv.GenerateShortlist(asRole(context.Background(), identity.RoleEmployer),
+	resp, err := srv.GenerateShortlist(asEmployer(context.Background(), rl.EmployerID),
 		&caliberv1.GenerateShortlistRequest{RoleId: rl.ID.String(), Page: &caliberv1.PageRequest{PageSize: 5}})
 	require.NoError(t, err)
 
@@ -112,7 +112,7 @@ func TestGenerateShortlistHandlerExclusions(t *testing.T) {
 
 	s := matchingapp.NewShortlister(roles, candidates, mocks.NewMockTalentProfileRepository(ctrl),
 		recaller, embedder, mocks.NewMockLLMClient(ctrl), mocks.NewMockMatchRepository(ctrl))
-	resp, err := NewMatchServer(s, nil, nil).GenerateShortlist(asRole(context.Background(), identity.RoleEmployer),
+	resp, err := NewMatchServer(s, nil, nil).GenerateShortlist(asEmployer(context.Background(), rl.EmployerID),
 		&caliberv1.GenerateShortlistRequest{RoleId: rl.ID.String()})
 	require.NoError(t, err)
 
@@ -156,7 +156,7 @@ func TestRefineShortlistHandler(t *testing.T) {
 
 	shortlister := matchingapp.NewShortlister(roles, candidates, profiles, recaller, embedder, scorer, matchRepo)
 	srv := NewMatchServer(shortlister, matchingapp.NewRefiner(roles, shortlister), nil)
-	resp, err := srv.RefineShortlist(asRole(context.Background(), identity.RoleEmployer), &caliberv1.RefineShortlistRequest{
+	resp, err := srv.RefineShortlist(asEmployer(context.Background(), rl.EmployerID), &caliberv1.RefineShortlistRequest{
 		RoleId: rl.ID.String(),
 		Spec:   &caliberv1.RoleSpec{Title: "Backend Engineer", Location: "Accra", Seniority: caliberv1.Seniority_SENIORITY_MID},
 		Rubric: &caliberv1.Rubric{Competencies: []*caliberv1.Competency{
@@ -178,4 +178,27 @@ func TestGenerateShortlistRequiresReviewer(t *testing.T) {
 	// An unauthenticated caller is rejected.
 	_, err = srv.GenerateShortlist(context.Background(), req)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+// TestGenerateShortlistRejectsOtherEmployer is the Flow A IDOR guard (CAL-116):
+// an employer may shortlist their OWN roles only. A reviewer who passes the RBAC
+// check but does not own the role is denied before any recall/scoring runs.
+func TestGenerateShortlistRejectsOtherEmployer(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	rl, err := role.NewRole(kernel.NewID(),
+		role.RoleSpec{Title: "Backend Engineer", Seniority: role.SeniorityMid},
+		role.Rubric{Competencies: []role.Competency{{Name: "Go", Weight: 1, MustHave: true}}},
+		time.Unix(1, 0))
+	require.NoError(t, err)
+
+	roles := mocks.NewMockRoleRepository(ctrl)
+	roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	s := matchingapp.NewShortlister(roles, mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl),
+		mocks.NewMockCandidateRecaller(ctrl), mocks.NewMockEmbedder(ctrl), mocks.NewMockLLMClient(ctrl),
+		mocks.NewMockMatchRepository(ctrl))
+
+	// A different employer (not rl.EmployerID) is forbidden — no embed/recall expected.
+	_, err = NewMatchServer(s, nil, nil).GenerateShortlist(asEmployer(context.Background(), kernel.NewID()),
+		&caliberv1.GenerateShortlistRequest{RoleId: rl.ID.String()})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }

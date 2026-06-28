@@ -22,11 +22,15 @@ func NewRefiner(roles role.RoleRepository, shortlister *Shortlister) *Refiner {
 // Refine applies the spec and re-normalized rubric to the role, persists the
 // change, and returns a freshly ranked shortlist.
 func (r *Refiner) Refine(
-	ctx context.Context, roleID kernel.ID, spec role.RoleSpec, rubric role.Rubric, limit int,
+	ctx context.Context, roleID, actorUserID kernel.ID, spec role.RoleSpec, rubric role.Rubric, limit int,
 ) (*ShortlistResult, error) {
 	rl, err := r.roles.ByID(ctx, roleID)
 	if err != nil {
 		return nil, err
+	}
+	// Ownership (CAL-116 IDOR guard): only the owning employer may refine the role.
+	if rl.EmployerID != actorUserID {
+		return nil, kernel.Forbidden("matching: may only refine your own roles")
 	}
 	if err := rl.Revise(spec, rubric.Normalize()); err != nil {
 		return nil, err
@@ -34,5 +38,5 @@ func (r *Refiner) Refine(
 	if err := r.roles.Update(ctx, rl); err != nil {
 		return nil, err
 	}
-	return r.shortlister.GenerateShortlist(ctx, roleID, limit)
+	return r.shortlister.GenerateShortlist(ctx, roleID, actorUserID, limit)
 }

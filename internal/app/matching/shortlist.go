@@ -85,10 +85,17 @@ type llmScoreItem struct {
 // GenerateShortlist recalls candidates for the role, applies the hard filters,
 // scores survivors against the rubric, ranks by overall fit, persists the
 // surviving matches, and returns them alongside any filter exclusions.
-func (s *Shortlister) GenerateShortlist(ctx context.Context, roleID kernel.ID, limit int) (*ShortlistResult, error) {
+func (s *Shortlister) GenerateShortlist(
+	ctx context.Context, roleID, actorUserID kernel.ID, limit int,
+) (*ShortlistResult, error) {
 	rl, err := s.roles.ByID(ctx, roleID)
 	if err != nil {
 		return nil, err
+	}
+	// Ownership (CAL-116 IDOR guard): only the employer who owns the role may
+	// shortlist against it. Employers are users, so EmployerID is the owner's id.
+	if rl.EmployerID != actorUserID {
+		return nil, kernel.Forbidden("matching: may only shortlist your own roles")
 	}
 	// Bias-safety: the ranking and gating signals are the rubric competencies only.
 	if err := matchingdom.EnsureBiasSafe(competencyNames(rl.Rubric)); err != nil {

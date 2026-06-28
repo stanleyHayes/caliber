@@ -30,6 +30,7 @@ func NewMatchServer(
 // AvailabilityCounter exposes the shortlister as the cheap pool-availability
 // counter behind the instant pool-depth signal (consumed by RoleServer). Returns
 // a nil counter when no shortlister is wired (e.g. partially-built test servers).
+//
 //nolint:ireturn // intentionally hands RoleServer the optional counter interface, nil-safe.
 func (s *MatchServer) AvailabilityCounter() AvailabilityCounter {
 	if s.shortlister == nil {
@@ -43,10 +44,11 @@ func (s *MatchServer) AvailabilityCounter() AvailabilityCounter {
 func (s *MatchServer) GenerateShortlist(
 	ctx context.Context, req *caliberv1.GenerateShortlistRequest,
 ) (*caliberv1.GenerateShortlistResponse, error) {
-	if _, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter); err != nil {
+	principal, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	if err != nil {
 		return nil, errToStatus(err)
 	}
-	result, err := s.shortlister.GenerateShortlist(ctx, kernel.ID(req.GetRoleId()), pageLimit(req.GetPage()))
+	result, err := s.shortlister.GenerateShortlist(ctx, kernel.ID(req.GetRoleId()), principal.UserID, pageLimit(req.GetPage()))
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -60,11 +62,13 @@ func (s *MatchServer) GenerateShortlist(
 func (s *MatchServer) RefineShortlist(
 	ctx context.Context, req *caliberv1.RefineShortlistRequest,
 ) (*caliberv1.RefineShortlistResponse, error) {
-	if _, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter); err != nil {
+	principal, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	if err != nil {
 		return nil, errToStatus(err)
 	}
 	result, err := s.refiner.Refine(
-		ctx, kernel.ID(req.GetRoleId()), specFromProto(req.GetSpec()), rubricFromProto(req.GetRubric()), pageLimit(req.GetPage()),
+		ctx, kernel.ID(req.GetRoleId()), principal.UserID,
+		specFromProto(req.GetSpec()), rubricFromProto(req.GetRubric()), pageLimit(req.GetPage()),
 	)
 	if err != nil {
 		return nil, errToStatus(err)

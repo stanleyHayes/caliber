@@ -99,7 +99,7 @@ func TestGenerateShortlistRanksAndPersists(t *testing.T) {
 	)
 	d.matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
-	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, rl.EmployerID, 10)
 	require.NoError(t, err)
 	require.Len(t, res.Matches, 2)
 	assert.Equal(t, 2, res.PoolDepth, "pool depth equals the strong-match total")
@@ -139,7 +139,7 @@ func TestGenerateShortlistHardFilters(t *testing.T) {
 	)
 	d.matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
-	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 25)
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, rl.EmployerID, 25)
 	require.NoError(t, err)
 
 	require.Len(t, res.Matches, 1)
@@ -159,7 +159,7 @@ func TestGenerateShortlistRoleNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	d := newDeps(ctrl)
 	d.roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
-	_, err := d.shortlister().GenerateShortlist(context.Background(), kernel.NewID(), 10)
+	_, err := d.shortlister().GenerateShortlist(context.Background(), kernel.NewID(), kernel.NewID(), 10)
 	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
 }
 
@@ -176,7 +176,7 @@ func TestGenerateShortlistBadScoreJSON(t *testing.T) {
 	d.profiles.EXPECT().ByCandidateID(gomock.Any(), c1).Return(profileFor(t, c1), nil)
 	d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil).Times(app.DefaultLLMAttempts)
 
-	_, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	_, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, rl.EmployerID, 10)
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 }
 
@@ -211,7 +211,7 @@ func TestGenerateShortlistSkipsMissingData(t *testing.T) {
 	d.profiles.EXPECT().ByCandidateID(gomock.Any(), noProfile).Return(nil, kernel.NotFound("no profile"))
 	// No scoring, no persistence for either candidate.
 
-	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, rl.EmployerID, 10)
 	require.NoError(t, err)
 	assert.Empty(t, res.Matches)
 	assert.Empty(t, res.Exclusions)
@@ -235,7 +235,7 @@ func TestGenerateShortlistSalaryGate(t *testing.T) {
 	d.candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
 	// profiles.ByCandidateID and scorer.Complete are NEVER expected -> proves skip.
 
-	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, rl.EmployerID, 10)
 	require.NoError(t, err)
 	assert.Empty(t, res.Matches)
 	require.Len(t, res.Exclusions, 1)
@@ -259,7 +259,7 @@ func TestGenerateShortlistRejectsProtectedRubric(t *testing.T) {
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
 	// embedder.Embed / recaller.Recall / scorer.Complete are NEVER expected.
 
-	_, err = d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	_, err = d.shortlister().GenerateShortlist(context.Background(), rl.ID, rl.EmployerID, 10)
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 }
 
@@ -288,7 +288,7 @@ func TestGenerateShortlistRemoteRoleSkipsLocation(t *testing.T) {
 	d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score09}, nil)
 	d.matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil)
 
-	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, rl.EmployerID, 10)
 	require.NoError(t, err)
 	require.Len(t, res.Matches, 1)
 	assert.Equal(t, cid, res.Matches[0].CandidateID)
@@ -317,7 +317,7 @@ func TestGenerateShortlistPoolDepthExceedsPage(t *testing.T) {
 	d.scorer.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: score06}, nil)
 	d.matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil).Times(3)
 
-	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 2)
+	res, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, rl.EmployerID, 2)
 	require.NoError(t, err)
 	assert.Len(t, res.Matches, 2, "the page returns only the top two")
 	assert.Equal(t, 3, res.PoolDepth, "but the pool depth reflects all three strong matches")

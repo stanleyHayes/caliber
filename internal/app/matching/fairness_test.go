@@ -74,7 +74,7 @@ func TestScoringDependsOnlyOnCompetenciesNotIdentity(t *testing.T) {
 		}).Times(2)
 	d.matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
-	_, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	_, err := d.shortlister().GenerateShortlist(context.Background(), rl.ID, rl.EmployerID, 10)
 	require.NoError(t, err)
 
 	require.Len(t, scoringPrompts, 2)
@@ -126,7 +126,7 @@ func TestEvidenceQuotesAreScoredVerbatim(t *testing.T) {
 		})
 	d.matchRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).Return(nil)
 
-	_, err = d.shortlister().GenerateShortlist(context.Background(), rl.ID, 10)
+	_, err = d.shortlister().GenerateShortlist(context.Background(), rl.ID, rl.EmployerID, 10)
 	require.NoError(t, err)
 
 	// Evidence is scored verbatim (the candidate's words are not dropped)...
@@ -158,7 +158,7 @@ func TestBiasedRubricIsRejectedBeforeScoring(t *testing.T) {
 	// Only ByID is reached: the bias-safety gate fires before any model call.
 	d.roles.EXPECT().ByID(gomock.Any(), biased.ID).Return(biased, nil)
 
-	_, err = d.shortlister().GenerateShortlist(context.Background(), biased.ID, 10)
+	_, err = d.shortlister().GenerateShortlist(context.Background(), biased.ID, biased.EmployerID, 10)
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err),
 		"a protected attribute among ranking signals must abort the shortlist")
 }

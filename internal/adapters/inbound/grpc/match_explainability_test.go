@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
@@ -31,7 +30,7 @@ func TestShortlistExplainabilityContract(t *testing.T) {
 	cid := kernel.NewID()
 
 	srv := NewMatchServer(shortlisterWithOneMatch(t, ctrl, rl, cid), nil, nil)
-	resp, err := srv.GenerateShortlist(asRole(context.Background(), identity.RoleEmployer),
+	resp, err := srv.GenerateShortlist(asEmployer(context.Background(), rl.EmployerID),
 		&caliberv1.GenerateShortlistRequest{RoleId: rl.ID.String(), Page: &caliberv1.PageRequest{PageSize: 10}})
 	require.NoError(t, err)
 

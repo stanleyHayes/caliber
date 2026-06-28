@@ -34,7 +34,7 @@ func TestRefinerRevisesPersistsAndReRanks(t *testing.T) {
 	newRubric := role.Rubric{Competencies: []role.Competency{
 		{Name: "Go", Weight: 3, MustHave: true}, {Name: "SQL", Weight: 1},
 	}}
-	res, err := refiner.Refine(context.Background(), rl.ID, rl.Spec, newRubric, 10)
+	res, err := refiner.Refine(context.Background(), rl.ID, rl.EmployerID, rl.Spec, newRubric, 10)
 	require.NoError(t, err)
 	require.Len(t, res.Matches, 1)
 	assert.Equal(t, cid, res.Matches[0].CandidateID)
@@ -47,6 +47,19 @@ func TestRefinerRoleNotFound(t *testing.T) {
 	d := newDeps(ctrl)
 	d.roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
 	refiner := matchingapp.NewRefiner(d.roles, d.shortlister())
-	_, err := refiner.Refine(context.Background(), kernel.NewID(), role.RoleSpec{}, role.Rubric{}, 10)
+	_, err := refiner.Refine(context.Background(), kernel.NewID(), kernel.NewID(), role.RoleSpec{}, role.Rubric{}, 10)
 	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
+}
+
+// TestRefinerRejectsOtherEmployer locks the Flow A IDOR guard (CAL-116): an
+// employer may refine their OWN role only. A non-owner is forbidden and the role
+// is never revised or persisted (no Update, no re-rank).
+func TestRefinerRejectsOtherEmployer(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := validRole(t)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	refiner := matchingapp.NewRefiner(d.roles, d.shortlister())
+	_, err := refiner.Refine(context.Background(), rl.ID, kernel.NewID(), rl.Spec, rl.Rubric, 10)
+	assert.Equal(t, kernel.KindForbidden, kernel.KindOf(err))
 }
