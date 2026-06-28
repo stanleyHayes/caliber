@@ -2,6 +2,7 @@ package interview_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -199,6 +200,62 @@ func TestReportReturnsCompletedCard(t *testing.T) {
 	card, err := interviewer.Report(context.Background(), iv.ID)
 	require.NoError(t, err)
 	assert.Equal(t, interviewdom.VerdictAdvance, card.Verdict)
+}
+
+func TestStartPropagatesQuestionGenerationFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	// The first-question LLM call fails: Start must surface it and never persist.
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{}, errors.New("model down"))
+
+	iv := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	_, _, err := iv.Start(context.Background(), rl.ID, kernel.NewID(), interviewdom.ModeText)
+	require.Error(t, err)
+}
+
+func TestStartPropagatesPersistFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: questionJSON}, nil)
+	d.interviews.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db down"))
+
+	iv := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	_, _, err := iv.Start(context.Background(), rl.ID, kernel.NewID(), interviewdom.ModeText)
+	require.Error(t, err)
+}
+
+func TestAnswerPropagatesRoleLookupFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	iv := askingInterview(t, rl.ID)
+	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
+	// The role load (after recording the answer) fails: surfaced, nothing scored.
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(nil, kernel.NotFound("gone"))
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	_, _, err := interviewer.Answer(context.Background(), iv.ID, "I shipped a Go service.")
+	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
+}
+
+func TestAnswerPropagatesUpdateFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	iv := askingInterview(t, rl.ID)
+	// maxTurns=4 so the answer leads to a next question, then a persist that fails.
+	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: questionJSON}, nil)
+	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("db down"))
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	_, _, err := interviewer.Answer(context.Background(), iv.ID, "I shipped a Go service.")
+	require.Error(t, err)
 }
 
 func TestEmployerForInterviewResolvesRoleOwner(t *testing.T) {
