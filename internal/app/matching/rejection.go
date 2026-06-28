@@ -7,19 +7,22 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/audit"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
+	"github.com/xcreativs/caliber/internal/domain/role"
 )
 
 // RejectionRecorder records human-approved candidate rejections to the audit
 // trail (CAL-081). It enforces the platform invariant that the AI never
 // auto-rejects: a rejection exists only as a logged, human-approved decision.
 type RejectionRecorder struct {
+	roles role.RoleRepository
 	audit audit.AuditRepository
 	now   app.Clock
 }
 
-// NewRejectionRecorder wires the rejection use-case over the audit trail.
-func NewRejectionRecorder(auditRepo audit.AuditRepository, now app.Clock) *RejectionRecorder {
-	return &RejectionRecorder{audit: auditRepo, now: now}
+// NewRejectionRecorder wires the rejection use-case over the role repository
+// (for ownership) and the audit trail.
+func NewRejectionRecorder(roles role.RoleRepository, auditRepo audit.AuditRepository, now app.Clock) *RejectionRecorder {
+	return &RejectionRecorder{roles: roles, audit: auditRepo, now: now}
 }
 
 // Record validates and durably logs a human-approved rejection, returning the
@@ -36,6 +39,15 @@ func (r *RejectionRecorder) Record(
 	reason string,
 	humanApproved bool,
 ) (kernel.ID, error) {
+	// Ownership (CAL-116 IDOR guard): a reviewer may only reject a candidate
+	// against their OWN role. Employers are users, so EmployerID is the owner's id.
+	rl, err := r.roles.ByID(ctx, roleID)
+	if err != nil {
+		return "", err
+	}
+	if rl.EmployerID != actorUserID {
+		return "", kernel.Forbidden("matching: may only reject candidates for your own roles")
+	}
 	rej, err := matchingdom.NewRejection(roleID, candidateID, reason, humanApproved)
 	if err != nil {
 		return "", err

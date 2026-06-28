@@ -16,17 +16,36 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/audit"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	"github.com/xcreativs/caliber/internal/domain/role"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
 
-func rejectionServer(auditRepo audit.AuditRepository) *MatchServer {
-	return NewMatchServer(nil, nil, matchingapp.NewRejectionRecorder(auditRepo, time.Now))
+// rejectionServer builds a MatchServer whose recorder reads roles from roleRepo
+// and writes to auditRepo. RBAC-only tests can pass an empty role repo because
+// the role is loaded only after the reviewer check passes.
+func rejectionServer(roleRepo role.RoleRepository, auditRepo audit.AuditRepository) *MatchServer {
+	return NewMatchServer(nil, nil, matchingapp.NewRejectionRecorder(roleRepo, auditRepo, time.Now))
+}
+
+// seedOwnedRole stores a role owned by owner and returns its id, so a rejection
+// against it passes the CAL-116 ownership guard.
+func seedOwnedRole(t *testing.T, roleRepo *memory.RoleRepo, owner kernel.ID) kernel.ID {
+	t.Helper()
+	rl, err := role.NewRole(owner,
+		role.RoleSpec{Title: "Backend Engineer", Seniority: role.SeniorityMid},
+		role.Rubric{Competencies: []role.Competency{{Name: "Go", Weight: 1, MustHave: true}}},
+		time.Unix(1, 0))
+	require.NoError(t, err)
+	require.NoError(t, roleRepo.Create(context.Background(), rl))
+	return rl.ID
 }
 
 func TestRecordRejection_LogsApprovalAndIsAuditable(t *testing.T) {
 	auditRepo := memory.NewAuditRepo()
-	srv := rejectionServer(auditRepo)
-	employer, candidateID, roleID := kernel.NewID(), kernel.NewID(), kernel.NewID()
+	roleRepo := memory.NewRoleRepo()
+	srv := rejectionServer(roleRepo, auditRepo)
+	employer, candidateID := kernel.NewID(), kernel.NewID()
+	roleID := seedOwnedRole(t, roleRepo, employer)
 	ctx := context.WithValue(context.Background(), principalKey{},
 		app.Principal{UserID: employer, Role: identity.RoleEmployer.String()})
 
@@ -48,8 +67,29 @@ func TestRecordRejection_LogsApprovalAndIsAuditable(t *testing.T) {
 	assert.Equal(t, employer, entries[0].ActorUserID)
 }
 
+// TestRecordRejection_RejectsOtherEmployer is the Flow A IDOR guard (CAL-116): a
+// reviewer who passes the RBAC check but does not own the role is denied, and no
+// rejection is logged.
+func TestRecordRejection_RejectsOtherEmployer(t *testing.T) {
+	auditRepo := memory.NewAuditRepo()
+	roleRepo := memory.NewRoleRepo()
+	srv := rejectionServer(roleRepo, auditRepo)
+	candidateID := kernel.NewID()
+	// The role belongs to a different employer than the caller.
+	roleID := seedOwnedRole(t, roleRepo, kernel.NewID())
+
+	_, err := srv.RecordRejection(asEmployer(context.Background(), kernel.NewID()), &caliberv1.RecordRejectionRequest{
+		RoleId: roleID.String(), CandidateId: candidateID.String(), Reason: "r", HumanApproved: true,
+	})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	_, total, err := auditRepo.List(context.Background(), "match", candidateID, kernel.Page{Number: 1, Size: 10})
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), total, "no rejection is logged for a role you do not own")
+}
+
 func TestRecordRejection_RejectsNonReviewer(t *testing.T) {
-	srv := rejectionServer(memory.NewAuditRepo())
+	srv := rejectionServer(memory.NewRoleRepo(), memory.NewAuditRepo())
 	req := &caliberv1.RecordRejectionRequest{
 		RoleId: kernel.NewID().String(), CandidateId: kernel.NewID().String(), Reason: "r", HumanApproved: true,
 	}
@@ -65,19 +105,21 @@ func TestRecordRejection_RejectsNonReviewer(t *testing.T) {
 
 func TestRecordRejection_RequiresExplicitHumanApproval(t *testing.T) {
 	auditRepo := memory.NewAuditRepo()
-	srv := rejectionServer(auditRepo)
-	candidateID := kernel.NewID()
-	ctx := asRole(context.Background(), identity.RoleEmployer)
+	roleRepo := memory.NewRoleRepo()
+	srv := rejectionServer(roleRepo, auditRepo)
+	employer, candidateID := kernel.NewID(), kernel.NewID()
+	roleID := seedOwnedRole(t, roleRepo, employer)
+	ctx := asEmployer(context.Background(), employer)
 
 	// human_approved=false is the AI-driven path the platform forbids.
 	_, err := srv.RecordRejection(ctx, &caliberv1.RecordRejectionRequest{
-		RoleId: kernel.NewID().String(), CandidateId: candidateID.String(), Reason: "r", HumanApproved: false,
+		RoleId: roleID.String(), CandidateId: candidateID.String(), Reason: "r", HumanApproved: false,
 	})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 
 	// A missing reason is also refused — a decline must be explainable.
 	_, err = srv.RecordRejection(ctx, &caliberv1.RecordRejectionRequest{
-		RoleId: kernel.NewID().String(), CandidateId: candidateID.String(), Reason: "  ", HumanApproved: true,
+		RoleId: roleID.String(), CandidateId: candidateID.String(), Reason: "  ", HumanApproved: true,
 	})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 

@@ -32,6 +32,7 @@ import (
 	profilesapp "github.com/xcreativs/caliber/internal/app/profiles"
 	"github.com/xcreativs/caliber/internal/app/provisioning"
 	"github.com/xcreativs/caliber/internal/app/roles"
+	"github.com/xcreativs/caliber/internal/domain/audit"
 	candidateagentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
@@ -89,7 +90,7 @@ type repositories struct {
 // database it also builds the pgvector-backed shortlist service.
 func openRepositories(
 	ctx context.Context, cfg config.Config, model app.LLMClient, embedder app.Embedder,
-	rejections *matchingapp.RejectionRecorder, log *slog.Logger,
+	auditRepo audit.AuditRepository, log *slog.Logger,
 ) (repositories, *grpcadapter.MatchServer, func(), error) {
 	repos := repositories{
 		roles: memory.NewRoleRepo(), users: memory.NewUserRepo(), refresh: memory.NewRefreshStore(),
@@ -106,6 +107,7 @@ func openRepositories(
 		shortlister := matchingapp.NewShortlister(
 			repos.roles, repos.candidates, repos.profiles,
 			memory.NewRecaller(repos.candidates), embedder, model, repos.matchRepo)
+		rejections := matchingapp.NewRejectionRecorder(repos.roles, auditRepo, time.Now)
 		match := grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister), rejections)
 		return repos, match, cleanup, nil
 	}
@@ -126,6 +128,7 @@ func openRepositories(
 	repos.matchRepo = postgres.NewMatchRepo(pool)
 	shortlister := matchingapp.NewShortlister(
 		repos.roles, repos.candidates, repos.profiles, postgres.NewRecaller(pool), embedder, model, repos.matchRepo)
+	rejections := matchingapp.NewRejectionRecorder(repos.roles, auditRepo, time.Now)
 	log.Info("persistence selected", "provider", "postgres")
 	return repos, grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister), rejections), pool.Close, nil
 }
@@ -140,8 +143,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	}
 
 	auditRepo := memory.NewAuditRepo()
-	rejections := matchingapp.NewRejectionRecorder(auditRepo, time.Now)
-	repos, match, cleanup, err := openRepositories(ctx, cfg, model, embedder, rejections, log)
+	repos, match, cleanup, err := openRepositories(ctx, cfg, model, embedder, auditRepo, log)
 	if err != nil {
 		return svc, cleanup, err
 	}
