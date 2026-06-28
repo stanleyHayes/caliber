@@ -87,6 +87,12 @@ func asCandidate(ctx context.Context, candidateID kernel.ID) context.Context {
 	return context.WithValue(ctx, principalKey{}, app.Principal{UserID: candidateID, Role: identity.RoleCandidate.String()})
 }
 
+// asEmployer builds a context whose principal IS the given employer (employers are
+// users; a role's EmployerID is the owning user's id), so ownership checks pass.
+func asEmployer(ctx context.Context, userID kernel.ID) context.Context {
+	return context.WithValue(ctx, principalKey{}, app.Principal{UserID: userID, Role: identity.RoleEmployer.String()})
+}
+
 func TestAgentRequiresSelfCandidate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	srv := NewAgentServer(

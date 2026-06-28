@@ -39,7 +39,8 @@ func (s *RoleServer) GenerateRoleSpec(
 	ctx context.Context,
 	req *caliberv1.GenerateRoleSpecRequest,
 ) (*caliberv1.GenerateRoleSpecResponse, error) {
-	if _, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter); err != nil {
+	// An employer creates roles only under their own id (CAL-116 IDOR guard).
+	if err := requireSelfEmployer(ctx, req.GetEmployerId()); err != nil {
 		return nil, errToStatus(err)
 	}
 	r, err := s.gen.Generate(ctx, kernel.ID(req.GetEmployerId()), req.GetFreeText())
@@ -74,8 +75,17 @@ func (s *RoleServer) UpdateRoleSpec(
 	ctx context.Context,
 	req *caliberv1.UpdateRoleSpecRequest,
 ) (*caliberv1.UpdateRoleSpecResponse, error) {
-	if _, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter); err != nil {
+	principal, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	if err != nil {
 		return nil, errToStatus(err)
+	}
+	// Ownership (CAL-116 IDOR guard): an employer may only edit their own role.
+	existing, err := s.editor.Get(ctx, kernel.ID(req.GetRoleId()))
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	if existing.EmployerID.String() != principal.UserID.String() {
+		return nil, errToStatus(kernel.Forbidden("auth: may only edit your own roles"))
 	}
 	r, err := s.editor.Update(ctx, kernel.ID(req.GetRoleId()), specFromProto(req.GetSpec()), rubricFromProto(req.GetRubric()))
 	if err != nil {
@@ -86,7 +96,8 @@ func (s *RoleServer) UpdateRoleSpec(
 
 // ListRoles returns a page of an employer's roles.
 func (s *RoleServer) ListRoles(ctx context.Context, req *caliberv1.ListRolesRequest) (*caliberv1.ListRolesResponse, error) {
-	if _, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter); err != nil {
+	// An employer lists only their own roles (CAL-116 IDOR guard).
+	if err := requireSelfEmployer(ctx, req.GetEmployerId()); err != nil {
 		return nil, errToStatus(err)
 	}
 	page := pageFromProto(req.GetPage())

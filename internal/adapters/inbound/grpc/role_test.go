@@ -8,7 +8,6 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/app/roles"
-	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 
@@ -23,17 +22,19 @@ func newServer() *RoleServer {
 	return NewRoleServer(roles.NewSpecGenerator(llm.NewDev(), repo, time.Now), roles.NewSpecEditor(repo), nil)
 }
 
-func generatedRole(t *testing.T, srv *RoleServer) *caliberv1.Role {
+// generatedRole creates a role owned by emp (the authenticated employer).
+func generatedRole(t *testing.T, srv *RoleServer, emp kernel.ID) *caliberv1.Role {
 	t.Helper()
-	gen, err := srv.GenerateRoleSpec(asRole(context.Background(), identity.RoleEmployer),
-		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer in Accra"})
+	gen, err := srv.GenerateRoleSpec(asEmployer(context.Background(), emp),
+		&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: "Senior Go engineer in Accra"})
 	require.NoError(t, err)
 	return gen.GetRole()
 }
 
 func TestGenerateRoleSpecHandler(t *testing.T) {
-	resp, err := newServer().GenerateRoleSpec(asRole(context.Background(), identity.RoleEmployer),
-		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer in Accra"})
+	emp := kernel.NewID()
+	resp, err := newServer().GenerateRoleSpec(asEmployer(context.Background(), emp),
+		&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: "Senior Go engineer in Accra"})
 	require.NoError(t, err)
 	got := resp.GetRole()
 	assert.NotEmpty(t, got.GetTitle())
@@ -49,35 +50,41 @@ func (c stubCounter) CountAvailable(context.Context, kernel.ID) (int, error) { r
 func TestGenerateRoleSpecSurfacesAvailableMatches(t *testing.T) {
 	repo := memory.NewRoleRepo()
 	srv := NewRoleServer(roles.NewSpecGenerator(llm.NewDev(), repo, time.Now), roles.NewSpecEditor(repo), stubCounter{n: 7})
-	resp, err := srv.GenerateRoleSpec(asRole(context.Background(), identity.RoleEmployer),
-		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer in Accra"})
+	emp := kernel.NewID()
+	resp, err := srv.GenerateRoleSpec(asEmployer(context.Background(), emp),
+		&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: "Senior Go engineer in Accra"})
 	require.NoError(t, err)
 	assert.Equal(t, int32(7), resp.GetAvailableMatches(), "the instant pool-depth signal is returned with the role")
 }
 
 func TestGenerateRoleSpecInvalid(t *testing.T) {
-	_, err := newServer().GenerateRoleSpec(asRole(context.Background(), identity.RoleEmployer),
-		&caliberv1.GenerateRoleSpecRequest{EmployerId: "", FreeText: "x"})
+	// Authenticated as the employer, but an empty hiring-need text is rejected.
+	emp := kernel.NewID()
+	_, err := newServer().GenerateRoleSpec(asEmployer(context.Background(), emp),
+		&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: "   "})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestGetRoleHandler(t *testing.T) {
 	srv := newServer()
-	id := generatedRole(t, srv).GetId()
-	got, err := srv.GetRole(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GetRoleRequest{RoleId: id})
+	emp := kernel.NewID()
+	id := generatedRole(t, srv, emp).GetId()
+	got, err := srv.GetRole(asEmployer(context.Background(), emp), &caliberv1.GetRoleRequest{RoleId: id})
 	require.NoError(t, err)
 	assert.Equal(t, id, got.GetRole().GetId())
 }
 
 func TestGetRoleNotFound(t *testing.T) {
-	_, err := newServer().GetRole(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GetRoleRequest{RoleId: kernel.NewID().String()})
+	_, err := newServer().GetRole(asEmployer(context.Background(), kernel.NewID()),
+		&caliberv1.GetRoleRequest{RoleId: kernel.NewID().String()})
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestUpdateRoleSpecReweights(t *testing.T) {
 	srv := newServer()
-	role := generatedRole(t, srv)
-	resp, err := srv.UpdateRoleSpec(asRole(context.Background(), identity.RoleEmployer), &caliberv1.UpdateRoleSpecRequest{
+	emp := kernel.NewID()
+	role := generatedRole(t, srv, emp)
+	resp, err := srv.UpdateRoleSpec(asEmployer(context.Background(), emp), &caliberv1.UpdateRoleSpecRequest{
 		RoleId: role.GetId(),
 		Spec:   role.GetSpec(),
 		Rubric: &caliberv1.Rubric{Competencies: []*caliberv1.Competency{
@@ -98,7 +105,7 @@ func TestUpdateRoleSpecReweights(t *testing.T) {
 
 func TestUpdateRoleSpecNotFound(t *testing.T) {
 	srv := newServer()
-	_, err := srv.UpdateRoleSpec(asRole(context.Background(), identity.RoleEmployer), &caliberv1.UpdateRoleSpecRequest{
+	_, err := srv.UpdateRoleSpec(asEmployer(context.Background(), kernel.NewID()), &caliberv1.UpdateRoleSpecRequest{
 		RoleId: kernel.NewID().String(),
 		Spec:   &caliberv1.RoleSpec{Title: "X", Seniority: caliberv1.Seniority_SENIORITY_MID},
 		Rubric: &caliberv1.Rubric{Competencies: []*caliberv1.Competency{{Name: "Go", Weight: 1}}},
@@ -106,15 +113,28 @@ func TestUpdateRoleSpecNotFound(t *testing.T) {
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
+func TestUpdateRoleSpecRejectsOtherEmployer(t *testing.T) {
+	srv := newServer()
+	emp := kernel.NewID()
+	role := generatedRole(t, srv, emp)
+	// A different employer cannot edit emp's role (IDOR).
+	_, err := srv.UpdateRoleSpec(asEmployer(context.Background(), kernel.NewID()), &caliberv1.UpdateRoleSpecRequest{
+		RoleId: role.GetId(),
+		Spec:   role.GetSpec(),
+		Rubric: &caliberv1.Rubric{Competencies: []*caliberv1.Competency{{Name: "Go", Weight: 1, MustHave: true}}},
+	})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
 func TestListRolesHandler(t *testing.T) {
 	srv := newServer()
 	emp := kernel.NewID()
 	for _, txt := range []string{"Go engineer Accra", "Frontend engineer Kumasi"} {
-		_, err := srv.GenerateRoleSpec(asRole(context.Background(), identity.RoleEmployer),
+		_, err := srv.GenerateRoleSpec(asEmployer(context.Background(), emp),
 			&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: txt})
 		require.NoError(t, err)
 	}
-	resp, err := srv.ListRoles(asRole(context.Background(), identity.RoleEmployer),
+	resp, err := srv.ListRoles(asEmployer(context.Background(), emp),
 		&caliberv1.ListRolesRequest{EmployerId: emp.String(), Page: &caliberv1.PageRequest{Page: 1, PageSize: 10}})
 	require.NoError(t, err)
 	assert.Len(t, resp.GetRoles(), 2)
@@ -123,12 +143,17 @@ func TestListRolesHandler(t *testing.T) {
 
 func TestRoleWritesRequireReviewer(t *testing.T) {
 	srv := newServer()
+	emp := kernel.NewID()
 	// A candidate cannot create a role.
-	_, err := srv.GenerateRoleSpec(asRole(context.Background(), identity.RoleCandidate),
-		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer"})
+	_, err := srv.GenerateRoleSpec(asCandidate(context.Background(), emp),
+		&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: "Senior Go engineer"})
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 	// An unauthenticated caller cannot create a role.
 	_, err = srv.GenerateRoleSpec(context.Background(),
-		&caliberv1.GenerateRoleSpecRequest{EmployerId: kernel.NewID().String(), FreeText: "Senior Go engineer"})
+		&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: "Senior Go engineer"})
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+	// An employer cannot create a role under ANOTHER employer's id (IDOR).
+	_, err = srv.GenerateRoleSpec(asEmployer(context.Background(), kernel.NewID()),
+		&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: "Senior Go engineer"})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }

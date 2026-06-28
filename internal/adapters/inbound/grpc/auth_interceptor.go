@@ -131,6 +131,21 @@ func requireSelfCandidate(ctx context.Context, candidateID string) error {
 	return nil
 }
 
+// requireSelfEmployer authorizes an employer/recruiter acting within their own
+// employer scope. Employers are modelled as users and a role's EmployerID is the
+// owning user's id, so the principal's UserID IS the employer id — preventing one
+// employer from creating/listing/editing another's roles (CAL-116 IDOR).
+func requireSelfEmployer(ctx context.Context, employerID string) error {
+	p, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	if err != nil {
+		return err
+	}
+	if p.UserID.String() != employerID {
+		return kernel.Forbidden("auth: may only act within your own employer scope")
+	}
+	return nil
+}
+
 // requireSelfCandidateOrReviewer authorizes reading a candidate's profile: the
 // owning candidate, or a reviewer (employer/recruiter) viewing the talent pool.
 func requireSelfCandidateOrReviewer(ctx context.Context, candidateID string) error {

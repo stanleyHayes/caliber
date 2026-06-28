@@ -13,7 +13,6 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
 	"github.com/xcreativs/caliber/internal/app/roles"
-	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
@@ -53,9 +52,14 @@ func TestFlowAEndToEnd(t *testing.T) {
 	roleSrv := NewRoleServer(
 		roles.NewSpecGenerator(llm.NewDev(), roleRepo, time.Now), roles.NewSpecEditor(roleRepo), matchSrv.AvailabilityCounter())
 
+	// Flow A is employer-facing (CAL-116): the caller acts as themselves (the
+	// employer owns the roles they create and shortlist).
+	empID := kernel.NewID()
+	employer := asEmployer(ctx, empID)
+
 	// 1) Messy sentence -> structured spec + rubric + instant availability.
-	gen, err := roleSrv.GenerateRoleSpec(asRole(ctx, identity.RoleEmployer), &caliberv1.GenerateRoleSpecRequest{
-		EmployerId: kernel.NewID().String(),
+	gen, err := roleSrv.GenerateRoleSpec(employer, &caliberv1.GenerateRoleSpecRequest{
+		EmployerId: empID.String(),
 		FreeText:   "Senior Go engineer in Accra to lead our payments platform",
 	})
 	require.NoError(t, err)
@@ -65,7 +69,7 @@ func TestFlowAEndToEnd(t *testing.T) {
 	assert.GreaterOrEqual(t, gen.GetAvailableMatches(), int32(2), "two candidates cover the must-have on paper")
 
 	// 2) Ranked, explainable shortlist over the pool.
-	slResp, err := matchSrv.GenerateShortlist(asRole(ctx, identity.RoleEmployer), &caliberv1.GenerateShortlistRequest{RoleId: role.GetId()})
+	slResp, err := matchSrv.GenerateShortlist(employer, &caliberv1.GenerateShortlistRequest{RoleId: role.GetId()})
 	require.NoError(t, err)
 	sl := slResp.GetShortlist()
 	matches := sl.GetMatches()
