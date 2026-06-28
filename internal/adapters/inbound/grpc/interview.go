@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/xcreativs/caliber/internal/app"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
@@ -142,16 +143,47 @@ func (s *InterviewServer) GetReportCard(
 	if _, err := RequireAuth(ctx); err != nil {
 		return nil, errToStatus(err)
 	}
+	principal, err := RequireAuth(ctx)
+	if err != nil {
+		return nil, errToStatus(err)
+	}
 	card, err := s.interviewer.Report(ctx, kernel.ID(req.GetInterviewId()))
 	if err != nil {
 		return nil, errToStatus(err)
 	}
-	// IDOR guard (CAL-116): the report card is visible to the owning candidate or a
-	// reviewer (employers/recruiters view screening results) — not any logged-in user.
-	if err := requireSelfCandidateOrReviewer(ctx, card.CandidateID.String()); err != nil {
+	// IDOR guard (CAL-116): a report card is private to the owning candidate and the
+	// employer who owns the role it was screened against — NOT every logged-in user
+	// nor every reviewer. The shared self-or-reviewer helper grants any reviewer, so
+	// it is wrong here (it would leak Flow B verdicts/scores/evidence across
+	// employers); we scope the reviewer branch to the role's owner.
+	if err := s.authorizeReportCardAccess(ctx, principal, kernel.ID(req.GetInterviewId()), card); err != nil {
 		return nil, errToStatus(err)
 	}
 	return &caliberv1.GetReportCardResponse{ReportCard: reportCardToProto(card)}, nil
+}
+
+// authorizeReportCardAccess scopes a report card to its owning candidate or the
+// employer who owns the role it was screened against (CAL-116). The owning
+// candidate sees their own card; an employer/recruiter sees it only when they own
+// the role; everyone else is forbidden.
+func (s *InterviewServer) authorizeReportCardAccess(
+	ctx context.Context, principal app.Principal, interviewID kernel.ID, card *interviewdom.ReportCard,
+) error {
+	switch principal.Role {
+	case identity.RoleCandidate.String():
+		if principal.UserID == card.CandidateID {
+			return nil
+		}
+	case identity.RoleEmployer.String(), identity.RoleRecruiter.String():
+		employerID, err := s.interviewer.EmployerForInterview(ctx, interviewID)
+		if err != nil {
+			return err
+		}
+		if principal.UserID == employerID {
+			return nil
+		}
+	}
+	return kernel.Forbidden("auth: not permitted to view this report card")
 }
 
 func questionEvent(id kernel.ID, q *interviewdom.PendingQuestion) *caliberv1.StartInterviewResponse {

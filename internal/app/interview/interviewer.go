@@ -148,6 +148,22 @@ func (s *Interviewer) CandidateForInterview(ctx context.Context, interviewID ker
 	return iv.CandidateID, nil
 }
 
+// EmployerForInterview returns the employer who owns the role an interview was
+// screened against, so inbound adapters can authorize that a reviewer reading the
+// report card owns the role (CAL-116 IDOR protection) — a report card must not be
+// readable by employers who never posted the role nor ran the screening.
+func (s *Interviewer) EmployerForInterview(ctx context.Context, interviewID kernel.ID) (kernel.ID, error) {
+	iv, err := s.interviews.ByID(ctx, interviewID)
+	if err != nil {
+		return "", err
+	}
+	rl, err := s.roles.ByID(ctx, iv.RoleID)
+	if err != nil {
+		return "", err
+	}
+	return rl.EmployerID, nil
+}
+
 // ask generates the next adaptive question and records it as pending.
 func (s *Interviewer) ask(ctx context.Context, rl *role.Role, iv *interviewdom.Interview) error {
 	q, err := app.DecodeJSON[llmQuestion](ctx, s.llm,

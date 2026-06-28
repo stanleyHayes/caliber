@@ -201,6 +201,30 @@ func TestReportReturnsCompletedCard(t *testing.T) {
 	assert.Equal(t, interviewdom.VerdictAdvance, card.Verdict)
 }
 
+func TestEmployerForInterviewResolvesRoleOwner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	iv := askingInterview(t, rl.ID)
+	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	owner, err := interviewer.EmployerForInterview(context.Background(), iv.ID)
+	require.NoError(t, err)
+	assert.Equal(t, rl.EmployerID, owner, "the owner is the employer of the screened role")
+}
+
+func TestEmployerForInterviewNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	d.interviews.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	_, err := interviewer.EmployerForInterview(context.Background(), kernel.NewID())
+	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
+}
+
 func TestAnswerMarksPassportScreenedOnCompletion(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	d := newDeps(ctrl)

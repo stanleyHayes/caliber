@@ -141,8 +141,41 @@ func TestGetReportCardHandler(t *testing.T) {
 	require.NoError(t, err)
 	_ = q
 
-	resp, err := srv.GetReportCard(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()})
+	// The employer who owns the role may read the report card.
+	resp, err := srv.GetReportCard(asEmployer(context.Background(), rl.EmployerID),
+		&caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()})
 	require.NoError(t, err)
+	assert.Equal(t, caliberv1.InterviewVerdict_INTERVIEW_VERDICT_ADVANCE, resp.GetReportCard().GetVerdict())
+}
+
+// TestGetReportCardOwnershipIDOR locks CAL-116: a report card (the Flow B
+// verdict/scores/evidence) is private to its owning candidate and the employer
+// who owns the role — not every reviewer, and not every logged-in user.
+func TestGetReportCardOwnershipIDOR(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	roles := mocks.NewMockRoleRepository(ctrl)
+	rl := interviewRole(t)
+	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil).AnyTimes()
+	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 1)
+	srv := NewInterviewServer(interviewer)
+
+	candidateID := kernel.NewID()
+	iv, _, err := interviewer.Start(context.Background(), rl.ID, candidateID, 1)
+	require.NoError(t, err)
+	_, _, err = interviewer.Answer(context.Background(), iv.ID, "concrete Go example")
+	require.NoError(t, err)
+	req := &caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()}
+
+	// A different employer (does not own the role) is denied.
+	_, err = srv.GetReportCard(asEmployer(context.Background(), kernel.NewID()), req)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err), "a non-owning employer cannot read the card")
+
+	// A different candidate is denied; the owning candidate is allowed.
+	_, err = srv.GetReportCard(asCandidate(context.Background(), kernel.NewID()), req)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err), "another candidate cannot read the card")
+
+	resp, err := srv.GetReportCard(asCandidate(context.Background(), candidateID), req)
+	require.NoError(t, err, "the owning candidate may read their own card")
 	assert.Equal(t, caliberv1.InterviewVerdict_INTERVIEW_VERDICT_ADVANCE, resp.GetReportCard().GetVerdict())
 }
 
@@ -203,12 +236,13 @@ func TestInterviewAuthz(t *testing.T) {
 func TestInterviewOwnership(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	roles := mocks.NewMockRoleRepository(ctrl)
-	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(interviewRole(t), nil).AnyTimes()
+	rl := interviewRole(t)
+	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil).AnyTimes()
 	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 1)
 	srv := NewInterviewServer(interviewer)
 
 	owner := kernel.NewID()
-	iv, _, err := interviewer.Start(context.Background(), kernel.NewID(), owner, 1) // ModeText
+	iv, _, err := interviewer.Start(context.Background(), rl.ID, owner, 1) // ModeText
 	require.NoError(t, err)
 
 	// A different candidate cannot submit answers to someone else's interview.
@@ -221,11 +255,16 @@ func TestInterviewOwnership(t *testing.T) {
 		&caliberv1.SubmitAnswerRequest{InterviewId: iv.ID.String(), Answer: "I shipped a Go service."})
 	require.NoError(t, err)
 
-	// The report card is now ready; a different candidate cannot read it, a reviewer can.
+	// The report card is now ready. A different candidate cannot read it, and a
+	// reviewer who does NOT own the role cannot either (CAL-116) — only the role's
+	// owning employer (and the owning candidate) may.
 	_, err = srv.GetReportCard(asCandidate(context.Background(), kernel.NewID()),
 		&caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()})
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
-	_, err = srv.GetReportCard(asRole(context.Background(), identity.RoleEmployer),
+	_, err = srv.GetReportCard(asEmployer(context.Background(), kernel.NewID()),
 		&caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()})
-	require.NoError(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err), "a non-owning employer is denied")
+	_, err = srv.GetReportCard(asEmployer(context.Background(), rl.EmployerID),
+		&caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()})
+	require.NoError(t, err, "the role's owning employer may read the card")
 }
