@@ -99,3 +99,21 @@ func requireSelfCandidate(ctx context.Context, candidateID string) error {
 	}
 	return nil
 }
+
+// requireSelfCandidateOrReviewer authorizes reading a candidate's profile: the
+// owning candidate, or a reviewer (employer/recruiter) viewing the talent pool.
+func requireSelfCandidateOrReviewer(ctx context.Context, candidateID string) error {
+	p, err := RequireAuth(ctx)
+	if err != nil {
+		return err
+	}
+	switch p.Role {
+	case identity.RoleEmployer.String(), identity.RoleRecruiter.String():
+		return nil
+	case identity.RoleCandidate.String():
+		if p.UserID.String() == candidateID {
+			return nil
+		}
+	}
+	return kernel.Forbidden("auth: not permitted to view this profile")
+}

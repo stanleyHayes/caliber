@@ -26,10 +26,13 @@ func NewTalentServer(builder *profilesapp.ProfileBuilder) *TalentServer {
 }
 
 // CreateProfileFromCV parses a CV (raw text or an uploaded file) + intake into an
-// evidence-linked profile.
+// evidence-linked profile. A candidate builds only their own profile (CAL-116).
 func (s *TalentServer) CreateProfileFromCV(
 	ctx context.Context, req *caliberv1.CreateProfileFromCVRequest,
 ) (*caliberv1.CreateProfileFromCVResponse, error) {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+		return nil, errToStatus(err)
+	}
 	cvText, err := resolveCVText(req)
 	if err != nil {
 		return nil, errToStatus(err)
@@ -55,10 +58,15 @@ func resolveCVText(req *caliberv1.CreateProfileFromCVRequest) (string, error) {
 	return cvtext.Extract(req.GetCvFilename(), file)
 }
 
-// GetTalentProfile returns a candidate's talent profile.
+// GetTalentProfile returns a candidate's talent profile, visible to the owning
+// candidate or to a reviewer (employers/recruiters view profiles when
+// shortlisting) — CAL-116.
 func (s *TalentServer) GetTalentProfile(
 	ctx context.Context, req *caliberv1.GetTalentProfileRequest,
 ) (*caliberv1.GetTalentProfileResponse, error) {
+	if err := requireSelfCandidateOrReviewer(ctx, req.GetCandidateId()); err != nil {
+		return nil, errToStatus(err)
+	}
 	profile, err := s.builder.GetProfile(ctx, kernel.ID(req.GetCandidateId()))
 	if err != nil {
 		return nil, errToStatus(err)
