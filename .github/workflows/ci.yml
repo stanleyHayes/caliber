@@ -77,7 +77,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   frontend:
-    name: Frontend (typecheck · build · lint)
+    name: Frontend (typecheck · build · lint · test)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -100,3 +100,6 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Test
+        run: npm run test:run # vitest run (jsdom)
