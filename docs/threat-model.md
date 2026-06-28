@@ -105,14 +105,16 @@ stays untrusted until sanitised+fenced.
 
 - **Threats:** a candidate acting as a reviewer; horizontal access to peers'
   records; an endpoint missing an authz check.
-- **Implemented:** per-RPC RBAC via `RequireRole` — e.g. rejection/audit reads are
-  employer/recruiter-only; contest listing is candidate-only; unauthenticated →
-  Unauthenticated, wrong role → PermissionDenied. The hexagonal boundary
-  (depguard) keeps authz decisions in the app/adapter layers, not leaked into the
-  pure domain.
-- **Backlog:** systematic least-privilege review across every service + IDOR test
-  suite (CAL-116); ownership checks (does this employer own this role?) audited
-  end-to-end.
+- **Implemented:** per-RPC RBAC via `RequireRole` plus per-resource ownership
+  (anti-IDOR) — the acting identity is always the token `principal.UserID`, never a
+  body id, and ownership runs before any read-back or mutation. Unauthenticated →
+  Unauthenticated, wrong role → PermissionDenied, not-owner → PermissionDenied. The
+  hexagonal boundary (depguard) keeps authz decisions in the app/adapter layers, not
+  leaked into the pure domain. **The full ownership model + per-handler matrix is
+  documented in [authorization.md](authorization.md).**
+- **Backlog:** the two remaining RBAC-only paths (ResolveContest, ListAuditLog)
+  await the CAL-153 ownership model — see [authorization.md](authorization.md) §Deferred
+  for why they are unresolvable from the current data model.
 
 ## Prompt-injection & LLM-specific threats (cross-cutting)
 
