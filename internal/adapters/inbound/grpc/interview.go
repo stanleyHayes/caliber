@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
@@ -69,6 +70,10 @@ func (s *InterviewServer) StartInterview(
 	req *caliberv1.StartInterviewRequest, stream caliberv1.InterviewService_StartInterviewServer,
 ) error {
 	ctx := stream.Context()
+	// A candidate takes their own screening (CAL-116).
+	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+		return errToStatus(err)
+	}
 	iv, question, err := s.interviewer.Start(
 		ctx, kernel.ID(req.GetRoleId()), kernel.ID(req.GetCandidateId()), interviewModeFromProto(req.GetMode()),
 	)
@@ -104,6 +109,9 @@ func (s *InterviewServer) StartInterview(
 func (s *InterviewServer) SubmitAnswer(
 	ctx context.Context, req *caliberv1.SubmitAnswerRequest,
 ) (*caliberv1.SubmitAnswerResponse, error) {
+	if _, err := RequireRole(ctx, identity.RoleCandidate); err != nil {
+		return nil, errToStatus(err)
+	}
 	id := kernel.ID(req.GetInterviewId())
 	pending, report, err := s.interviewer.Answer(ctx, id, req.GetAnswer())
 	if err != nil {
@@ -122,6 +130,9 @@ func (s *InterviewServer) SubmitAnswer(
 func (s *InterviewServer) GetReportCard(
 	ctx context.Context, req *caliberv1.GetReportCardRequest,
 ) (*caliberv1.GetReportCardResponse, error) {
+	if _, err := RequireAuth(ctx); err != nil {
+		return nil, errToStatus(err)
+	}
 	card, err := s.interviewer.Report(ctx, kernel.ID(req.GetInterviewId()))
 	if err != nil {
 		return nil, errToStatus(err)

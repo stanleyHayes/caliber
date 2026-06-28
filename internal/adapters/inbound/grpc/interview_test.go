@@ -17,6 +17,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/app"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
@@ -84,13 +85,14 @@ func TestStartInterviewStreamsQuestionThenReport(t *testing.T) {
 	// maxTurns = 1 -> the first answer completes the interview.
 	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 1))
 
-	ctx, cancel := context.WithCancel(t.Context())
+	candidateID := kernel.NewID()
+	ctx, cancel := context.WithCancel(asCandidate(t.Context(), candidateID))
 	defer cancel()
 	stream := &fakeInterviewStream{ctx: ctx}
 	done := make(chan error, 1)
 	go func() {
 		done <- srv.StartInterview(&caliberv1.StartInterviewRequest{
-			RoleId: rl.ID.String(), CandidateId: kernel.NewID().String(), Mode: caliberv1.InterviewMode_INTERVIEW_MODE_TEXT,
+			RoleId: rl.ID.String(), CandidateId: candidateID.String(), Mode: caliberv1.InterviewMode_INTERVIEW_MODE_TEXT,
 		}, stream)
 	}()
 
@@ -102,7 +104,7 @@ func TestStartInterviewStreamsQuestionThenReport(t *testing.T) {
 	require.NotNil(t, q)
 	assert.Equal(t, "Go", q.GetCompetencyTag())
 
-	resp, err := srv.SubmitAnswer(context.Background(),
+	resp, err := srv.SubmitAnswer(asRole(context.Background(), identity.RoleCandidate),
 		&caliberv1.SubmitAnswerRequest{InterviewId: q.GetInterviewId(), Answer: "I built a payments service in Go."})
 	require.NoError(t, err)
 	assert.True(t, resp.GetAccepted())
@@ -139,7 +141,7 @@ func TestGetReportCardHandler(t *testing.T) {
 	require.NoError(t, err)
 	_ = q
 
-	resp, err := srv.GetReportCard(context.Background(), &caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()})
+	resp, err := srv.GetReportCard(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()})
 	require.NoError(t, err)
 	assert.Equal(t, caliberv1.InterviewVerdict_INTERVIEW_VERDICT_ADVANCE, resp.GetReportCard().GetVerdict())
 }
@@ -151,7 +153,7 @@ func TestGetReportCardNotReady(t *testing.T) {
 	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 4)
 	iv, _, err := interviewer.Start(context.Background(), kernel.NewID(), kernel.NewID(), 1)
 	require.NoError(t, err)
-	_, err = NewInterviewServer(interviewer).GetReportCard(context.Background(),
+	_, err = NewInterviewServer(interviewer).GetReportCard(asRole(context.Background(), identity.RoleEmployer),
 		&caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
@@ -169,4 +171,31 @@ func TestInterviewBroker(t *testing.T) {
 	b.publish("unknown", statusEvent("x", "y")) // no subscriber: no panic, no-op
 	b.unsubscribe("iv-1")
 	b.publish("iv-1", statusEvent("late", "after close")) // must not panic after unsubscribe
+}
+
+func TestInterviewAuthz(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	roles := mocks.NewMockRoleRepository(ctrl)
+	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(interviewRole(t), nil).AnyTimes()
+	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 1))
+
+	// StartInterview: a candidate may only screen as themselves.
+	other := &fakeInterviewStream{ctx: asCandidate(t.Context(), kernel.NewID())}
+	err := srv.StartInterview(&caliberv1.StartInterviewRequest{
+		RoleId: kernel.NewID().String(), CandidateId: kernel.NewID().String(), Mode: caliberv1.InterviewMode_INTERVIEW_MODE_TEXT,
+	}, other)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	anon := &fakeInterviewStream{ctx: t.Context()}
+	err = srv.StartInterview(&caliberv1.StartInterviewRequest{
+		RoleId: kernel.NewID().String(), CandidateId: kernel.NewID().String(), Mode: caliberv1.InterviewMode_INTERVIEW_MODE_TEXT,
+	}, anon)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+
+	// SubmitAnswer is candidate-only; GetReportCard requires authentication.
+	_, err = srv.SubmitAnswer(asRole(context.Background(), identity.RoleEmployer),
+		&caliberv1.SubmitAnswerRequest{InterviewId: kernel.NewID().String(), Answer: "x"})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	_, err = srv.GetReportCard(context.Background(), &caliberv1.GetReportCardRequest{InterviewId: kernel.NewID().String()})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
