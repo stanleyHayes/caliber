@@ -109,10 +109,19 @@ func (s *InterviewServer) StartInterview(
 func (s *InterviewServer) SubmitAnswer(
 	ctx context.Context, req *caliberv1.SubmitAnswerRequest,
 ) (*caliberv1.SubmitAnswerResponse, error) {
-	if _, err := RequireRole(ctx, identity.RoleCandidate); err != nil {
+	principal, err := RequireRole(ctx, identity.RoleCandidate)
+	if err != nil {
 		return nil, errToStatus(err)
 	}
 	id := kernel.ID(req.GetInterviewId())
+	// IDOR guard (CAL-116): a candidate may only answer their own interview.
+	owner, err := s.interviewer.CandidateForInterview(ctx, id)
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	if owner.String() != principal.UserID.String() {
+		return nil, errToStatus(kernel.Forbidden("auth: candidates may only answer their own interview"))
+	}
 	pending, report, err := s.interviewer.Answer(ctx, id, req.GetAnswer())
 	if err != nil {
 		return nil, errToStatus(err)
@@ -135,6 +144,11 @@ func (s *InterviewServer) GetReportCard(
 	}
 	card, err := s.interviewer.Report(ctx, kernel.ID(req.GetInterviewId()))
 	if err != nil {
+		return nil, errToStatus(err)
+	}
+	// IDOR guard (CAL-116): the report card is visible to the owning candidate or a
+	// reviewer (employers/recruiters view screening results) — not any logged-in user.
+	if err := requireSelfCandidateOrReviewer(ctx, card.CandidateID.String()); err != nil {
 		return nil, errToStatus(err)
 	}
 	return &caliberv1.GetReportCardResponse{ReportCard: reportCardToProto(card)}, nil

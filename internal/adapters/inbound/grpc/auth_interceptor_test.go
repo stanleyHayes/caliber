@@ -96,3 +96,39 @@ func TestGetMeWithPrincipal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, u.Email.String(), resp.GetUser().GetEmail())
 }
+
+type fakeServerStream struct {
+	grpc.ServerStream
+
+	//nolint:containedctx // test double mirrors the grpc middleware stream-wrapper pattern
+	ctx context.Context
+}
+
+func (s *fakeServerStream) Context() context.Context { return s.ctx }
+
+func TestAuthStreamInterceptorInjectsPrincipal(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	tokens := mocks.NewMockTokenService(ctrl)
+	want := app.Principal{UserID: kernel.NewID(), Role: "candidate"}
+	tokens.EXPECT().VerifyAccess("good").Return(want, nil)
+
+	var seen app.Principal
+	var ok bool
+	handler := func(_ any, ss grpc.ServerStream) error {
+		seen, ok = PrincipalFromContext(ss.Context())
+		return nil
+	}
+	err := NewAuthStreamInterceptor(tokens)(nil, &fakeServerStream{ctx: ctxWithBearer("good")}, &grpc.StreamServerInfo{}, handler)
+	require.NoError(t, err)
+	require.True(t, ok, "the streaming interceptor injected the principal into the stream context")
+	assert.Equal(t, want, seen)
+}
+
+func TestAuthStreamInterceptorRejectsInvalidToken(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	tokens := mocks.NewMockTokenService(ctrl)
+	tokens.EXPECT().VerifyAccess("bad").Return(app.Principal{}, kernel.Unauthorized("nope"))
+	err := NewAuthStreamInterceptor(tokens)(nil, &fakeServerStream{ctx: ctxWithBearer("bad")}, &grpc.StreamServerInfo{},
+		func(any, grpc.ServerStream) error { return nil })
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}

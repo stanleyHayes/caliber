@@ -38,6 +38,37 @@ func NewAuthInterceptor(verifier app.TokenService) grpc.UnaryServerInterceptor {
 	}
 }
 
+// principalStream wraps a server stream to expose an auth-augmented context, since
+// a stream handler reads the principal from stream.Context(), not a ctx argument.
+type principalStream struct {
+	grpc.ServerStream
+
+	//nolint:containedctx // wrapping a stream to override Context() requires holding it (standard grpc middleware pattern)
+	ctx context.Context
+}
+
+func (s *principalStream) Context() context.Context { return s.ctx }
+
+// NewAuthStreamInterceptor is the streaming counterpart of NewAuthInterceptor.
+// Unary interceptors do not run for streaming RPCs, so without this a streaming
+// handler (StartInterview) would never see the authenticated principal and its
+// auth guard would reject every caller. Same semantics: a valid bearer token's
+// principal is injected; a present-but-invalid token is rejected; absent leaves
+// the stream anonymous for the handler to gate.
+func NewAuthStreamInterceptor(verifier app.TokenService) grpc.StreamServerInterceptor {
+	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		ctx := ss.Context()
+		if raw, ok := bearerFromContext(ctx); ok {
+			principal, err := verifier.VerifyAccess(raw)
+			if err != nil {
+				return status.Error(codes.Unauthenticated, "auth: invalid or expired access token")
+			}
+			ctx = context.WithValue(ctx, principalKey{}, principal)
+		}
+		return handler(srv, &principalStream{ServerStream: ss, ctx: ctx})
+	}
+}
+
 // bearerFromContext extracts a bearer access token from request metadata.
 func bearerFromContext(ctx context.Context) (string, bool) {
 	md, ok := metadata.FromIncomingContext(ctx)

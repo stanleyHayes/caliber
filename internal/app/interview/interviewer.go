@@ -138,6 +138,16 @@ func (s *Interviewer) Report(ctx context.Context, interviewID kernel.ID) (*inter
 	return iv.Report, nil
 }
 
+// CandidateForInterview returns the candidate an interview belongs to, so inbound
+// adapters can authorize that the caller owns it (CAL-116 IDOR protection).
+func (s *Interviewer) CandidateForInterview(ctx context.Context, interviewID kernel.ID) (kernel.ID, error) {
+	iv, err := s.interviews.ByID(ctx, interviewID)
+	if err != nil {
+		return "", err
+	}
+	return iv.CandidateID, nil
+}
+
 // ask generates the next adaptive question and records it as pending.
 func (s *Interviewer) ask(ctx context.Context, rl *role.Role, iv *interviewdom.Interview) error {
 	q, err := app.DecodeJSON[llmQuestion](ctx, s.llm,

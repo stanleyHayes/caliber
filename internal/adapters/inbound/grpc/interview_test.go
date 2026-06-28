@@ -104,7 +104,7 @@ func TestStartInterviewStreamsQuestionThenReport(t *testing.T) {
 	require.NotNil(t, q)
 	assert.Equal(t, "Go", q.GetCompetencyTag())
 
-	resp, err := srv.SubmitAnswer(asRole(context.Background(), identity.RoleCandidate),
+	resp, err := srv.SubmitAnswer(asCandidate(context.Background(), candidateID),
 		&caliberv1.SubmitAnswerRequest{InterviewId: q.GetInterviewId(), Answer: "I built a payments service in Go."})
 	require.NoError(t, err)
 	assert.True(t, resp.GetAccepted())
@@ -198,4 +198,34 @@ func TestInterviewAuthz(t *testing.T) {
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 	_, err = srv.GetReportCard(context.Background(), &caliberv1.GetReportCardRequest{InterviewId: kernel.NewID().String()})
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestInterviewOwnership(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	roles := mocks.NewMockRoleRepository(ctrl)
+	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(interviewRole(t), nil).AnyTimes()
+	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 1)
+	srv := NewInterviewServer(interviewer)
+
+	owner := kernel.NewID()
+	iv, _, err := interviewer.Start(context.Background(), kernel.NewID(), owner, 1) // ModeText
+	require.NoError(t, err)
+
+	// A different candidate cannot submit answers to someone else's interview.
+	_, err = srv.SubmitAnswer(asCandidate(context.Background(), kernel.NewID()),
+		&caliberv1.SubmitAnswerRequest{InterviewId: iv.ID.String(), Answer: "x"})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	// The owning candidate can.
+	_, err = srv.SubmitAnswer(asCandidate(context.Background(), owner),
+		&caliberv1.SubmitAnswerRequest{InterviewId: iv.ID.String(), Answer: "I shipped a Go service."})
+	require.NoError(t, err)
+
+	// The report card is now ready; a different candidate cannot read it, a reviewer can.
+	_, err = srv.GetReportCard(asCandidate(context.Background(), kernel.NewID()),
+		&caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	_, err = srv.GetReportCard(asRole(context.Background(), identity.RoleEmployer),
+		&caliberv1.GetReportCardRequest{InterviewId: iv.ID.String()})
+	require.NoError(t, err)
 }

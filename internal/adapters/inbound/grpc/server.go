@@ -37,16 +37,23 @@ type Services struct {
 
 // NewGRPCServer builds a gRPC server with every Caliber service registered.
 func NewGRPCServer(svc Services) *grpc.Server {
-	var interceptors []grpc.UnaryServerInterceptor
+	var unary []grpc.UnaryServerInterceptor
+	var stream []grpc.StreamServerInterceptor
 	if svc.AccessVerifier != nil {
-		interceptors = append(interceptors, NewAuthInterceptor(svc.AccessVerifier))
+		unary = append(unary, NewAuthInterceptor(svc.AccessVerifier))
+		// Streaming RPCs (StartInterview) need their own interceptor — unary ones
+		// don't run for streams — so the principal reaches the stream handler.
+		stream = append(stream, NewAuthStreamInterceptor(svc.AccessVerifier))
 	}
 	if svc.RateLimiter != nil {
-		interceptors = append(interceptors, NewRateLimitInterceptor(svc.RateLimiter))
+		unary = append(unary, NewRateLimitInterceptor(svc.RateLimiter))
 	}
 	var opts []grpc.ServerOption
-	if len(interceptors) > 0 {
-		opts = append(opts, grpc.ChainUnaryInterceptor(interceptors...))
+	if len(unary) > 0 {
+		opts = append(opts, grpc.ChainUnaryInterceptor(unary...))
+	}
+	if len(stream) > 0 {
+		opts = append(opts, grpc.ChainStreamInterceptor(stream...))
 	}
 	svc = withStubs(svc)
 	s := grpc.NewServer(opts...)
