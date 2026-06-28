@@ -23,6 +23,7 @@ const shutdownTimeout = 10 * time.Second
 // Run starts the gRPC server and REST gateway, blocks until ctx is cancelled,
 // then shuts both down gracefully.
 func Run(ctx context.Context, cfg config.Config, log *slog.Logger, svc grpcadapter.Services) error {
+	//nolint:contextcheck // stream auth derives ctx from the live ServerStream at call time (grpc wrapper pattern)
 	grpcSrv := grpcadapter.NewGRPCServer(svc)
 
 	var lc net.ListenConfig
