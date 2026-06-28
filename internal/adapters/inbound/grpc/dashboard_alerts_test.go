@@ -49,7 +49,7 @@ func TestDashboardGetAlertsHandler(t *testing.T) {
 	users.EXPECT().ByID(gomock.Any(), cand.UserID).Return(user, nil)
 
 	srv := NewDashboardServer(dashboardapp.NewAggregator(candidates, profiles, users, roles))
-	resp, err := srv.GetAlerts(context.Background(), &caliberv1.GetAlertsRequest{
+	resp, err := srv.GetAlerts(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GetAlertsRequest{
 		Page: &caliberv1.PageRequest{Page: 1, PageSize: 10},
 	})
 	require.NoError(t, err)

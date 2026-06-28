@@ -8,8 +8,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/domain/talent"
@@ -22,7 +25,7 @@ func TestDashboardTimeToShortlistHandler(t *testing.T) {
 	agg := dashboardapp.NewAggregator(
 		mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl),
 		mocks.NewMockUserRepository(ctrl), mocks.NewMockRoleRepository(ctrl))
-	resp, err := NewDashboardServer(agg).GetTimeToShortlist(context.Background(), &caliberv1.GetTimeToShortlistRequest{})
+	resp, err := NewDashboardServer(agg).GetTimeToShortlist(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GetTimeToShortlistRequest{})
 	require.NoError(t, err)
 	assert.InDelta(t, 504.0, resp.GetMetric().GetBaselineHours(), 0.01)
 	assert.Greater(t, resp.GetMetric().GetImprovementFactor(), 1.0)
@@ -45,7 +48,7 @@ func TestDashboardGetPoolHandler(t *testing.T) {
 	profiles.EXPECT().ByCandidateID(gomock.Any(), cand.ID).Return(profile, nil)
 
 	srv := NewDashboardServer(dashboardapp.NewAggregator(candidates, profiles, users, roles))
-	resp, err := srv.GetPool(context.Background(), &caliberv1.GetPoolRequest{Page: &caliberv1.PageRequest{Page: 1, PageSize: 10}})
+	resp, err := srv.GetPool(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GetPoolRequest{Page: &caliberv1.PageRequest{Page: 1, PageSize: 10}})
 	require.NoError(t, err)
 	require.Len(t, resp.GetCandidates(), 1)
 	assert.Equal(t, caliberv1.PassportStatus_PASSPORT_STATUS_SCREENED, resp.GetCandidates()[0].GetPassportStatus())
@@ -64,10 +67,26 @@ func TestDashboardSupplyDemandHandler(t *testing.T) {
 
 	srv := NewDashboardServer(dashboardapp.NewAggregator(
 		candidates, mocks.NewMockTalentProfileRepository(ctrl), mocks.NewMockUserRepository(ctrl), roles))
-	resp, err := srv.GetSupplyDemand(context.Background(), &caliberv1.GetSupplyDemandRequest{})
+	resp, err := srv.GetSupplyDemand(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GetSupplyDemandRequest{})
 	require.NoError(t, err)
 	require.Len(t, resp.GetItems(), 1)
 	assert.Equal(t, "mid", resp.GetItems()[0].GetRoleFamily())
 	assert.Equal(t, int32(1), resp.GetItems()[0].GetOpenRoles())
 	assert.Equal(t, int32(3), resp.GetItems()[0].GetAvailableCandidates())
+}
+
+func TestDashboardRequiresReviewer(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	srv := NewDashboardServer(dashboardapp.NewAggregator(
+		mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl),
+		mocks.NewMockUserRepository(ctrl), mocks.NewMockRoleRepository(ctrl)))
+
+	// A candidate cannot read the employer-facing Talent Radar.
+	_, err := srv.GetPool(asRole(context.Background(), identity.RoleCandidate),
+		&caliberv1.GetPoolRequest{Page: &caliberv1.PageRequest{Page: 1, PageSize: 10}})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	// An unauthenticated caller is rejected outright.
+	_, err = srv.GetTimeToShortlist(context.Background(), &caliberv1.GetTimeToShortlistRequest{})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }

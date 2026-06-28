@@ -4,6 +4,7 @@ import (
 	"context"
 
 	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
@@ -20,8 +21,19 @@ func NewDashboardServer(agg *dashboardapp.Aggregator) *DashboardServer {
 	return &DashboardServer{agg: agg}
 }
 
+// requireReviewer gates the Talent Radar to employers/recruiters: the dashboard
+// exposes the candidate pool and hiring intelligence, so it is never anonymous or
+// candidate-facing (CAL-116).
+func requireReviewer(ctx context.Context) error {
+	_, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	return err
+}
+
 // GetPool returns the paginated live candidate pool.
 func (s *DashboardServer) GetPool(ctx context.Context, req *caliberv1.GetPoolRequest) (*caliberv1.GetPoolResponse, error) {
+	if err := requireReviewer(ctx); err != nil {
+		return nil, errToStatus(err)
+	}
 	page := pageFromProto(req.GetPage())
 	pool, total, err := s.agg.Pool(ctx, page)
 	if err != nil {
@@ -43,6 +55,9 @@ func (s *DashboardServer) GetPool(ctx context.Context, req *caliberv1.GetPoolReq
 func (s *DashboardServer) GetSupplyDemand(
 	ctx context.Context, _ *caliberv1.GetSupplyDemandRequest,
 ) (*caliberv1.GetSupplyDemandResponse, error) {
+	if err := requireReviewer(ctx); err != nil {
+		return nil, errToStatus(err)
+	}
 	items, err := s.agg.SupplyDemand(ctx)
 	if err != nil {
 		return nil, errToStatus(err)
@@ -61,6 +76,9 @@ func (s *DashboardServer) GetSupplyDemand(
 
 // GetAlerts returns the paginated two-way match alert feed.
 func (s *DashboardServer) GetAlerts(ctx context.Context, req *caliberv1.GetAlertsRequest) (*caliberv1.GetAlertsResponse, error) {
+	if err := requireReviewer(ctx); err != nil {
+		return nil, errToStatus(err)
+	}
 	page := pageFromProto(req.GetPage())
 	alerts, total, err := s.agg.Alerts(ctx, page)
 	if err != nil {
@@ -83,6 +101,9 @@ func (s *DashboardServer) GetAlerts(ctx context.Context, req *caliberv1.GetAlert
 func (s *DashboardServer) GetTimeToShortlist(
 	ctx context.Context, _ *caliberv1.GetTimeToShortlistRequest,
 ) (*caliberv1.GetTimeToShortlistResponse, error) {
+	if err := requireReviewer(ctx); err != nil {
+		return nil, errToStatus(err)
+	}
 	m := s.agg.TimeToShortlist(ctx)
 	return &caliberv1.GetTimeToShortlistResponse{Metric: &caliberv1.TimeToShortlist{
 		BaselineHours:     m.BaselineHours,

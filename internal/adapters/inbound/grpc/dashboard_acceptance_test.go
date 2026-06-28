@@ -55,16 +55,22 @@ func TestTalentRadarEndToEnd(t *testing.T) {
 
 	srv := NewDashboardServer(dashboardapp.NewAggregator(candRepo, profRepo, users, roleRepo))
 	page := &caliberv1.PageRequest{Page: 1, PageSize: 10}
+	// The Talent Radar is an employer/recruiter view (CAL-116).
+	reviewer := asRole(ctx, identity.RoleEmployer)
+
+	// A candidate cannot read the dashboard.
+	_, err = srv.GetPool(asRole(ctx, identity.RoleCandidate), &caliberv1.GetPoolRequest{Page: page})
+	require.Error(t, err, "the dashboard is not candidate-facing")
 
 	// Live pool: the candidate appears with their name + passport status.
-	pool, err := srv.GetPool(ctx, &caliberv1.GetPoolRequest{Page: page})
+	pool, err := srv.GetPool(reviewer, &caliberv1.GetPoolRequest{Page: page})
 	require.NoError(t, err)
 	require.Len(t, pool.GetCandidates(), 1)
 	assert.Equal(t, "Ama Mensah", pool.GetCandidates()[0].GetName())
 	assert.NotNil(t, pool.GetPage())
 
 	// Supply/demand: the mid-seniority family shows the open role.
-	sd, err := srv.GetSupplyDemand(ctx, &caliberv1.GetSupplyDemandRequest{})
+	sd, err := srv.GetSupplyDemand(reviewer, &caliberv1.GetSupplyDemandRequest{})
 	require.NoError(t, err)
 	require.NotEmpty(t, sd.GetItems())
 	var foundMid bool
@@ -77,13 +83,13 @@ func TestTalentRadarEndToEnd(t *testing.T) {
 	assert.True(t, foundMid, "the mid-seniority family is represented")
 
 	// Two-way alerts: Ama <-> the Backend role is surfaced.
-	alerts, err := srv.GetAlerts(ctx, &caliberv1.GetAlertsRequest{Page: page})
+	alerts, err := srv.GetAlerts(reviewer, &caliberv1.GetAlertsRequest{Page: page})
 	require.NoError(t, err)
 	assert.NotEmpty(t, alerts.GetAlerts(), "a strong candidate<->role pair raises an alert")
 	assert.NotNil(t, alerts.GetPage())
 
 	// The headline metric: weeks collapse to hours.
-	ttl, err := srv.GetTimeToShortlist(ctx, &caliberv1.GetTimeToShortlistRequest{})
+	ttl, err := srv.GetTimeToShortlist(reviewer, &caliberv1.GetTimeToShortlistRequest{})
 	require.NoError(t, err)
 	m := ttl.GetMetric()
 	require.NotNil(t, m)
