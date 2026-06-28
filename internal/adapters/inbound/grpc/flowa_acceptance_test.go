@@ -13,6 +13,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
 	"github.com/xcreativs/caliber/internal/app/roles"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
@@ -64,7 +65,7 @@ func TestFlowAEndToEnd(t *testing.T) {
 	assert.GreaterOrEqual(t, gen.GetAvailableMatches(), int32(2), "two candidates cover the must-have on paper")
 
 	// 2) Ranked, explainable shortlist over the pool.
-	slResp, err := matchSrv.GenerateShortlist(ctx, &caliberv1.GenerateShortlistRequest{RoleId: role.GetId()})
+	slResp, err := matchSrv.GenerateShortlist(asRole(ctx, identity.RoleEmployer), &caliberv1.GenerateShortlistRequest{RoleId: role.GetId()})
 	require.NoError(t, err)
 	sl := slResp.GetShortlist()
 	matches := sl.GetMatches()

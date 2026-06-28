@@ -7,6 +7,7 @@ import (
 
 	"github.com/xcreativs/caliber/internal/app"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/domain/talent"
@@ -57,7 +58,7 @@ func TestGenerateShortlistHandler(t *testing.T) {
 	cid := kernel.NewID()
 
 	srv := NewMatchServer(shortlisterWithOneMatch(t, ctrl, rl, cid), nil, nil)
-	resp, err := srv.GenerateShortlist(context.Background(),
+	resp, err := srv.GenerateShortlist(asRole(context.Background(), identity.RoleEmployer),
 		&caliberv1.GenerateShortlistRequest{RoleId: rl.ID.String(), Page: &caliberv1.PageRequest{PageSize: 5}})
 	require.NoError(t, err)
 
@@ -81,7 +82,7 @@ func TestGenerateShortlistHandlerError(t *testing.T) {
 	s := matchingapp.NewShortlister(roles, mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl),
 		mocks.NewMockCandidateRecaller(ctrl), mocks.NewMockEmbedder(ctrl), mocks.NewMockLLMClient(ctrl),
 		mocks.NewMockMatchRepository(ctrl))
-	_, err := NewMatchServer(s, nil, nil).GenerateShortlist(context.Background(), &caliberv1.GenerateShortlistRequest{RoleId: "x"})
+	_, err := NewMatchServer(s, nil, nil).GenerateShortlist(asRole(context.Background(), identity.RoleEmployer), &caliberv1.GenerateShortlistRequest{RoleId: "x"})
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
@@ -111,7 +112,7 @@ func TestGenerateShortlistHandlerExclusions(t *testing.T) {
 
 	s := matchingapp.NewShortlister(roles, candidates, mocks.NewMockTalentProfileRepository(ctrl),
 		recaller, embedder, mocks.NewMockLLMClient(ctrl), mocks.NewMockMatchRepository(ctrl))
-	resp, err := NewMatchServer(s, nil, nil).GenerateShortlist(context.Background(),
+	resp, err := NewMatchServer(s, nil, nil).GenerateShortlist(asRole(context.Background(), identity.RoleEmployer),
 		&caliberv1.GenerateShortlistRequest{RoleId: rl.ID.String()})
 	require.NoError(t, err)
 
@@ -155,7 +156,7 @@ func TestRefineShortlistHandler(t *testing.T) {
 
 	shortlister := matchingapp.NewShortlister(roles, candidates, profiles, recaller, embedder, scorer, matchRepo)
 	srv := NewMatchServer(shortlister, matchingapp.NewRefiner(roles, shortlister), nil)
-	resp, err := srv.RefineShortlist(context.Background(), &caliberv1.RefineShortlistRequest{
+	resp, err := srv.RefineShortlist(asRole(context.Background(), identity.RoleEmployer), &caliberv1.RefineShortlistRequest{
 		RoleId: rl.ID.String(),
 		Spec:   &caliberv1.RoleSpec{Title: "Backend Engineer", Location: "Accra", Seniority: caliberv1.Seniority_SENIORITY_MID},
 		Rubric: &caliberv1.Rubric{Competencies: []*caliberv1.Competency{
@@ -166,4 +167,15 @@ func TestRefineShortlistHandler(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.GetShortlist().GetMatches(), 1)
 	assert.Equal(t, cid.String(), resp.GetShortlist().GetMatches()[0].GetCandidateId())
+}
+
+func TestGenerateShortlistRequiresReviewer(t *testing.T) {
+	srv := NewMatchServer(nil, nil, nil)
+	req := &caliberv1.GenerateShortlistRequest{RoleId: kernel.NewID().String()}
+	// A candidate cannot view a role's shortlist.
+	_, err := srv.GenerateShortlist(asRole(context.Background(), identity.RoleCandidate), req)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	// An unauthenticated caller is rejected.
+	_, err = srv.GenerateShortlist(context.Background(), req)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }

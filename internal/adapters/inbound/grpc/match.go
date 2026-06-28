@@ -38,10 +38,14 @@ func (s *MatchServer) AvailabilityCounter() AvailabilityCounter {
 	return s.shortlister
 }
 
-// GenerateShortlist returns an explainable ranked shortlist for a role.
+// GenerateShortlist returns an explainable ranked shortlist for a role. Viewing a
+// shortlist is hiring work, so it is restricted to employers/recruiters (CAL-116).
 func (s *MatchServer) GenerateShortlist(
 	ctx context.Context, req *caliberv1.GenerateShortlistRequest,
 ) (*caliberv1.GenerateShortlistResponse, error) {
+	if _, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter); err != nil {
+		return nil, errToStatus(err)
+	}
 	result, err := s.shortlister.GenerateShortlist(ctx, kernel.ID(req.GetRoleId()), pageLimit(req.GetPage()))
 	if err != nil {
 		return nil, errToStatus(err)
@@ -52,9 +56,13 @@ func (s *MatchServer) GenerateShortlist(
 }
 
 // RefineShortlist applies edited spec/rubric overrides to the role and re-ranks.
+// Restricted to employers/recruiters (CAL-116).
 func (s *MatchServer) RefineShortlist(
 	ctx context.Context, req *caliberv1.RefineShortlistRequest,
 ) (*caliberv1.RefineShortlistResponse, error) {
+	if _, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter); err != nil {
+		return nil, errToStatus(err)
+	}
 	result, err := s.refiner.Refine(
 		ctx, kernel.ID(req.GetRoleId()), specFromProto(req.GetSpec()), rubricFromProto(req.GetRubric()), pageLimit(req.GetPage()),
 	)
