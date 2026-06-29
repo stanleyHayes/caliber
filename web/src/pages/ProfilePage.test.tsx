@@ -19,6 +19,10 @@ vi.mock('../query/talent', () => ({
 let contestsResult: { data?: { contests: Contest[] } };
 vi.mock('../query/contest', () => ({ useMyContests: () => contestsResult }));
 
+const exportMutate = vi.fn();
+let exportResult: { mutate: ReturnType<typeof vi.fn>; isPending: boolean; isError: boolean; error: Error | null };
+vi.mock('../query/privacy', () => ({ useExportMyData: () => exportResult }));
+
 const user: User = {
   id: 'cand-1',
   email: 'ama@example.com',
@@ -38,9 +42,11 @@ const profile: TalentProfile = {
 beforeEach(() => {
   useAuthStore.setState({ user });
   mutate.mockReset();
+  exportMutate.mockReset();
   profileResult = { isPending: false, error: new ApiError(404, 'not found') };
   createResult = { mutate, isPending: false, isError: false, error: null };
   contestsResult = { data: { contests: [] } };
+  exportResult = { mutate: exportMutate, isPending: false, isError: false, error: null };
 });
 afterEach(() => {
   useAuthStore.getState().clear();
@@ -76,5 +82,12 @@ describe('ProfilePage', () => {
     expect(screen.getByText('Your Talent Passport')).toBeInTheDocument();
     expect(screen.getByText('Update from a new CV')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Re-extract profile' })).toBeInTheDocument();
+  });
+
+  it('lets the candidate download a full copy of their data (DSAR right of access)', () => {
+    render(<ProfilePage />);
+    expect(screen.getByText('Your data')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Download my data' }));
+    expect(exportMutate).toHaveBeenCalledTimes(1);
   });
 });

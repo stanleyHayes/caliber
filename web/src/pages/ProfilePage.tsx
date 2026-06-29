@@ -5,7 +5,9 @@ import { ApiError } from '../api/types';
 import { MyContestsList } from '../components/contest/MyContestsList';
 import { DotsButton } from '../components/DotsButton';
 import { ProfileView } from '../components/talent/ProfileView';
+import { downloadTextFile } from '../lib/download';
 import { useMyContests } from '../query/contest';
+import { useExportMyData } from '../query/privacy';
 import { useCreateProfile, useProfile } from '../query/talent';
 import { useAuthStore } from '../stores/auth';
 
@@ -14,6 +16,7 @@ export function ProfilePage() {
   const profile = useProfile(candidateId);
   const create = useCreateProfile(candidateId);
   const contests = useMyContests(Boolean(candidateId));
+  const dataExport = useExportMyData();
   const [cv, setCv] = useState('');
   const [location, setLocation] = useState('');
 
@@ -22,6 +25,12 @@ export function ProfilePage() {
       return;
     }
     create.mutate({ cvText: cv, intake: { location, targetTitles: [], salaryFloor: 0 } });
+  };
+
+  const downloadData = () => {
+    dataExport.mutate(undefined, {
+      onSuccess: (data) => downloadTextFile('my-caliber-data.json', data.document),
+    });
   };
 
   const existing = profile.data?.profile ?? create.data?.profile;
@@ -73,6 +82,22 @@ export function ProfilePage() {
           <MyContestsList contests={contests.data?.contests ?? []} />
         </Stack>
       )}
+
+      <Stack spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+        <Typography variant="h6">Your data</Typography>
+        <Typography variant="body2" color="text.secondary">
+          Download a complete copy of everything Caliber holds about you — your profile, applications,
+          screenings, and disputes (Ghana Data Protection Act, right of access).
+        </Typography>
+        {dataExport.isError && (
+          <Alert severity="error">
+            {dataExport.error instanceof Error ? dataExport.error.message : 'Could not export your data.'}
+          </Alert>
+        )}
+        <DotsButton variant="outlined" loading={dataExport.isPending} onClick={downloadData}>
+          Download my data
+        </DotsButton>
+      </Stack>
     </Stack>
   );
 }
