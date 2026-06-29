@@ -71,4 +71,24 @@ func (r *UserRepo) Update(_ context.Context, u *identity.User) error {
 	return nil
 }
 
+// Anonymize de-identifies a user account in place (right-to-erasure cascade,
+// CAL-118): the PII (name, email) and the credential are scrubbed while the row
+// is kept so audit/foreign references do not dangle. The email is replaced with a
+// unique tombstone so the email index stays valid. Idempotent for an absent id.
+func (r *UserRepo) Anonymize(_ context.Context, id kernel.ID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	u, ok := r.byID[id]
+	if !ok {
+		return nil
+	}
+	delete(r.byEmail, u.Email)
+	u.Name = ""
+	u.PasswordHash = ""
+	u.Email = identity.Email("erased+" + id.String() + "@erased.invalid")
+	r.byID[id] = u
+	r.byEmail[u.Email] = id
+	return nil
+}
+
 var _ identity.UserRepository = (*UserRepo)(nil)

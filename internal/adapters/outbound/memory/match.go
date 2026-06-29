@@ -42,6 +42,19 @@ func (r *MatchRepo) ForCandidate(_ context.Context, candidateID kernel.ID, page 
 	return r.filter(func(m matchingdom.Match) bool { return m.CandidateID == candidateID }, page)
 }
 
+// DeleteByCandidate hard-removes every match referencing a candidate (right-to-
+// erasure cascade, CAL-118).
+func (r *MatchRepo) DeleteByCandidate(_ context.Context, candidateID kernel.ID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for k, m := range r.byKey {
+		if m.CandidateID == candidateID {
+			delete(r.byKey, k)
+		}
+	}
+	return nil
+}
+
 func (r *MatchRepo) filter(keep func(matchingdom.Match) bool, page kernel.Page) ([]*matchingdom.Match, int64, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

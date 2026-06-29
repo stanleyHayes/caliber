@@ -62,6 +62,23 @@ func (r *ContestRepo) BySubject(_ context.Context, subjectID kernel.ID, page ker
 	return r.list(func(c contest.Contest) bool { return c.SubjectID == subjectID }, page)
 }
 
+// DeleteByCandidate hard-removes every contest a candidate raised (right-to-
+// erasure cascade, CAL-118).
+func (r *ContestRepo) DeleteByCandidate(_ context.Context, candidateID kernel.ID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	kept := r.order[:0]
+	for _, id := range r.order {
+		if r.byID[id].CandidateID == candidateID {
+			delete(r.byID, id)
+		} else {
+			kept = append(kept, id)
+		}
+	}
+	r.order = kept
+	return nil
+}
+
 func (r *ContestRepo) list(keep func(contest.Contest) bool, page kernel.Page) ([]*contest.Contest, int64, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

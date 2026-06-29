@@ -74,4 +74,17 @@ func (r *InterviewRepo) ByCandidate(
 	return all[start:end], total, nil
 }
 
+// DeleteByCandidate hard-removes every interview of a candidate, transcripts
+// included (right-to-erasure cascade, CAL-118).
+func (r *InterviewRepo) DeleteByCandidate(_ context.Context, candidateID kernel.ID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for id := range r.byID {
+		if r.byID[id].CandidateID == candidateID {
+			delete(r.byID, id)
+		}
+	}
+	return nil
+}
+
 var _ interview.InterviewRepository = (*InterviewRepo)(nil)

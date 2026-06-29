@@ -44,3 +44,17 @@ func (r *AuditRepo) List(
 	end := min(start+page.Limit(), len(matched))
 	return matched[start:end], total, nil
 }
+
+// TombstoneActor replaces an erased subject's actor id with a tombstone across
+// the trail (right-to-erasure cascade, CAL-118): the append-only audit record is
+// retained as a compliance artifact, but the subject's identity is removed.
+func (r *AuditRepo) TombstoneActor(_ context.Context, actorID kernel.ID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := range r.entries {
+		if r.entries[i].ActorUserID == actorID {
+			r.entries[i].ActorUserID = kernel.ID("erased")
+		}
+	}
+	return nil
+}

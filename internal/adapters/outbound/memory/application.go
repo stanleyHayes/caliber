@@ -75,4 +75,21 @@ func (r *ApplicationRepo) ByCandidate(
 	return all[start:end], total, nil
 }
 
+// DeleteByCandidate hard-removes every application of a candidate (right-to-
+// erasure cascade, CAL-118).
+func (r *ApplicationRepo) DeleteByCandidate(_ context.Context, candidateID kernel.ID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	kept := r.order[:0]
+	for _, id := range r.order {
+		if r.byID[id].CandidateID == candidateID {
+			delete(r.byID, id)
+		} else {
+			kept = append(kept, id)
+		}
+	}
+	r.order = kept
+	return nil
+}
+
 var _ candidateagent.ApplicationRepository = (*ApplicationRepo)(nil)
