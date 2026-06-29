@@ -43,6 +43,7 @@ func TestBuildServicesWiresEveryServiceInMemory(t *testing.T) {
 		"Talent":         svc.Talent,
 		"Contest":        svc.Contest,
 		"Audit":          svc.Audit,
+		"Privacy":        svc.Privacy,
 		"AccessVerifier": svc.AccessVerifier,
 	}
 	for name, dep := range checks {
