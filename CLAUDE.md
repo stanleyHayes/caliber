@@ -38,9 +38,16 @@ SonarQube gate passes · security handled (validation, authz, secrets, PII) · P
 `agent_plan.md` status + Sprint board updated · docs updated.
 
 ## Git conventions (project key CAL)
-- Branch: `feature/CAL-123-short-slug` (`fix/`, `chore/`, `docs/`).
+- **TEMPORARY (stabilization phase): push directly to `main`.** While the platform
+  is being stabilized, commit your own work straight to `main` rather than opening
+  feature-branch PRs (the solo owner can't self-approve the review gate). Before
+  pushing: sync with origin (`git fetch` + fast-forward/rebase) and push **only the
+  work you did** — never another agent's in-progress changes. Multiple agents work
+  this repo concurrently, so keep each push small, green, and self-contained. Revert
+  to the feature-branch + PR flow below once the platform is stable.
+- Branch (post-stabilization): `feature/CAL-123-short-slug` (`fix/`, `chore/`, `docs/`).
 - Commit: `CAL-123 imperative summary`.
-- Trunk-based, squash-merge; CI + Sonar + 1 review required to merge.
+- Trunk-based, squash-merge; CI + Sonar + 1 review required to merge (post-stabilization).
 - End commit messages with: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
 ## Common commands
