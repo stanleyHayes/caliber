@@ -1,0 +1,65 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Africa/Accra
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - security
+    groups:
+      go-modules:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:15"
+      timezone: Africa/Accra
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - security
+    groups:
+      web-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:30"
+      timezone: Africa/Accra
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - security
+    groups:
+      container-bases:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:45"
+      timezone: Africa/Accra
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - security
+    groups:
+      github-actions:
+        patterns:
+          - "*"

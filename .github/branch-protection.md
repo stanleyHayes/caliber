@@ -15,6 +15,7 @@ Required settings for CAL-009:
   - `Secrets (gitleaks)`
   - `Backend (lint · proto · test · coverage · sonar)`
   - `Frontend (typecheck · build · lint · test)`
+  - `Supply chain (govulncheck · npm audit · Trivy)`
 - Block force pushes.
 - Block branch deletion.
 - Do not allow direct pushes to `main`.

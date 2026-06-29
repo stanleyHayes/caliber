@@ -1,7 +1,7 @@
 MODULE := github.com/xcreativs/caliber
 GOBIN  := $(shell go env GOPATH)/bin
 
-.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci run-api run-worker tidy
+.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker tidy
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
@@ -45,6 +45,24 @@ build: ## compile everything
 
 ci: build vet lint test ## run the full local CI (build, vet, lint, race tests) — run this before pushing
 	@echo "local CI passed — safe to push"
+
+scan: scan-go scan-web scan-containers ## run dependency and container vulnerability scans
+	@echo "supply-chain scans passed"
+
+scan-go: ## run govulncheck over Go packages
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+scan-web: ## run npm audit for high/critical frontend vulnerabilities
+	cd web && npm audit --audit-level=high
+
+scan-containers: ## build and scan api/worker/migrate images with Trivy
+	@command -v trivy >/dev/null || { echo "trivy is required for container scans: https://trivy.dev/latest/getting-started/installation/"; exit 127; }
+	docker build -f deploy/Dockerfile.api -t caliber-api:scan .
+	trivy image --vuln-type os,library --severity HIGH,CRITICAL --exit-code 1 caliber-api:scan
+	docker build -f deploy/Dockerfile.worker -t caliber-worker:scan .
+	trivy image --vuln-type os,library --severity HIGH,CRITICAL --exit-code 1 caliber-worker:scan
+	docker build -f deploy/Dockerfile.migrate -t caliber-migrate:scan .
+	trivy image --vuln-type os,library --severity HIGH,CRITICAL --exit-code 1 caliber-migrate:scan
 
 run-api: ## run the API + REST gateway
 	go run ./cmd/api

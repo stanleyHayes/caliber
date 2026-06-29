@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Refresh vulnerability intelligence weekly even when no code changes land.
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -116,3 +120,72 @@ jobs:
 
       - name: Test
         run: npm run test:run # vitest run (jsdom)
+
+  supply-chain:
+    name: Supply chain (govulncheck · npm audit · Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: go.mod
+          go-package: ./...
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: npm audit blocks high/critical vulnerabilities
+        working-directory: web
+        run: npm audit --audit-level=high
+
+      - name: Build API image
+        run: docker build -f deploy/Dockerfile.api -t "caliber-api:${{ github.sha }}" .
+
+      - name: Trivy scan API image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: caliber-api:${{ github.sha }}
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          format: table
+
+      - name: Build worker image
+        run: docker build -f deploy/Dockerfile.worker -t "caliber-worker:${{ github.sha }}" .
+
+      - name: Trivy scan worker image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: caliber-worker:${{ github.sha }}
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          format: table
+
+      - name: Build migrate image
+        run: docker build -f deploy/Dockerfile.migrate -t "caliber-migrate:${{ github.sha }}" .
+
+      - name: Trivy scan migrate image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: caliber-migrate:${{ github.sha }}
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          format: table
