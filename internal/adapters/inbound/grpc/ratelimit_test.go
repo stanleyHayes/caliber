@@ -67,6 +67,31 @@ func TestRateLimiter_KeysAreIndependent(t *testing.T) {
 	assert.True(t, limiter.Allow("user:b"))
 }
 
+func TestRateLimiter_EvictsIdleBuckets(t *testing.T) {
+	clk := &fakeClock{t: time.Unix(1700000000, 0)}
+	limiter := NewRateLimiter(1, 1, clk.now)
+
+	// Two keys created now go idle.
+	limiter.Allow("anon:1.1.1.1:/m")
+	limiter.Allow("anon:2.2.2.2:/m")
+
+	clk.advance(idleEvictAfter + time.Second)
+	limiter.Allow("anon:3.3.3.3:/m") // touched at the advanced time -> still hot
+
+	limiter.mu.Lock()
+	limiter.evictIdle(clk.now())
+	remaining := len(limiter.buckets)
+	_, hot := limiter.buckets["anon:3.3.3.3:/m"]
+	limiter.mu.Unlock()
+
+	assert.Equal(t, 1, remaining, "idle buckets are swept")
+	assert.True(t, hot, "a recently-used bucket survives the sweep")
+
+	// Eviction is behavior-preserving: a swept key is admitted again with a full
+	// burst, exactly as a never-seen key would be.
+	assert.True(t, limiter.Allow("anon:1.1.1.1:/m"))
+}
+
 func TestRateLimiter_ClampsNonPositiveConfig(t *testing.T) {
 	clk := &fakeClock{t: time.Unix(1700000000, 0)}
 	limiter := NewRateLimiter(0, 0, clk.now) // clamped so it never locks everyone out

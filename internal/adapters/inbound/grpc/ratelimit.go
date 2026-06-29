@@ -35,6 +35,18 @@ type tokenBucket struct {
 	last   time.Time
 }
 
+// sweepThreshold is the bucket count past which Allow opportunistically evicts
+// idle buckets. Keying anonymous traffic per client IP (and honoring a
+// client-influenced X-Forwarded-For) means the map's cardinality is attacker-
+// driven, so it must be bounded or it becomes a slow memory-exhaustion vector
+// (CAL-120 L7).
+const sweepThreshold = 10_000
+
+// idleEvictAfter is how long a bucket may sit untouched before it is evicted. A
+// bucket idle this long has fully refilled, so deleting it is behavior-
+// preserving: the next request for that key re-creates an identical full bucket.
+const idleEvictAfter = 10 * time.Minute
+
 // NewRateLimiter builds a limiter allowing ratePerSec sustained requests with a
 // burst ceiling, using now as its clock (injectable for tests). A non-positive
 // rate or burst is clamped to a small positive value so the limiter always
@@ -62,6 +74,11 @@ func (r *RateLimiter) Allow(key string) bool {
 	t := r.now()
 	b, ok := r.buckets[key]
 	if !ok {
+		// Bound the map before admitting a brand-new key, so a flood of distinct
+		// keys (per-IP anonymous traffic) cannot grow it without limit (L7).
+		if len(r.buckets) >= sweepThreshold {
+			r.evictIdle(t)
+		}
 		// A fresh key starts full, then immediately spends one token below.
 		b = &tokenBucket{tokens: r.burst, last: t}
 		r.buckets[key] = b
@@ -77,6 +94,19 @@ func (r *RateLimiter) Allow(key string) bool {
 		return true
 	}
 	return false
+}
+
+// evictIdle removes buckets untouched for longer than idleEvictAfter. Such a
+// bucket has fully refilled, so its removal is behavior-preserving — the next
+// request for that key re-creates an identical full bucket. The caller holds the
+// lock. If nothing is idle (every key is hot), the map simply stays at its high-
+// water mark; that is the genuine working set, not a leak.
+func (r *RateLimiter) evictIdle(now time.Time) {
+	for key, b := range r.buckets {
+		if now.Sub(b.last) > idleEvictAfter {
+			delete(r.buckets, key)
+		}
+	}
 }
 
 // NewRateLimitInterceptor returns a unary interceptor that enforces the limiter.
