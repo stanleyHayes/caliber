@@ -216,14 +216,15 @@ func (j jobFramework) errorJob(msg string, err error, meta jobMeta, elapsed time
 }
 
 func jobLogArgs(meta jobMeta, extra ...any) []any {
-	args := []any{
+	args := make([]any, 0, 12+len(extra))
+	args = append(args,
 		"job", meta.name,
 		"task_type", meta.typ,
 		"idempotency_key", meta.key,
 		"task_id", meta.taskID,
 		"queue", meta.queue,
 		"retry_count", meta.retry,
-	}
+	)
 	return append(args, extra...)
 }
 

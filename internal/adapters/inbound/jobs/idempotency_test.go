@@ -23,11 +23,11 @@ func TestJobFrameworkSkipsDuplicateDelivery(t *testing.T) {
 	store := jobs.NewMemoryIdempotencyStore()
 	var buf bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&buf, nil))
-	var calls int32
+	var calls atomic.Int32
 	mux := jobs.NewMux(log,
 		jobs.WithIdempotencyStore(store),
 		jobs.WithHealthcheckCallback(func(context.Context, jobs.HealthcheckPayload) error {
-			atomic.AddInt32(&calls, 1)
+			calls.Add(1)
 			return nil
 		}),
 	)
@@ -37,18 +37,18 @@ func TestJobFrameworkSkipsDuplicateDelivery(t *testing.T) {
 	require.NoError(t, mux.ProcessTask(t.Context(), asynq.NewTask(jobs.TypeHealthcheck, payload)))
 	require.NoError(t, mux.ProcessTask(t.Context(), asynq.NewTask(jobs.TypeHealthcheck, payload)))
 
-	assert.Equal(t, int32(1), atomic.LoadInt32(&calls), "duplicate delivery must not double-apply")
+	assert.Equal(t, int32(1), calls.Load(), "duplicate delivery must not double-apply")
 	assert.Contains(t, buf.String(), "job completed")
 	assert.Contains(t, buf.String(), "job skipped duplicate")
 }
 
 func TestJobFrameworkReleasesFailedDeliveryForRetry(t *testing.T) {
 	store := jobs.NewMemoryIdempotencyStore()
-	var calls int32
+	var calls atomic.Int32
 	mux := jobs.NewMux(slog.New(slog.DiscardHandler),
 		jobs.WithIdempotencyStore(store),
 		jobs.WithHealthcheckCallback(func(context.Context, jobs.HealthcheckPayload) error {
-			if atomic.AddInt32(&calls, 1) == 1 {
+			if calls.Add(1) == 1 {
 				return errors.New("transient failure")
 			}
 			return nil
@@ -61,7 +61,7 @@ func TestJobFrameworkReleasesFailedDeliveryForRetry(t *testing.T) {
 	require.ErrorContains(t, err, "transient failure")
 	require.NoError(t, mux.ProcessTask(t.Context(), asynq.NewTask(jobs.TypeHealthcheck, payload)))
 
-	assert.Equal(t, int32(2), atomic.LoadInt32(&calls), "failed delivery should release the key for retry")
+	assert.Equal(t, int32(2), calls.Load(), "failed delivery should release the key for retry")
 }
 
 func TestJobFrameworkEmitsTraceSpan(t *testing.T) {
