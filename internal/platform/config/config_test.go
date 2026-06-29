@@ -1,6 +1,15 @@
 package config
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
+
+func clearCORSOriginsEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("CALIBER_CORS_ORIGINS", "")
+	t.Setenv("CALIBER_CORS_ALLOWED_ORIGINS", "")
+}
 
 func TestLoadAppliesDefaults(t *testing.T) {
 	t.Setenv("CALIBER_HTTP_ADDR", "")
@@ -8,6 +17,7 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	t.Setenv("CALIBER_ENV", "")
 	t.Setenv("CALIBER_LOG_LEVEL", "")
 	t.Setenv("CALIBER_WORKER_CONCURRENCY", "")
+	clearCORSOriginsEnv(t)
 
 	cfg, err := Load()
 	if err != nil {
@@ -25,13 +35,68 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Errorf("LogLevel = %q, want info", cfg.LogLevel)
 	}
+	if len(cfg.AllowedOrigins) != 4 {
+		t.Errorf("AllowedOrigins len = %d, want 4", len(cfg.AllowedOrigins))
+	}
 	if cfg.WorkerConcurrency != 4 {
 		t.Errorf("WorkerConcurrency = %d, want 4", cfg.WorkerConcurrency)
 	}
 }
 
+func TestLoadParsesStrictCORSOrigins(t *testing.T) {
+	t.Setenv("CALIBER_ENV", "")
+	clearCORSOriginsEnv(t)
+	t.Setenv(
+		"CALIBER_CORS_ORIGINS",
+		"https://app.example.com, https://ADMIN.example.com/, https://app.example.com",
+	)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	want := []string{"https://app.example.com", "https://admin.example.com"}
+	if len(cfg.AllowedOrigins) != len(want) {
+		t.Fatalf("AllowedOrigins = %v, want %v", cfg.AllowedOrigins, want)
+	}
+	for i := range want {
+		if cfg.AllowedOrigins[i] != want[i] {
+			t.Errorf("AllowedOrigins[%d] = %q, want %q", i, cfg.AllowedOrigins[i], want[i])
+		}
+	}
+}
+
+func TestLoadParsesLegacyCORSAllowedOriginsAlias(t *testing.T) {
+	t.Setenv("CALIBER_ENV", "")
+	clearCORSOriginsEnv(t)
+	t.Setenv("CALIBER_CORS_ALLOWED_ORIGINS", "https://legacy.example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if want := []string{"https://legacy.example.com"}; !slices.Equal(cfg.AllowedOrigins, want) {
+		t.Fatalf("AllowedOrigins = %v, want %v", cfg.AllowedOrigins, want)
+	}
+}
+
+func TestLoadRejectsPermissiveOrMalformedCORSOrigins(t *testing.T) {
+	for _, raw := range []string{"*", "example.com", "https://app.example.com/path", "ftp://app.example.com"} {
+		t.Run(raw, func(t *testing.T) {
+			t.Setenv("CALIBER_ENV", "")
+			clearCORSOriginsEnv(t)
+			t.Setenv("CALIBER_CORS_ORIGINS", raw)
+			if _, err := Load(); err == nil {
+				t.Fatal("Load() error = nil, want invalid CORS origin error")
+			}
+		})
+	}
+}
+
 func TestLoadParsesWorkerConcurrency(t *testing.T) {
+	t.Setenv("CALIBER_ENV", "")
 	t.Setenv("CALIBER_WORKER_CONCURRENCY", "7")
+	clearCORSOriginsEnv(t)
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -42,6 +107,8 @@ func TestLoadParsesWorkerConcurrency(t *testing.T) {
 }
 
 func TestValidateReportsMissingSecrets(t *testing.T) {
+	t.Setenv("CALIBER_ENV", "")
+	clearCORSOriginsEnv(t)
 	for _, k := range []string{
 		"CALIBER_DATABASE_URL", "CALIBER_REDIS_URL",
 		"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CALIBER_JWT_SECRET",
@@ -51,6 +118,20 @@ func TestValidateReportsMissingSecrets(t *testing.T) {
 	cfg, _ := Load()
 	if got := cfg.Validate(); len(got) != 5 {
 		t.Errorf("Validate() reported %d missing (%v), want 5", len(got), got)
+	}
+}
+
+func TestValidateRequiresCORSOriginsInProd(t *testing.T) {
+	t.Setenv("CALIBER_ENV", "prod")
+	clearCORSOriginsEnv(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	missing := cfg.Validate()
+	if !slices.Contains(missing, "CALIBER_CORS_ORIGINS") {
+		t.Fatalf("Validate() missing = %v, want CALIBER_CORS_ORIGINS", missing)
 	}
 }
 

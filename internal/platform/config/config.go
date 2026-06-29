@@ -4,10 +4,16 @@ package config
 
 import (
 	"errors"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+)
+
+const (
+	corsOriginsEnv       = "CALIBER_CORS_ORIGINS"
+	legacyCORSOriginsEnv = "CALIBER_CORS_ALLOWED_ORIGINS"
 )
 
 // Config holds all runtime configuration for the API and worker processes.
@@ -17,6 +23,10 @@ type Config struct {
 
 	HTTPAddr string // REST gateway + health, e.g. ":8080"
 	GRPCAddr string // gRPC services, e.g. ":9090"
+
+	// AllowedOrigins is the strict CORS allowlist (CAL-114): exact SPA origins
+	// permitted to call the API cross-origin. Empty means same-origin only.
+	AllowedOrigins []string
 
 	DatabaseURL string // Postgres + pgvector DSN
 	RedisURL    string // Redis (Asynq) URL
@@ -36,10 +46,6 @@ type Config struct {
 	RateLimitRPS   float64 // per-principal sustained request rate (token-bucket refill/sec)
 	RateLimitBurst float64 // per-principal burst ceiling (max tokens)
 
-	// AllowedOrigins is the strict CORS allowlist (CAL-114): exact SPA origins
-	// permitted to call the API cross-origin. Empty means same-origin only.
-	AllowedOrigins []string
-
 	WorkerConcurrency int           // Asynq worker concurrency
 	TaskMaxRetry      int           // Asynq max retries per task
 	TaskRetention     time.Duration // how long completed tasks remain inspectable
@@ -49,11 +55,17 @@ type Config struct {
 // It returns an error only for values that are malformed; missing secrets are
 // reported by Validate so a bare server can still boot in local/dev.
 func Load() (Config, error) {
+	env := getenv("CALIBER_ENV", "dev")
+	allowedOrigins, err := getorigins(env)
+	if err != nil {
+		return Config{}, err
+	}
 	c := Config{
-		Env:                  getenv("CALIBER_ENV", "dev"),
+		Env:                  env,
 		LogLevel:             getenv("CALIBER_LOG_LEVEL", "info"),
 		HTTPAddr:             getenv("CALIBER_HTTP_ADDR", ":8080"),
 		GRPCAddr:             getenv("CALIBER_GRPC_ADDR", ":9090"),
+		AllowedOrigins:       allowedOrigins,
 		DatabaseURL:          os.Getenv("CALIBER_DATABASE_URL"),
 		RedisURL:             os.Getenv("CALIBER_REDIS_URL"),
 		AnthropicAPIKey:      os.Getenv("ANTHROPIC_API_KEY"),
@@ -70,7 +82,6 @@ func Load() (Config, error) {
 		// cap floods and runaway clients on the expensive AI endpoints (CAL-112).
 		RateLimitRPS:      getfloat("CALIBER_RATE_LIMIT_RPS", 30),
 		RateLimitBurst:    getfloat("CALIBER_RATE_LIMIT_BURST", 60),
-		AllowedOrigins:    getcsv("CALIBER_CORS_ORIGINS"),
 		WorkerConcurrency: getint("CALIBER_WORKER_CONCURRENCY", 4),
 		TaskMaxRetry:      getint("CALIBER_TASK_MAX_RETRY", 3),
 		TaskRetention:     getdur("CALIBER_TASK_RETENTION", 24*time.Hour),
@@ -99,6 +110,9 @@ func (c Config) Validate() []string {
 		if strings.TrimSpace(val) == "" {
 			missing = append(missing, name)
 		}
+	}
+	if c.IsProd() && len(c.AllowedOrigins) == 0 {
+		missing = append(missing, corsOriginsEnv)
 	}
 	return missing
 }
@@ -148,20 +162,70 @@ func getenv(key, def string) string {
 	return def
 }
 
-// getcsv parses a comma-separated env var into a trimmed, empty-dropped slice
-// (nil when unset), used for the CORS origin allowlist.
-func getcsv(key string) []string {
-	raw := os.Getenv(key)
+func getorigins(env string) ([]string, error) {
+	raw, source := corsOriginsValue()
 	if strings.TrimSpace(raw) == "" {
+		return append([]string(nil), defaultCORSAllowedOrigins(env)...), nil
+	}
+
+	parts := strings.Split(raw, ",")
+	seen := make(map[string]struct{}, len(parts))
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		origin := strings.TrimRight(strings.TrimSpace(part), "/")
+		if origin == "" {
+			continue
+		}
+		normalized, err := normalizeOrigin(source, origin)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		origins = append(origins, normalized)
+	}
+	return origins, nil
+}
+
+func corsOriginsValue() (string, string) {
+	if raw := os.Getenv(corsOriginsEnv); strings.TrimSpace(raw) != "" {
+		return raw, corsOriginsEnv
+	}
+	if raw := os.Getenv(legacyCORSOriginsEnv); strings.TrimSpace(raw) != "" {
+		return raw, legacyCORSOriginsEnv
+	}
+	return "", corsOriginsEnv
+}
+
+func defaultCORSAllowedOrigins(env string) []string {
+	if strings.EqualFold(env, "prod") {
 		return nil
 	}
-	var out []string
-	for part := range strings.SplitSeq(raw, ",") {
-		if p := strings.TrimSpace(part); p != "" {
-			out = append(out, p)
-		}
+	return []string{
+		"http://localhost:5173",
+		"http://127.0.0.1:5173",
+		"http://localhost:4173",
+		"http://127.0.0.1:4173",
 	}
-	return out
+}
+
+func normalizeOrigin(source, origin string) (string, error) {
+	if strings.Contains(origin, "*") {
+		return "", errors.New("config: " + source + " must not contain wildcard origins")
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return "", errors.New("config: invalid CORS origin " + origin)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", errors.New("config: CORS origins must use http or https")
+	}
+	if u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return "", errors.New("config: CORS origins must be exact scheme://host[:port] values")
+	}
+	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host), nil
 }
 
 // getdur parses a Go duration (e.g. "15m", "168h") from the environment,

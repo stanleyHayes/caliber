@@ -17,6 +17,9 @@ type ReadinessChecker interface {
 	Check(ctx context.Context) error
 }
 
+const corsAllowedHeaders = "Authorization, Content-Type, Connect-Protocol-Version, " +
+	"Connect-Timeout, Grpc-Timeout, X-Requested-With"
+
 // NewRouter builds the chi router: request-id + strict CORS + structured
 // access-log + panic-recovery middleware, health and readiness endpoints, and
 // the gateway mounted under /v1/. allowedOrigins is the CORS allowlist (empty =
@@ -92,8 +95,8 @@ func secureHeaders(hsts bool) func(http.Handler) http.Handler {
 // response to another. Preflights (OPTIONS) are answered 204 here.
 func cors(allowedOrigins []string) func(http.Handler) http.Handler {
 	allowed := make(map[string]struct{}, len(allowedOrigins))
-	for _, o := range allowedOrigins {
-		allowed[o] = struct{}{}
+	for _, origin := range allowedOrigins {
+		allowed[origin] = struct{}{}
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,8 +106,8 @@ func cors(allowedOrigins []string) func(http.Handler) http.Handler {
 					h := w.Header()
 					h.Set("Access-Control-Allow-Origin", origin)
 					h.Add("Vary", "Origin")
-					h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
-					h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+					h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+					h.Set("Access-Control-Allow-Headers", corsAllowedHeaders)
 					h.Set("Access-Control-Max-Age", "600")
 				}
 			}
