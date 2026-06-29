@@ -40,6 +40,7 @@ type HealthcheckCallback func(context.Context, HealthcheckPayload) error
 
 type options struct {
 	healthcheck HealthcheckCallback
+	idempotency IdempotencyStore
 }
 
 // Option customizes worker handlers.
@@ -53,10 +54,19 @@ func WithHealthcheckCallback(fn HealthcheckCallback) Option {
 	}
 }
 
+// WithIdempotencyStore injects the store used by the handler framework. Tests
+// can share one store across muxes; production can provide a durable store later.
+func WithIdempotencyStore(store IdempotencyStore) Option {
+	return func(opts *options) {
+		opts.idempotency = store
+	}
+}
+
 // HandlerDeps bundles the use-cases the business task handlers need.
 type HandlerDeps struct {
 	AgentRunner *candidateagentapp.AgentRunner
 	Interviewer *interviewapp.Interviewer
+	Idempotency IdempotencyStore
 }
 
 // NewMux builds the task-handler mux.
@@ -66,15 +76,23 @@ func NewMux(log *slog.Logger, opts ...Option) *asynq.ServeMux {
 		opt(&cfg)
 	}
 	mux := asynq.NewServeMux()
-	mux.HandleFunc(TypeHealthcheck, handleHealthcheck(log, cfg.healthcheck))
+	framework := newJobFramework(log, cfg.idempotency)
+	mux.HandleFunc(TypeHealthcheck, framework.wrap("healthcheck", handleHealthcheck(log, cfg.healthcheck)))
 	return mux
 }
 
 // RegisterHandlers adds business handlers to an existing Asynq mux.
 func RegisterHandlers(mux *asynq.ServeMux, deps HandlerDeps, log *slog.Logger) {
-	mux.HandleFunc(string(appqueue.TypeCandidateAgentRun), handleCandidateAgentRun(deps.AgentRunner, log))
-	mux.HandleFunc(string(appqueue.TypeInterviewScoring), handleInterviewScoring(deps.Interviewer, log))
-	mux.HandleFunc(string(appqueue.TypeBatchRematch), handleBatchRematch(log))
+	framework := newJobFramework(log, deps.Idempotency)
+	mux.HandleFunc(
+		string(appqueue.TypeCandidateAgentRun),
+		framework.wrap("candidate_agent_run", handleCandidateAgentRun(deps.AgentRunner, log)),
+	)
+	mux.HandleFunc(
+		string(appqueue.TypeInterviewScoring),
+		framework.wrap("interview_scoring", handleInterviewScoring(deps.Interviewer, log)),
+	)
+	mux.HandleFunc(string(appqueue.TypeBatchRematch), framework.wrap("batch_rematch", handleBatchRematch(log)))
 }
 
 func handleHealthcheck(log *slog.Logger, callback HealthcheckCallback) func(context.Context, *asynq.Task) error {

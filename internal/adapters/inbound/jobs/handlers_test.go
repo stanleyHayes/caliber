@@ -57,6 +57,8 @@ func TestCandidateAgentHandlerRunsAgent(t *testing.T) {
 
 	err = mux.ProcessTask(context.Background(), asynq.NewTask(string(appqueue.TypeCandidateAgentRun), payload))
 	require.NoError(t, err)
+	err = mux.ProcessTask(context.Background(), asynq.NewTask(string(appqueue.TypeCandidateAgentRun), payload))
+	require.NoError(t, err, "duplicate delivery should be skipped before side effects")
 }
 
 func TestInterviewScoringHandlerRejectsInvalidPayload(t *testing.T) {
