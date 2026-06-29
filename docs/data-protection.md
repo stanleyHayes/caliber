@@ -44,7 +44,16 @@ companion to [fairness.md](fairness.md).
   behalf is an opt-in; the agent only acts for candidates with a verified profile
   and never fabricates. *POC status:* gated by the candidate initiating the agent.
 
-## Right to erasure (deletion path — designed + stubbed)
+## Right of access (DSAR — implemented)
+
+A candidate can obtain a complete, structured copy of every record held about
+them. `privacy.Exporter` (CAL-118) aggregates — read-only, over the existing
+repository ports — the candidate, their talent passport (omitted if never built),
+and every application, interview, and contest, paging through each repository
+until all records are collected (no silent truncation). *Remaining:* the
+candidate-self `GET /v1/me/data` endpoint over this use-case.
+
+## Right to erasure (deletion path — use-case implemented)
 
 The DPA 2012 grants data subjects the right to have their data deleted. The
 design:
@@ -59,11 +68,12 @@ design:
    — its existence, not the subject's identity, is what is retained.
 3. Exposed as `DELETE /v1/me/data` (candidate-only), audited as a deletion event.
 
-*POC status:* **designed and documented here; stubbed** — the cascade is
-specified above and the in-memory repositories already support per-candidate
-lookup/removal primitives; the gRPC `DeleteMyData` RPC and the cascade
-orchestration are the remaining implementation (tracked as a follow-up, gated on
-the Postgres persistence work, EPIC-02).
+*POC status:* **cascade use-case implemented + tested** — `privacy.Eraser`
+(CAL-118) orchestrates exactly the order above (scoped records → candidate
+aggregate → owning user anonymised → audit trail tombstoned), declaring the
+narrow removal ports it depends on (hexagonal). *Remaining:* the repositories'
+hard-delete primitives that satisfy those ports and the `DELETE /v1/me/data`
+endpoint, gated on the Postgres persistence work (EPIC-02).
 
 ## Retention
 
@@ -76,9 +86,9 @@ the Postgres persistence work, EPIC-02).
 
 | Right | Mechanism | Status |
 |---|---|---|
-| Access | A candidate views their profile, applications, and assessments via the authenticated app | Built |
+| Access | In-app views + `privacy.Exporter` DSAR aggregation (CAL-118); endpoint pending | Use-case built |
 | Rectify / contest | Contest an assessment (CAL-083); human reviewer resolves; audited | Built |
-| Erasure | `DeleteMyData` cascade (above) | Designed + stubbed |
+| Erasure | `privacy.Eraser` cascade use-case (CAL-118, above); repo delete primitives + endpoint pending | Use-case built |
 | Object / restrict | Agent is opt-in; deal-breakers exclude roles (CAL-046) | Built |
 | Portability | Profile is structured JSON behind the API | Built (API) |
 
