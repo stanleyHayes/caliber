@@ -35,6 +35,10 @@ type Config struct {
 
 	RateLimitRPS   float64 // per-principal sustained request rate (token-bucket refill/sec)
 	RateLimitBurst float64 // per-principal burst ceiling (max tokens)
+
+	WorkerConcurrency int           // Asynq worker concurrency
+	TaskMaxRetry      int           // Asynq max retries per task
+	TaskRetention     time.Duration // how long completed tasks remain inspectable
 }
 
 // Load reads configuration from the environment, applying sane defaults.
@@ -60,8 +64,11 @@ func Load() (Config, error) {
 		SeedDemo:             getbool("CALIBER_SEED_DEMO", true),
 		// Generous defaults: no human-driven session approaches these, but they
 		// cap floods and runaway clients on the expensive AI endpoints (CAL-112).
-		RateLimitRPS:   getfloat("CALIBER_RATE_LIMIT_RPS", 30),
-		RateLimitBurst: getfloat("CALIBER_RATE_LIMIT_BURST", 60),
+		RateLimitRPS:      getfloat("CALIBER_RATE_LIMIT_RPS", 30),
+		RateLimitBurst:    getfloat("CALIBER_RATE_LIMIT_BURST", 60),
+		WorkerConcurrency: getint("CALIBER_WORKER_CONCURRENCY", 4),
+		TaskMaxRetry:      getint("CALIBER_TASK_MAX_RETRY", 3),
+		TaskRetention:     getdur("CALIBER_TASK_RETENTION", 24*time.Hour),
 	}
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
 		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")
@@ -101,6 +108,18 @@ func getbool(key string, def bool) bool {
 		return def
 	}
 	return b
+}
+
+func getint(key string, def int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return def
+	}
+	return n
 }
 
 // getfloat parses a float from the environment, falling back to def when unset

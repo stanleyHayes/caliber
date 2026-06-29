@@ -352,3 +352,54 @@ func TestAnswerNoPressureOnConcreteAnswer(t *testing.T) {
 	assert.NotContains(t, captured.Prompt, "presses for a specific, real example",
 		"a concrete answer should not trigger the pressure directive")
 }
+
+
+func TestScoreAsyncGeneratesReport(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	iv := askingInterview(t, rl.ID)
+	require.NoError(t, iv.Answer("I built a payments service in Go."))
+
+	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: reportJSON}, nil)
+	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	report, err := interviewer.ScoreAsync(context.Background(), iv.ID)
+	require.NoError(t, err)
+	require.NotNil(t, report)
+	assert.Equal(t, interviewdom.VerdictAdvance, report.Verdict)
+}
+
+func TestScoreAsyncReturnsExistingReport(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	iv := askingInterview(t, rl.ID)
+	require.NoError(t, iv.Answer("answer"))
+	report := interviewdom.ReportCard{Verdict: interviewdom.VerdictDecline}
+	iv.Report = &report
+
+	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	got, err := interviewer.ScoreAsync(context.Background(), iv.ID)
+	require.NoError(t, err)
+	assert.Equal(t, interviewdom.VerdictDecline, got.Verdict)
+}
+
+func TestScoreAsyncRejectsEmptyTranscript(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	iv, err := interviewdom.NewInterview(rl.ID, kernel.NewID(), interviewdom.ModeText)
+	require.NoError(t, err)
+
+	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	_, err = interviewer.ScoreAsync(context.Background(), iv.ID)
+	assert.Error(t, err)
+}

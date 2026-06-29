@@ -14,6 +14,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/app"
 	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
+	appqueue "github.com/xcreativs/caliber/internal/app/queue"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
@@ -48,7 +49,7 @@ func TestAgentTimeAdvanceThenWakeUpAndList(t *testing.T) {
 	roles.EXPECT().ListOpen(gomock.Any(), gomock.Any()).Return([]*role.Role{rl}, int64(1), nil).AnyTimes()
 	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: agentAssessJSON}, nil).AnyTimes()
 
-	srv := NewAgentServer(candidateagentapp.NewAgentRunner(candidates, profiles, roles, apps, llm), apps)
+	srv := NewAgentServer(candidateagentapp.NewAgentRunner(candidates, profiles, roles, apps, llm), apps, nil)
 
 	adv, err := srv.TimeAdvance(asCandidate(context.Background(), cid), &caliberv1.TimeAdvanceRequest{CandidateId: cid.String()})
 	require.NoError(t, err)
@@ -94,21 +95,21 @@ func TestAgentRunAgentRemembersWakeUp(t *testing.T) {
 	roles.EXPECT().ListOpen(gomock.Any(), gomock.Any()).Return([]*role.Role{rl}, int64(1), nil).AnyTimes()
 	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: agentAssessJSON}, nil).AnyTimes()
 
-	srv := NewAgentServer(candidateagentapp.NewAgentRunner(candidates, profiles, roles, apps, llm), apps)
+	srv := NewAgentServer(candidateagentapp.NewAgentRunner(candidates, profiles, roles, apps, llm), apps, nil)
 
-	// RunAgent completes inline and returns a job id.
+	// RunAgent completes inline when no dispatcher is configured.
 	run, err := srv.RunAgent(asCandidate(context.Background(), cid), &caliberv1.RunAgentRequest{CandidateId: cid.String()})
 	require.NoError(t, err)
-	assert.NotEmpty(t, run.GetJobId())
+	assert.Empty(t, run.GetJobId())
 
-	// The run is remembered: GetWakeUpView reflects the application it submitted.
+	// The live wake-up view reflects the application it submitted.
 	wv, err := srv.GetWakeUpView(asCandidate(context.Background(), cid), &caliberv1.GetWakeUpViewRequest{CandidateId: cid.String()})
 	require.NoError(t, err)
-	assert.Equal(t, int32(1), wv.GetWakeUp().GetApplicationsSubmitted(), "RunAgent remembers its wake-up view")
+	assert.Equal(t, int32(1), wv.GetWakeUp().GetApplicationsSubmitted(), "RunAgent updates the live wake-up view")
 }
 
 func TestAgentRunAgentRequiresSelfCandidate(t *testing.T) {
-	srv := NewAgentServer(nil, nil)
+	srv := NewAgentServer(nil, nil, nil)
 	target := kernel.NewID()
 	// A different candidate cannot run someone else's agent.
 	_, err := srv.RunAgent(asCandidate(context.Background(), kernel.NewID()), &caliberv1.RunAgentRequest{CandidateId: target.String()})
@@ -120,15 +121,34 @@ func TestAgentRunAgentRequiresSelfCandidate(t *testing.T) {
 
 func TestAgentGetWakeUpViewEmpty(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	cid := kernel.NewID()
+	cand, err := talent.NewCandidate(kernel.NewID(), "Accra", talent.CandidateIntake{})
+	require.NoError(t, err)
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(nil, kernel.NotFound("none"))
 	srv := NewAgentServer(
 		candidateagentapp.NewAgentRunner(
-			mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl),
+			candidates, profiles,
 			mocks.NewMockRoleRepository(ctrl), memory.NewApplicationRepo(), mocks.NewMockLLMClient(ctrl)),
-		memory.NewApplicationRepo())
-	cid := kernel.NewID()
+		memory.NewApplicationRepo(),
+		nil)
 	resp, err := srv.GetWakeUpView(asCandidate(context.Background(), cid), &caliberv1.GetWakeUpViewRequest{CandidateId: cid.String()})
 	require.NoError(t, err)
 	assert.Equal(t, int32(0), resp.GetWakeUp().GetApplicationsSubmitted())
+}
+
+func TestAgentRunAgentDispatchesWhenQueueConfigured(t *testing.T) {
+	cid := kernel.NewID()
+	dispatcher := &fakeTaskDispatcher{taskID: "task-123"}
+	srv := NewAgentServer(nil, nil, dispatcher)
+
+	resp, err := srv.RunAgent(asCandidate(context.Background(), cid), &caliberv1.RunAgentRequest{CandidateId: cid.String()})
+
+	require.NoError(t, err)
+	assert.Equal(t, "task-123", resp.GetJobId())
+	assert.Equal(t, cid, dispatcher.candidateID)
 }
 
 func asCandidate(ctx context.Context, candidateID kernel.ID) context.Context {
@@ -147,7 +167,8 @@ func TestAgentRequiresSelfCandidate(t *testing.T) {
 		candidateagentapp.NewAgentRunner(
 			mocks.NewMockCandidateRepository(ctrl), mocks.NewMockTalentProfileRepository(ctrl),
 			mocks.NewMockRoleRepository(ctrl), memory.NewApplicationRepo(), mocks.NewMockLLMClient(ctrl)),
-		memory.NewApplicationRepo())
+		memory.NewApplicationRepo(),
+		nil)
 	target := kernel.NewID()
 
 	// A different candidate cannot run someone else's agent.
@@ -159,3 +180,35 @@ func TestAgentRequiresSelfCandidate(t *testing.T) {
 	_, err = srv.TimeAdvance(context.Background(), &caliberv1.TimeAdvanceRequest{CandidateId: target.String()})
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
+
+type fakeTaskDispatcher struct {
+	taskID      string
+	candidateID kernel.ID
+}
+
+func (f *fakeTaskDispatcher) DispatchCandidateAgentRun(
+	_ context.Context,
+	candidateID kernel.ID,
+	_ ...appqueue.DispatchOption,
+) (string, error) {
+	f.candidateID = candidateID
+	return f.taskID, nil
+}
+
+func (f *fakeTaskDispatcher) DispatchInterviewScoring(
+	context.Context,
+	kernel.ID,
+	...appqueue.DispatchOption,
+) (string, error) {
+	return "", nil
+}
+
+func (f *fakeTaskDispatcher) DispatchBatchRematch(
+	context.Context,
+	kernel.ID,
+	...appqueue.DispatchOption,
+) (string, error) {
+	return "", nil
+}
+
+func (f *fakeTaskDispatcher) Close() error { return nil }

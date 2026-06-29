@@ -1,0 +1,80 @@
+package wiring_test
+
+import (
+	"context"
+	"log/slog"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/xcreativs/caliber/internal/domain/kernel"
+	"github.com/xcreativs/caliber/internal/platform/config"
+	"github.com/xcreativs/caliber/internal/platform/wiring"
+)
+
+func TestOpenRepositoriesInMemoryPath(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.Config{SeedDemo: false}
+	repos, cleanup, checks, err := wiring.OpenRepositories(ctx, cfg, slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+	defer cleanup()
+
+	assert.NotNil(t, repos.Roles)
+	assert.NotNil(t, repos.Users)
+	assert.NotNil(t, repos.Candidates)
+	assert.Nil(t, repos.Pool)
+	assert.Empty(t, checks)
+}
+
+func TestOpenRepositoriesFailsWithBadDatabaseURL(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.Config{DatabaseURL: "postgres://invalid", SeedDemo: false}
+	_, cleanup, _, err := wiring.OpenRepositories(ctx, cfg, slog.New(slog.DiscardHandler))
+	defer cleanup()
+	require.Error(t, err)
+}
+
+func TestOpenRepositoriesFailsWhenPingFails(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.Config{DatabaseURL: "postgres://localhost:1/caliber?sslmode=disable&connect_timeout=1", SeedDemo: false}
+	_, cleanup, _, err := wiring.OpenRepositories(ctx, cfg, slog.New(slog.DiscardHandler))
+	defer cleanup()
+	require.Error(t, err)
+}
+
+func TestSeedDemoLoadsDemoDataset(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.Config{SeedDemo: true}
+	repos, cleanup, _, err := wiring.OpenRepositories(ctx, cfg, slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+	defer cleanup()
+
+	roles, _, err := repos.Roles.ListOpen(ctx, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	assert.NotEmpty(t, roles)
+}
+
+func TestBuildLLMDevPath(t *testing.T) {
+	cfg := config.Config{}
+	llm := wiring.BuildLLM(cfg, slog.New(slog.DiscardHandler))
+	assert.NotNil(t, llm)
+}
+
+func TestBuildLLMClaudePath(t *testing.T) {
+	cfg := config.Config{AnthropicAPIKey: "sk-test", AnthropicModel: "claude-3-5-sonnet"}
+	llm := wiring.BuildLLM(cfg, slog.New(slog.DiscardHandler))
+	assert.NotNil(t, llm)
+}
+
+func TestBuildEmbedderDevPath(t *testing.T) {
+	cfg := config.Config{}
+	embedder := wiring.BuildEmbedder(cfg, slog.New(slog.DiscardHandler))
+	assert.NotNil(t, embedder)
+}
+
+func TestBuildEmbedderOpenAIPath(t *testing.T) {
+	cfg := config.Config{OpenAIAPIKey: "sk-test", OpenAIEmbeddingModel: "text-embedding-3-small"}
+	embedder := wiring.BuildEmbedder(cfg, slog.New(slog.DiscardHandler))
+	assert.NotNil(t, embedder)
+}

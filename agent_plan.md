@@ -215,7 +215,7 @@ caliber/
 | **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~70% |
 | | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~85% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | DONE | 100% |
-| | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
+| | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | WIP | ~20% |
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~40% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
 | | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | WIP | ~35% |
@@ -258,7 +258,11 @@ We deliver **sprint by sprint**. This board is the live cursor over the epics ab
 | 9 | CAL-004 | SonarQube quality gate | **WIP** — `sonar-project.properties` + CI step done; needs SonarCloud project + `SONAR_TOKEN` secret |
 | 10 | CAL-009 | Branch protection & repo policy | **DONE** — CODEOWNERS + PR template landed; `main` branch protection applied via GitHub API (PR + 1 code-owner review + required CI/security checks + conversation resolution; force-push/delete blocked) |
 
-**Sprint 2 (next)** — EPIC-01 (domain + schema + pgvector), EPIC-02 (auth), EPIC-03 (queue), EPIC-04 (AI orchestration): the intelligence substrate becomes callable.
+**Sprint 2 (active)** — EPIC-01 (domain + schema + pgvector), EPIC-02 (auth), EPIC-03 (queue), EPIC-04 (AI orchestration): the intelligence substrate becomes callable.
+
+| # | Story | Title | Status |
+|---|---|---|---|
+| 1 | CAL-024 | Asynq client/server wiring | **DONE** — `TaskDispatcher` port + Asynq dispatcher/no-op adapter, worker handler mux, weighted queues, API candidate-agent enqueue/fallback path, and miniredis enqueue-to-process round trip verified. Local build/lint/race suite pass; app-code coverage reports 81.8%. |
 
 ---
 
@@ -307,7 +311,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-03 · Async Jobs & Queue Infrastructure
 **Goal:** Asynq/Redis worker foundation for candidate-agent runs, interview scoring, batch re-matching, and the demo time-advance.
 
-- **CAL-024** `[TODO]` · 5 pts — **Asynq client/server wiring.** `worker` entrypoint; `TaskDispatcher` port; queues with priorities. *AC:* enqueue→process round-trip tested. *Deps:* CAL-006, CAL-008
+- **CAL-024** `[DONE]` · 5 pts — **Asynq client/server wiring.** `worker` entrypoint; `TaskDispatcher` port; queues with priorities. *Implemented 2026-06-29:* added the app-level task dispatcher port, Asynq outbound adapter, no-op dev adapter, Redis-backed API dispatcher wiring for candidate-agent runs, worker dependency wiring, registered handlers for candidate-agent, interview scoring, and batch rematch tasks, weighted queues, and miniredis-backed enqueue-to-process tests. *Verification:* `make build`, `make lint`, and `make cover` all complete; app-code coverage reports 81.8% after excluding generated/vendor-like packages from the coverage view. *AC:* enqueue-to-process round-trip tested. *Deps:* CAL-006, CAL-008
 - **CAL-025** `[TODO]` · 3 pts — **Idempotent job handler framework.** Base handler with idempotency keys, structured logging, otel spans. *AC:* duplicate delivery does not double-apply. *Deps:* CAL-024
 - **CAL-026** `[TODO]` · 5 pts — **Retry, backoff & dead-letter handling.** Per-task retry policy, max-retry → archive, alerting hook. *AC:* failing task lands in archive after policy; visible. *Deps:* CAL-025
 - **CAL-027** `[TODO]` · 3 pts — **Scheduled / delayed tasks.** Support deferred enqueue (time-advance & re-matching). *AC:* delayed task fires on time in tests. *Deps:* CAL-024

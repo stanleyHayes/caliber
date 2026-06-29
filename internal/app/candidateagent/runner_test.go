@@ -290,3 +290,36 @@ func TestRunWithoutInsightReadersLeavesCountsZero(t *testing.T) {
 	assert.Zero(t, view.ScreeningsCompleted)
 	assert.Zero(t, view.EmployersInterested)
 }
+
+func TestWakeUpViewCountsEligibleRolesAndSubmittedApplications(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	cid := kernel.NewID()
+	cand := candidate(t, "Accra")
+	profile := profileWith(t, cid, talent.ProfileCompetency{Name: "Go", Level: 4, EvidenceQuote: "x"})
+	rl := openRole(t, []role.Competency{{Name: "Go", Weight: 1.0, MustHave: true}})
+
+	d.candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(profile, nil)
+	d.roles.EXPECT().ListOpen(gomock.Any(), gomock.Any()).Return([]*role.Role{rl}, int64(1), nil)
+	submitted := &agentdom.Application{Source: agentdom.SourceAgent, Status: agentdom.StatusSubmitted}
+	d.apps.EXPECT().ByCandidate(gomock.Any(), cid, gomock.Any()).Return([]*agentdom.Application{submitted}, int64(1), nil)
+
+	view, err := d.runner().WakeUpView(context.Background(), cid)
+	require.NoError(t, err)
+	assert.Equal(t, 1, view.NewMatches)
+	assert.Equal(t, 1, view.ApplicationsSubmitted)
+}
+
+func TestWakeUpViewNoProfileReturnsEmpty(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	cid := kernel.NewID()
+	d.candidates.EXPECT().ByID(gomock.Any(), cid).Return(candidate(t, "Accra"), nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(nil, kernel.NotFound("profile"))
+
+	view, err := d.runner().WakeUpView(context.Background(), cid)
+	require.NoError(t, err)
+	assert.Zero(t, view.NewMatches)
+	assert.Zero(t, view.ApplicationsSubmitted)
+}

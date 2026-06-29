@@ -62,7 +62,7 @@ func TestFlowCEndToEnd(t *testing.T) {
 
 	runner := candidateagentapp.NewAgentRunner(candRepo, profRepo, roleRepo, appsRepo, llm.NewDev(),
 		candidateagentapp.WithWakeUpInsights(interviewRepo, memory.NewMatchRepo()))
-	srv := NewAgentServer(runner, appsRepo)
+	srv := NewAgentServer(runner, appsRepo, nil)
 
 	// "Run overnight".
 	resp, err := srv.TimeAdvance(asCandidate(ctx, cand.ID), &caliberv1.TimeAdvanceRequest{CandidateId: cand.ID.String()})

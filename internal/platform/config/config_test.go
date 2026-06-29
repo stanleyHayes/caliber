@@ -7,6 +7,7 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	t.Setenv("CALIBER_GRPC_ADDR", "")
 	t.Setenv("CALIBER_ENV", "")
 	t.Setenv("CALIBER_LOG_LEVEL", "")
+	t.Setenv("CALIBER_WORKER_CONCURRENCY", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -23,6 +24,20 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	}
 	if cfg.LogLevel != "info" {
 		t.Errorf("LogLevel = %q, want info", cfg.LogLevel)
+	}
+	if cfg.WorkerConcurrency != 4 {
+		t.Errorf("WorkerConcurrency = %d, want 4", cfg.WorkerConcurrency)
+	}
+}
+
+func TestLoadParsesWorkerConcurrency(t *testing.T) {
+	t.Setenv("CALIBER_WORKER_CONCURRENCY", "7")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.WorkerConcurrency != 7 {
+		t.Errorf("WorkerConcurrency = %d, want 7", cfg.WorkerConcurrency)
 	}
 }
 
