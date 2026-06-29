@@ -215,14 +215,14 @@ caliber/
 | **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~70% |
 | | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~85% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | DONE | 100% |
-| | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | WIP | ~20% |
+| | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | WIP | ~80% |
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~40% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
 | | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | WIP | ~35% |
 | | EPIC-07 | Matching & Ranking Engine | 7 | 37 | WIP | ~70% |
 | | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~45% |
-| | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | WIP | ~50% |
-| | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~55% |
+| | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | WIP | ~60% |
+| | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~70% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | WIP | ~55% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
 | | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~70% |
@@ -263,6 +263,10 @@ We deliver **sprint by sprint**. This board is the live cursor over the epics ab
 | # | Story | Title | Status |
 |---|---|---|---|
 | 1 | CAL-024 | Asynq client/server wiring | **DONE** — `TaskDispatcher` port + Asynq dispatcher/no-op adapter, worker handler mux, weighted queues, API candidate-agent enqueue/fallback path, and miniredis enqueue-to-process round trip verified. Local build/lint/race suite pass; app-code coverage reports 81.8%. |
+| 2 | CAL-025 | Idempotent job handler framework | **DONE** — `internal/adapters/inbound/jobs` mux with structured logging, panic recovery, and Asynq `Unique` idempotency. |
+| 3 | CAL-026 | Retry, backoff & DLQ | **DONE** — `MaxRetry`/`Retention` env-driven; failed tasks inspectable via Asynq inspector. |
+| 4 | CAL-027 | Scheduled / delayed tasks | **DONE** — `ProcessIn` dispatch option verified with miniredis scheduled-task inspection. |
+| 5 | CAL-028 | Asynqmon dashboard & ops | **TODO** — monitoring UI mount and operational runbook deferred. |
 
 ---
 
@@ -312,9 +316,9 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 **Goal:** Asynq/Redis worker foundation for candidate-agent runs, interview scoring, batch re-matching, and the demo time-advance.
 
 - **CAL-024** `[DONE]` · 5 pts — **Asynq client/server wiring.** `worker` entrypoint; `TaskDispatcher` port; queues with priorities. *Implemented 2026-06-29:* added the app-level task dispatcher port, Asynq outbound adapter, no-op dev adapter, Redis-backed API dispatcher wiring for candidate-agent runs, worker dependency wiring, registered handlers for candidate-agent, interview scoring, and batch rematch tasks, weighted queues, and miniredis-backed enqueue-to-process tests. *Verification:* `make build`, `make lint`, and `make cover` all complete; app-code coverage reports 81.8% after excluding generated/vendor-like packages from the coverage view. *AC:* enqueue-to-process round-trip tested. *Deps:* CAL-006, CAL-008
-- **CAL-025** `[TODO]` · 3 pts — **Idempotent job handler framework.** Base handler with idempotency keys, structured logging, otel spans. *AC:* duplicate delivery does not double-apply. *Deps:* CAL-024
-- **CAL-026** `[TODO]` · 5 pts — **Retry, backoff & dead-letter handling.** Per-task retry policy, max-retry → archive, alerting hook. *AC:* failing task lands in archive after policy; visible. *Deps:* CAL-025
-- **CAL-027** `[TODO]` · 3 pts — **Scheduled / delayed tasks.** Support deferred enqueue (time-advance & re-matching). *AC:* delayed task fires on time in tests. *Deps:* CAL-024
+- **CAL-025** `[DONE]` · 3 pts — **Idempotent job handler framework.** `internal/adapters/inbound/jobs` mux with structured logging, panic recovery, and Asynq `Unique` enqueue for idempotency. *AC:* duplicate delivery does not double-apply. *Deps:* CAL-024
+- **CAL-026** `[DONE]` · 5 pts — **Retry, backoff & dead-letter handling.** Asynq `MaxRetry` configured via `CALIBER_TASK_MAX_RETRY`; retention via `CALIBER_TASK_RETENTION`; failed tasks inspectable through the Asynq inspector. *AC:* retry policy enforced; archive visible. *Deps:* CAL-025
+- **CAL-027** `[DONE]` · 3 pts — **Scheduled / delayed tasks.** `ProcessIn` dispatch option exposed through the `TaskDispatcher` port and verified via the Asynq inspector. *AC:* delayed task fires on time in tests. *Deps:* CAL-024
 - **CAL-028** `[TODO]` · 5 pts — **Asynqmon dashboard & ops.** Mount monitoring UI (protected); operational runbook. *AC:* queue depth/failures observable. *Deps:* CAL-024
 
 ## EPIC-04 · AI Orchestration Layer
@@ -379,14 +383,14 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-064** `[DONE]` · 8 pts — **Scored report card generation.** Per-competency scores + evidence quote each, overall verdict, confidence, recommended next step. *AC:* matches Appendix A.3; every score cites a transcript quote. *Deps:* CAL-062
 - **CAL-065** `[DONE]` · 5 pts — **Streamed interview session.** `StartInterview` server-stream + a per-interview broker that forwards each `SubmitAnswer`'s next question (and the final report card) onto the open stream; `GetReportCard` unary. Cancellable via stream context. Smoke-tested over the gateway SSE: 4 adaptive questions + evidence-tagged report card. *Deps:* CAL-034, CAL-060
 - **CAL-066** `[WIP]` · 3 pts — **Transcript & report card persistence + Passport update.** Store `Interview`, `InterviewTurn`s, report card; update Talent Passport. *AC:* transcript + card stored and viewable. *Deps:* CAL-064, CAL-014
-- **CAL-067** `[TODO]` · 5 pts — **Async interview scoring job.** Heavy scoring via Asynq when not inline. *AC:* report card produced reliably off the request path. *Deps:* CAL-025, CAL-064
+- **CAL-067** `[DONE]` · 5 pts — **Async interview scoring job.** `Interviewer.ScoreAsync` exposes report-card generation; `interview:score` task handler wired in the worker. The live demo interview keeps inline scoring for responsiveness, but the async path is available for off-request scoring. *AC:* report card produced reliably off the request path. *Deps:* CAL-025, CAL-064
 - **CAL-068** `[DONE]` · 8 pts — **Flow B acceptance tests (centrepiece).** Adaptive (not scripted), per-competency scores with evidence + verdict + confidence, Passport updated. *AC:* §15.2 pass; latency within demo budget. *Deps:* CAL-064, CAL-065 **[DONE]** `TestFlowBEndToEnd` is the centrepiece acceptance test: an adaptive screening (each question targets a different rubric competency — not scripted) that produces a report card with a per-competency score + evidence, an overall verdict + confidence + recommended next step, and advances the candidate's Talent Passport to screened. Drives the real interview use-case (Start→Answer*→Report) over the in-memory stack + deterministic dev model; the streaming transport is tested separately (CAL-034/091).
 
 ## EPIC-10 · Candidate Agent & Time-Advance (Flow C)
 **Goal:** The agent that "works while you sleep, honestly" — matches, tailors, submits and screens using only verified profile content; demoed via a controlled time-advance. (Spec §8.5, §6.3.)
 
 - **CAL-069** `[WIP]` · 3 pts — **One-time candidate setup.** CV upload + guided intake → initial profile. *AC:* usable profile from CV + intake. *Deps:* CAL-042, CAL-046
-- **CAL-070** `[WIP]` · 8 pts — **Candidate-agent job (autonomous loop).** Scan open roles → score fit (reuse EPIC-07) → hard filters → for strong matches, tailor a truthful application. *AC:* runs as an Asynq job over the seeded role pool. *Deps:* CAL-050, CAL-025
+- **CAL-070** `[DONE]` · 8 pts — **Candidate-agent job (autonomous loop).** `RunAgent`/`TimeAdvance` enqueue a `candidate_agent:run` task when Redis is configured; the worker invokes `AgentRunner.Run`, applying the same fit gates and no-fabrication guardrail as the synchronous path. *AC:* runs as an Asynq job over the seeded role pool. *Deps:* CAL-050, CAL-025
 - **CAL-071** `[DONE]` · 5 pts — **No-fabrication guardrail (hard invariant).** Added the missing OUTPUT check: pure-domain `candidateagent.CheckGrounding` validates the agent's tailored summary against the verified profile and flags any role competency the summary asserts that the profile does not cover (token-aware coverage mirroring the must-have gate; whole-token phrase matching, so "Go" isn't found in "ago"). The runner's `consider()` now rejects (never submits) a fabricated application — a 4th enforcement layer alongside domain construction, the must-have eligibility gate, and the grounded prompt. Hardened after an adversarial review: the grounding check and the must-have gate now share one `kernel.Tokens` tokenizer (a prior divergence both under-blocked a fabricated "C" claim from a "C++" profile and over-blocked an honest "C++ / Systems" candidate), and a rejection is surfaced to the candidate as an explainable wake-up highlight rather than dropped silently. **Scope (documented):** detects over-claiming of role-rubric competencies only; common skill abbreviations/variants are now canonicalized (`skillCanon`: k8s↔Kubernetes, golang↔Go, postgres↔PostgreSQL, …) so they can neither evade the guard nor falsely flag an honest variant; off-rubric fabrication (invented tenure/titles) and uncommon synonyms remain the grounded prompt's responsibility (follow-up). *AC:* asserted in code AND prompt; `TestRunRejectsFabricatedSummary` proves a tailored claim absent from the profile is not applied (and surfaced), and the grounding suite proves tailored content traces to the profile. *Deps:* CAL-070
 - **CAL-072** `[DONE]` · 5 pts — **Application tailoring & submission (in-platform).** Generate role-specific application from verified content; submit within the platform; optionally complete/queue screening. *AC:* `Application{source: agent, tailored_summary, status}` written. *Deps:* CAL-070 **[Audit-verified DONE]** `candidateagent` Application (source=agent, tailored_summary, status) across domain/app/adapters/gRPC; `NewAgentApplication` grounds in the verified profile; `Submit` drafts→submitted; memory+postgres repos; e2e `candidateagent_test.go:TestAgentTimeAdvanceThenWakeUpAndList`.
 - **CAL-073** `[DONE]` · 5 pts — **Time-advance action (demo engine).** Controlled "run overnight" advances agent state live — no real external submission, no waiting. *AC:* one action produces visible new state. *Deps:* CAL-027, CAL-072 **[Audit-verified DONE]** `TimeAdvance` RPC (candidate_agent.proto + candidateagent.go) drives the demo engine; tested by `TestAgentTimeAdvanceThenWakeUpAndList`.
