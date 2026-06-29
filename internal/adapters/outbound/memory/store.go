@@ -71,6 +71,35 @@ func (s *keyedStore[T]) update(v *T, notFound string) error {
 	return nil
 }
 
+// deleteByPrimary removes the record with the given primary id (and its secondary
+// index + order entry). Deleting an absent id is a no-op, so erasure is idempotent.
+func (s *keyedStore[T]) deleteByPrimary(id kernel.ID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.byID[id]
+	if !ok {
+		return
+	}
+	delete(s.bySecond, s.secondary(&v))
+	delete(s.byID, id)
+	for i, oid := range s.order {
+		if oid == id {
+			s.order = append(s.order[:i], s.order[i+1:]...)
+			break
+		}
+	}
+}
+
+// deleteBySecondary removes the record indexed by the given secondary key.
+func (s *keyedStore[T]) deleteBySecondary(key kernel.ID) {
+	s.mu.RLock()
+	id, ok := s.bySecond[key]
+	s.mu.RUnlock()
+	if ok {
+		s.deleteByPrimary(id)
+	}
+}
+
 func (s *keyedStore[T]) list(page kernel.Page) ([]*T, int64) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

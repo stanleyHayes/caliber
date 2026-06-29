@@ -46,4 +46,12 @@ func (r *TalentProfileRepo) List(_ context.Context, page kernel.Page) ([]*talent
 	return out, total, nil
 }
 
+// DeleteByCandidate hard-removes a candidate's profile (right-to-erasure cascade,
+// CAL-118). The profile is indexed by candidate id; a candidate with no profile
+// is a no-op, so erasure is idempotent.
+func (r *TalentProfileRepo) DeleteByCandidate(_ context.Context, candidateID kernel.ID) error {
+	r.store.deleteBySecondary(candidateID)
+	return nil
+}
+
 var _ talent.TalentProfileRepository = (*TalentProfileRepo)(nil)

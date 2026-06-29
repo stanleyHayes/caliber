@@ -46,4 +46,11 @@ func (r *CandidateRepo) List(_ context.Context, page kernel.Page) ([]*talent.Can
 	return out, total, nil
 }
 
+// Delete hard-removes a candidate by id (right-to-erasure cascade, CAL-118).
+// Removing an absent candidate is a no-op, so erasure is idempotent.
+func (r *CandidateRepo) Delete(_ context.Context, id kernel.ID) error {
+	r.store.deleteByPrimary(id)
+	return nil
+}
+
 var _ talent.CandidateRepository = (*CandidateRepo)(nil)
