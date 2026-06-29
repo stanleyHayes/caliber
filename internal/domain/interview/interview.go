@@ -6,6 +6,11 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
 
+// MaxAnswerLen bounds a candidate's answer (CAL-111): the answer is untrusted
+// text that is transcribed and sent to the model for scoring, so it is
+// length-capped at the domain boundary to cap cost and resource use.
+const MaxAnswerLen = 8000
+
 // PendingQuestion is a question that has been asked but not yet answered.
 type PendingQuestion struct {
 	Ordinal       int
@@ -87,6 +92,9 @@ func (i *Interview) Ask(text, competencyTag string) error {
 func (i *Interview) Answer(answer string) error {
 	if i.Pending == nil {
 		return kernel.Invalid("interview: no question is awaiting an answer")
+	}
+	if len([]rune(answer)) > MaxAnswerLen {
+		return kernel.Invalidf("interview: answer exceeds %d characters", MaxAnswerLen)
 	}
 	turn := InterviewTurn{
 		ID:            kernel.NewID(),

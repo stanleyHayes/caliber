@@ -1,10 +1,36 @@
 package interview
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
+
+func TestAnswerRejectsOversizedAnswer(t *testing.T) {
+	iv, err := NewInterview(kernel.NewID(), kernel.NewID(), ModeText)
+	if err != nil {
+		t.Fatalf("NewInterview: %v", err)
+	}
+	if err := iv.Transition(StateAsking); err != nil {
+		t.Fatalf("transition: %v", err)
+	}
+	if err := iv.Ask("Tell me about Go.", "Go"); err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	// An oversized answer is rejected at the boundary (CAL-111); the pending
+	// question is left intact so the candidate can retry within bounds.
+	err = iv.Answer(strings.Repeat("a", MaxAnswerLen+1))
+	if err == nil {
+		t.Fatal("expected an oversized answer to be rejected")
+	}
+	if kernel.KindOf(err) != kernel.KindInvalid {
+		t.Errorf("error kind = %v, want KindInvalid", kernel.KindOf(err))
+	}
+	if iv.Pending == nil {
+		t.Error("expected the pending question to remain after a rejected answer")
+	}
+}
 
 func validCard() ReportCard {
 	return ReportCard{
