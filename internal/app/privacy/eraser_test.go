@@ -20,7 +20,7 @@ type recorder struct {
 	err   error
 }
 
-func (r recorder) EraseForCandidate(_ context.Context, _ kernel.ID) error {
+func (r recorder) DeleteByCandidate(_ context.Context, _ kernel.ID) error {
 	*r.order = append(*r.order, r.name)
 	return r.err
 }

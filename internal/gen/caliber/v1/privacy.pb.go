@@ -104,6 +104,78 @@ func (x *ExportMyDataResponse) GetDocument() string {
 	return ""
 }
 
+type DeleteMyDataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteMyDataRequest) Reset() {
+	*x = DeleteMyDataRequest{}
+	mi := &file_caliber_v1_privacy_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteMyDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteMyDataRequest) ProtoMessage() {}
+
+func (x *DeleteMyDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_caliber_v1_privacy_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteMyDataRequest.ProtoReflect.Descriptor instead.
+func (*DeleteMyDataRequest) Descriptor() ([]byte, []int) {
+	return file_caliber_v1_privacy_proto_rawDescGZIP(), []int{2}
+}
+
+type DeleteMyDataResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteMyDataResponse) Reset() {
+	*x = DeleteMyDataResponse{}
+	mi := &file_caliber_v1_privacy_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteMyDataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteMyDataResponse) ProtoMessage() {}
+
+func (x *DeleteMyDataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_caliber_v1_privacy_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteMyDataResponse.ProtoReflect.Descriptor instead.
+func (*DeleteMyDataResponse) Descriptor() ([]byte, []int) {
+	return file_caliber_v1_privacy_proto_rawDescGZIP(), []int{3}
+}
+
 var File_caliber_v1_privacy_proto protoreflect.FileDescriptor
 
 const file_caliber_v1_privacy_proto_rawDesc = "" +
@@ -112,9 +184,12 @@ const file_caliber_v1_privacy_proto_rawDesc = "" +
 	"caliber.v1\x1a\x1cgoogle/api/annotations.proto\"\x15\n" +
 	"\x13ExportMyDataRequest\"2\n" +
 	"\x14ExportMyDataResponse\x12\x1a\n" +
-	"\bdocument\x18\x01 \x01(\tR\bdocument2x\n" +
+	"\bdocument\x18\x01 \x01(\tR\bdocument\"\x15\n" +
+	"\x13DeleteMyDataRequest\"\x16\n" +
+	"\x14DeleteMyDataResponse2\xe0\x01\n" +
 	"\x0ePrivacyService\x12f\n" +
-	"\fExportMyData\x12\x1f.caliber.v1.ExportMyDataRequest\x1a .caliber.v1.ExportMyDataResponse\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/me/dataB\xa7\x01\n" +
+	"\fExportMyData\x12\x1f.caliber.v1.ExportMyDataRequest\x1a .caliber.v1.ExportMyDataResponse\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/me/data\x12f\n" +
+	"\fDeleteMyData\x12\x1f.caliber.v1.DeleteMyDataRequest\x1a .caliber.v1.DeleteMyDataResponse\"\x13\x82\xd3\xe4\x93\x02\r*\v/v1/me/dataB\xa7\x01\n" +
 	"\x0ecom.caliber.v1B\fPrivacyProtoP\x01Z>github.com/xcreativs/caliber/internal/gen/caliber/v1;caliberv1\xa2\x02\x03CXX\xaa\x02\n" +
 	"Caliber.V1\xca\x02\n" +
 	"Caliber\\V1\xe2\x02\x16Caliber\\V1\\GPBMetadata\xea\x02\vCaliber::V1b\x06proto3"
@@ -131,16 +206,20 @@ func file_caliber_v1_privacy_proto_rawDescGZIP() []byte {
 	return file_caliber_v1_privacy_proto_rawDescData
 }
 
-var file_caliber_v1_privacy_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_caliber_v1_privacy_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_caliber_v1_privacy_proto_goTypes = []any{
 	(*ExportMyDataRequest)(nil),  // 0: caliber.v1.ExportMyDataRequest
 	(*ExportMyDataResponse)(nil), // 1: caliber.v1.ExportMyDataResponse
+	(*DeleteMyDataRequest)(nil),  // 2: caliber.v1.DeleteMyDataRequest
+	(*DeleteMyDataResponse)(nil), // 3: caliber.v1.DeleteMyDataResponse
 }
 var file_caliber_v1_privacy_proto_depIdxs = []int32{
 	0, // 0: caliber.v1.PrivacyService.ExportMyData:input_type -> caliber.v1.ExportMyDataRequest
-	1, // 1: caliber.v1.PrivacyService.ExportMyData:output_type -> caliber.v1.ExportMyDataResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: caliber.v1.PrivacyService.DeleteMyData:input_type -> caliber.v1.DeleteMyDataRequest
+	1, // 2: caliber.v1.PrivacyService.ExportMyData:output_type -> caliber.v1.ExportMyDataResponse
+	3, // 3: caliber.v1.PrivacyService.DeleteMyData:output_type -> caliber.v1.DeleteMyDataResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -157,7 +236,7 @@ func file_caliber_v1_privacy_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_caliber_v1_privacy_proto_rawDesc), len(file_caliber_v1_privacy_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

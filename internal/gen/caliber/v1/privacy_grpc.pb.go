@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	PrivacyService_ExportMyData_FullMethodName = "/caliber.v1.PrivacyService/ExportMyData"
+	PrivacyService_DeleteMyData_FullMethodName = "/caliber.v1.PrivacyService/DeleteMyData"
 )
 
 // PrivacyServiceClient is the client API for PrivacyService service.
@@ -32,6 +33,10 @@ type PrivacyServiceClient interface {
 	// ExportMyData returns the authenticated candidate's complete data export
 	// (right of access / DSAR) as a JSON document.
 	ExportMyData(ctx context.Context, in *ExportMyDataRequest, opts ...grpc.CallOption) (*ExportMyDataResponse, error)
+	// DeleteMyData erases the authenticated candidate's data (right to erasure):
+	// a hard-delete cascade across their records; the audit trail is retained but
+	// de-identified.
+	DeleteMyData(ctx context.Context, in *DeleteMyDataRequest, opts ...grpc.CallOption) (*DeleteMyDataResponse, error)
 }
 
 type privacyServiceClient struct {
@@ -52,6 +57,16 @@ func (c *privacyServiceClient) ExportMyData(ctx context.Context, in *ExportMyDat
 	return out, nil
 }
 
+func (c *privacyServiceClient) DeleteMyData(ctx context.Context, in *DeleteMyDataRequest, opts ...grpc.CallOption) (*DeleteMyDataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMyDataResponse)
+	err := c.cc.Invoke(ctx, PrivacyService_DeleteMyData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PrivacyServiceServer is the server API for PrivacyService service.
 // All implementations must embed UnimplementedPrivacyServiceServer
 // for forward compatibility.
@@ -62,6 +77,10 @@ type PrivacyServiceServer interface {
 	// ExportMyData returns the authenticated candidate's complete data export
 	// (right of access / DSAR) as a JSON document.
 	ExportMyData(context.Context, *ExportMyDataRequest) (*ExportMyDataResponse, error)
+	// DeleteMyData erases the authenticated candidate's data (right to erasure):
+	// a hard-delete cascade across their records; the audit trail is retained but
+	// de-identified.
+	DeleteMyData(context.Context, *DeleteMyDataRequest) (*DeleteMyDataResponse, error)
 	mustEmbedUnimplementedPrivacyServiceServer()
 }
 
@@ -74,6 +93,9 @@ type UnimplementedPrivacyServiceServer struct{}
 
 func (UnimplementedPrivacyServiceServer) ExportMyData(context.Context, *ExportMyDataRequest) (*ExportMyDataResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExportMyData not implemented")
+}
+func (UnimplementedPrivacyServiceServer) DeleteMyData(context.Context, *DeleteMyDataRequest) (*DeleteMyDataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteMyData not implemented")
 }
 func (UnimplementedPrivacyServiceServer) mustEmbedUnimplementedPrivacyServiceServer() {}
 func (UnimplementedPrivacyServiceServer) testEmbeddedByValue()                        {}
@@ -114,6 +136,24 @@ func _PrivacyService_ExportMyData_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PrivacyService_DeleteMyData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMyDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PrivacyServiceServer).DeleteMyData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PrivacyService_DeleteMyData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PrivacyServiceServer).DeleteMyData(ctx, req.(*DeleteMyDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PrivacyService_ServiceDesc is the grpc.ServiceDesc for PrivacyService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -124,6 +164,10 @@ var PrivacyService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExportMyData",
 			Handler:    _PrivacyService_ExportMyData_Handler,
+		},
+		{
+			MethodName: "DeleteMyData",
+			Handler:    _PrivacyService_DeleteMyData_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

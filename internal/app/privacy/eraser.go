@@ -15,7 +15,7 @@ import (
 // candidate (talent profile + embeddings, applications, interviews + transcripts,
 // matches referencing them, contests they raised).
 type CandidateScopedEraser interface {
-	EraseForCandidate(ctx context.Context, candidateID kernel.ID) error
+	DeleteByCandidate(ctx context.Context, candidateID kernel.ID) error
 }
 
 // CandidateRemover hard-deletes the candidate aggregate itself.
@@ -67,7 +67,7 @@ func (e *Eraser) EraseCandidate(ctx context.Context, candidateID kernel.ID) erro
 		return kernel.Invalid("privacy: candidate id is required")
 	}
 	for _, s := range e.scoped {
-		if err := s.EraseForCandidate(ctx, candidateID); err != nil {
+		if err := s.DeleteByCandidate(ctx, candidateID); err != nil {
 			return err
 		}
 	}

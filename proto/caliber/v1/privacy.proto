@@ -12,6 +12,12 @@ service PrivacyService {
   rpc ExportMyData(ExportMyDataRequest) returns (ExportMyDataResponse) {
     option (google.api.http) = {get: "/v1/me/data"};
   }
+  // DeleteMyData erases the authenticated candidate's data (right to erasure):
+  // a hard-delete cascade across their records; the audit trail is retained but
+  // de-identified.
+  rpc DeleteMyData(DeleteMyDataRequest) returns (DeleteMyDataResponse) {
+    option (google.api.http) = {delete: "/v1/me/data"};
+  }
 }
 
 message ExportMyDataRequest {}
@@ -21,3 +27,7 @@ message ExportMyDataResponse {
   // their profile, applications, interviews, and contests.
   string document = 1;
 }
+
+message DeleteMyDataRequest {}
+
+message DeleteMyDataResponse {}

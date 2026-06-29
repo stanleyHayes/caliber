@@ -148,10 +148,31 @@ func wireApplicationServices(
 	contests := memory.NewContestRepo()
 	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(contests, auditRepo, time.Now))
 	svc.Audit = grpcadapter.NewAuditServer(auditRepo)
-	// DSAR right-of-access export (CAL-118): read-only aggregation of everything
-	// held about the authenticated candidate.
-	svc.Privacy = grpcadapter.NewPrivacyServer(
-		privacyapp.NewExporter(repos.Candidates, repos.Profiles, repos.Apps, repos.Interviews, contests))
+	// Data subject rights (CAL-118): read-only DSAR export, and the right-to-
+	// erasure cascade across the candidate's records (audit trail retained but
+	// de-identified). Erasure is wired over the in-memory dev repositories that
+	// expose the hard-delete primitives; the Postgres path leaves DeleteMyData
+	// unimplemented until its delete queries land (EPIC-02).
+	exporter := privacyapp.NewExporter(repos.Candidates, repos.Profiles, repos.Apps, repos.Interviews, contests)
+	svc.Privacy = grpcadapter.NewPrivacyServer(exporter, buildEraser(repos, auditRepo, contests))
+}
+
+// buildEraser wires the erasure cascade over the in-memory repositories, which
+// provide the hard-delete primitives. It returns nil when the repositories are
+// not the in-memory dev implementations (e.g. Postgres), so DeleteMyData reports
+// unimplemented there rather than panicking.
+func buildEraser(repos wiring.Repositories, auditRepo audit.AuditRepository, contests *memory.ContestRepo) *privacyapp.Eraser {
+	cands, ok1 := repos.Candidates.(*memory.CandidateRepo)
+	users, ok2 := repos.Users.(*memory.UserRepo)
+	aud, ok3 := auditRepo.(*memory.AuditRepo)
+	profs, ok4 := repos.Profiles.(*memory.TalentProfileRepo)
+	apps, ok5 := repos.Apps.(*memory.ApplicationRepo)
+	ivs, ok6 := repos.Interviews.(*memory.InterviewRepo)
+	matches, ok7 := repos.Matches.(*memory.MatchRepo)
+	if ok1 && ok2 && ok3 && ok4 && ok5 && ok6 && ok7 {
+		return privacyapp.NewEraser(cands, users, aud, profs, apps, ivs, matches, contests)
+	}
+	return nil
 }
 
 //nolint:ireturn // selects the concrete task-dispatch adapter for the queue port.
