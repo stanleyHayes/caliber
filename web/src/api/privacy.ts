@@ -8,4 +8,6 @@ export interface DataExportResponse {
 
 export const privacyApi = {
   exportMyData: () => apiFetch<DataExportResponse>('/v1/me/data'),
+  // Right to erasure: hard-deletes the authenticated candidate's data.
+  deleteMyData: () => apiFetch<Record<string, never>>('/v1/me/data', { method: 'DELETE' }),
 };

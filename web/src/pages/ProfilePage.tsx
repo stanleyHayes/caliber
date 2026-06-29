@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { ApiError } from '../api/types';
 import { MyContestsList } from '../components/contest/MyContestsList';
+import { DeleteAccount } from '../components/privacy/DeleteAccount';
 import { DotsButton } from '../components/DotsButton';
 import { ProfileView } from '../components/talent/ProfileView';
 import { downloadTextFile } from '../lib/download';
@@ -97,6 +98,7 @@ export function ProfilePage() {
         <DotsButton variant="outlined" loading={dataExport.isPending} onClick={downloadData}>
           Download my data
         </DotsButton>
+        <DeleteAccount />
       </Stack>
     </Stack>
   );

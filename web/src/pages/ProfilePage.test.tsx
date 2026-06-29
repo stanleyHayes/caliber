@@ -22,6 +22,9 @@ vi.mock('../query/contest', () => ({ useMyContests: () => contestsResult }));
 const exportMutate = vi.fn();
 let exportResult: { mutate: ReturnType<typeof vi.fn>; isPending: boolean; isError: boolean; error: Error | null };
 vi.mock('../query/privacy', () => ({ useExportMyData: () => exportResult }));
+// DeleteAccount is covered by its own test; stub it here so this page test does
+// not pull in its router/mutation dependencies.
+vi.mock('../components/privacy/DeleteAccount', () => ({ DeleteAccount: () => null }));
 
 const user: User = {
   id: 'cand-1',

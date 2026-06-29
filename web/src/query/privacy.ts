@@ -7,3 +7,8 @@ import { privacyApi } from '../api/privacy';
 export function useExportMyData() {
   return useMutation({ mutationFn: () => privacyApi.exportMyData() });
 }
+
+// useDeleteMyData erases the candidate's account and data (right to erasure).
+export function useDeleteMyData() {
+  return useMutation({ mutationFn: () => privacyApi.deleteMyData() });
+}
