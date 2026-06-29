@@ -1,5 +1,13 @@
 import { apiFetch } from './client';
-import type { GenerateRoleResponse, ListRolesResponse, Role, RoleSpec, Rubric, ShortlistResponse } from './types';
+import type {
+  GenerateRoleResponse,
+  ListRolesResponse,
+  RecordRejectionResponse,
+  Role,
+  RoleSpec,
+  Rubric,
+  ShortlistResponse,
+} from './types';
 
 export const flowApi = {
   generateRole: (employerId: string, freeText: string) =>
@@ -21,4 +29,11 @@ export const flowApi = {
     apiFetch<ShortlistResponse>(
       `/v1/roles/${encodeURIComponent(roleId)}/shortlist?page.page=1&page.page_size=${pageSize}`,
     ),
+  // A decline is never automatic: human_approved must be true and the approving
+  // human is taken from the auth context server-side, not this body.
+  recordRejection: (roleId: string, candidateId: string, reason: string, humanApproved: boolean) =>
+    apiFetch<RecordRejectionResponse>(`/v1/roles/${encodeURIComponent(roleId)}/rejections`, {
+      method: 'POST',
+      body: { role_id: roleId, candidate_id: candidateId, reason, human_approved: humanApproved },
+    }),
 };

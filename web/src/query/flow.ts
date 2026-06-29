@@ -3,6 +3,17 @@ import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
 import { flowApi } from '../api/flow';
 import type { RoleSpec, Rubric } from '../api/types';
 
+export function useRecordRejection() {
+  return useMutation({
+    mutationFn: ({ roleId, candidateId, reason, humanApproved }: {
+      roleId: string;
+      candidateId: string;
+      reason: string;
+      humanApproved: boolean;
+    }) => flowApi.recordRejection(roleId, candidateId, reason, humanApproved),
+  });
+}
+
 export function useGenerateRole() {
   return useMutation({
     mutationFn: ({ employerId, freeText }: { employerId: string; freeText: string }) =>

@@ -14,6 +14,7 @@ import {
 import type { Match } from '../../api/types';
 import { confidenceColor, confidenceLabel, pct, shortId } from '../../lib/format';
 import { fonts } from '../../theme/tokens';
+import { DeclineCandidate } from './DeclineCandidate';
 
 export function MatchCard({ match, rank }: { match: Match; rank: number }) {
   return (
@@ -95,6 +96,10 @@ export function MatchCard({ match, rank }: { match: Match; rank: number }) {
               </Stack>
             </Box>
           )}
+
+          <Divider />
+          {/* The decline is human-only and audited — never an AI auto-reject (CAL-081/094). */}
+          <DeclineCandidate roleId={match.roleId} candidateId={match.candidateId} />
         </Stack>
       </CardContent>
     </Card>

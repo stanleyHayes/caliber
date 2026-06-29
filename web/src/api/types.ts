@@ -326,3 +326,9 @@ export interface RaiseContestResponse {
 export interface ListMyContestsResponse {
   contests: Contest[];
 }
+
+// ----- Rejections (RecordRejection — human-approved decline) -----
+
+export interface RecordRejectionResponse {
+  auditEntryId: string;
+}

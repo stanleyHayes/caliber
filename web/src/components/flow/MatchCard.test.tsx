@@ -1,8 +1,13 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Match } from '../../api/types';
 import { MatchCard } from './MatchCard';
+
+// MatchCard embeds DeclineCandidate, which uses useRecordRejection.
+vi.mock('../../query/flow', () => ({
+  useRecordRejection: () => ({ mutate: vi.fn(), isPending: false, isError: false, isSuccess: false, error: null }),
+}));
 
 const baseMatch: Match = {
   id: 'm1',
