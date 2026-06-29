@@ -1,0 +1,16 @@
+title = "Project Caliber secret scanning"
+
+[allowlist]
+description = "Documented local-only placeholders and non-secret generated metadata."
+regexes = [
+  '''dev-secret-change-me''',
+  '''caliber:caliber@localhost''',
+  '''caliber:caliber@postgres''',
+  '''ANTHROPIC_API_KEY=''',
+  '''OPENAI_API_KEY=''',
+  '''CALIBER_JWT_SECRET=''',
+]
+paths = [
+  '''web/package-lock\.json''',
+  '''go\.sum''',
+]

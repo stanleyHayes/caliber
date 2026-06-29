@@ -212,7 +212,7 @@ caliber/
 
 | Milestone | Epic | Title | Stories | Pts | Status | % |
 |---|---|---|---|---|---|---|
-| **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~45% |
+| **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~70% |
 | | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~85% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | DONE | 100% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | TODO | 0% |
@@ -249,14 +249,14 @@ We deliver **sprint by sprint**. This board is the live cursor over the epics ab
 |---|---|---|---|
 | 1 | CAL-164 | Protobuf contracts + buf + gRPC/gateway scaffold | **DONE** — 9 protos → `internal/gen` (Go+gRPC+gateway+OpenAPI); API server wired; routes verified live |
 | 2 | CAL-001 | Go monorepo & hexagonal skeleton | **DONE** — hexagon layout, depguard boundaries, build/vet/test green |
-| 3 | CAL-005 | Configuration & secrets management | **WIP** — typed env config + `.env.example` done; gitleaks secret-scan pending (CI) |
-| 4 | CAL-006 | Dockerization & local dev stack | TODO |
-| 5 | CAL-007 | Structured logging & error baseline | **WIP** — slog JSON + recovery middleware done; typed domain errors pending |
-| 6 | CAL-008 | Health, readiness & server bootstrap | **WIP** — `/healthz` `/readyz` + graceful shutdown done; readiness→DB/Redis pending |
+| 3 | CAL-005 | Configuration & secrets management | **DONE** — typed env config + `.env.example` done; gitleaks secret scan now gates CI |
+| 4 | CAL-006 | Dockerization & local dev stack | **REVIEW** — api/worker multi-stage Dockerfiles, one-shot migration container, Postgres+pgvector, Redis, and Vite dev server wired in compose; `docker compose up` smoke pending after local Docker daemon recovery |
+| 5 | CAL-007 | Structured logging & error baseline | **DONE** — structured access logging with request correlation + panic recovery |
+| 6 | CAL-008 | Health, readiness & server bootstrap | **REVIEW** — `/healthz` + graceful shutdown done; `/readyz` now checks Postgres pool + Redis PING when configured; live compose smoke pending after Docker daemon recovery |
 | 7 | CAL-002 | CLAUDE.md & AGENTS.md | **DONE** |
 | 8 | CAL-003 | CI pipeline (lint/test/coverage gate) | **DONE** — workflow authored; all gates reproduced locally; first GitHub run pending remote |
 | 9 | CAL-004 | SonarQube quality gate | **WIP** — `sonar-project.properties` + CI step done; needs SonarCloud project + `SONAR_TOKEN` secret |
-| 10 | CAL-009 | Branch protection & repo policy | TODO — needs GitHub remote |
+| 10 | CAL-009 | Branch protection & repo policy | **DONE** — CODEOWNERS + PR template landed; `main` branch protection applied via GitHub API (PR + 1 code-owner review + required CI/security checks + conversation resolution; force-push/delete blocked) |
 
 **Sprint 2 (next)** — EPIC-01 (domain + schema + pgvector), EPIC-02 (auth), EPIC-03 (queue), EPIC-04 (AI orchestration): the intelligence substrate becomes callable.
 
@@ -276,11 +276,11 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-164** `[DONE]` · 5 pts — **Protobuf contracts + buf + gRPC/grpc-gateway scaffold.** `proto/` services & messages; `buf lint`/`generate` producing Go stubs + TS types; gRPC server with grpc-gateway mux mounted on chi; OpenAPI emitted. *AC:* a sample RPC is reachable via gRPC and REST; codegen runs in CI. *Done 2026-06-24:* 9 protos (all flows) generated to `internal/gen` (Go+gRPC+gateway+OpenAPI); API server wired & verified live (gateway→gRPC returns Unimplemented/501, health 200). CI codegen check lands with CAL-003. *Deps:* CAL-001
 - **CAL-003** `[DONE]` · 5 pts — **CI pipeline (GitHub Actions).** Stages: format/lint (Go + web) → buf lint → `go test -race -coverprofile` + web tests → **coverage ≥ 80% gate** → build. *AC:* PR cannot merge if any stage fails or coverage < 80%. *Deps:* CAL-001
 - **CAL-004** `[WIP]` · 5 pts — **SonarQube/SonarCloud integration.** Wire scanner into CI; configure quality gate (bugs, vulns, hotspots, duplication, coverage import for Go + TS). *AC:* gate status blocks merge. *Deps:* CAL-003
-- **CAL-005** `[WIP]` · 3 pts — **Configuration & secrets management.** Typed config loader (env-driven), `.env.example`, no secrets in VCS; fail-fast on missing required vars; gitleaks in CI. *AC:* config validated at boot. *Deps:* CAL-001
-- **CAL-006** `[TODO]` · 5 pts — **Dockerization & local dev stack.** Multi-stage Dockerfiles for `api`/`worker`; `docker-compose` with Postgres+pgvector and Redis; Vite dev server wired. *AC:* `docker compose up` boots the full local stack. *Deps:* CAL-001
+- **CAL-005** `[DONE]` · 3 pts — **Configuration & secrets management.** Typed config loader (env-driven), `.env.example`, no secrets in VCS; fail-fast on missing required vars; gitleaks in CI. *Done 2026-06-29:* typed env config + `.env.example` were already present; CI now includes a repo-wide Gitleaks job with a narrow allowlist for documented local placeholders and generated dependency metadata. *AC:* config validated at boot. *Deps:* CAL-001
+- **CAL-006** `[REVIEW]` · 5 pts — **Dockerization & local dev stack.** Multi-stage Dockerfiles for `api`/`worker`; `docker-compose` with Postgres+pgvector and Redis; Vite dev server wired. *AC:* `docker compose up` boots the full local stack. *Implemented 2026-06-29:* compose now wires Postgres+pgvector, Redis, one-shot schema migrations, API, worker, and the Vite dev server; Vite proxies `/v1` to the API service inside Docker while preserving localhost proxying outside Docker. Verification so far: `docker compose config`, backend build/tests, and frontend build/tests pass; full `docker compose up` smoke is pending because the local Docker daemon dropped during image build. *Deps:* CAL-001
 - **CAL-007** `[DONE]` · 3 pts — **Structured logging & error handling baseline.** `slog` JSON logger, request-scoped logger, typed domain errors, panic-recovery middleware/interceptor. *AC:* every request logs a correlation/request id. *Deps:* CAL-001 **[DONE]** slog JSON logger + typed kernel errors + chi panic-recovery were in place; the missing piece — request correlation — is now wired: a structured access-log middleware logs every request with its chi request id (method/path/status/duration only; PII-free). Tested by `TestRequestLoggerEmitsCorrelatedStructuredLog`.
-- **CAL-008** `[WIP]` · 5 pts — **Health, readiness & server bootstrap.** chi server with `/healthz`, `/readyz`, graceful shutdown, timeouts, DI wiring in `platform`. *AC:* readiness reflects DB+Redis connectivity. *Deps:* CAL-006
-- **CAL-009** `[TODO]` · 3 pts — **Branch protection & repo policy.** Protect `main`; require CI + Sonar + 1 review; CODEOWNERS; PR template embedding the DoD checklist. *AC:* direct pushes blocked. *Deps:* CAL-003, CAL-004
+- **CAL-008** `[REVIEW]` · 5 pts — **Health, readiness & server bootstrap.** chi server with `/healthz`, `/readyz`, graceful shutdown, timeouts, DI wiring in `platform`. *AC:* readiness reflects DB+Redis connectivity. *Implemented 2026-06-29:* `/readyz` now runs injected readiness checks, returns `503 {"status":"not_ready"}` when a dependency fails, reuses the live Postgres pool for DB readiness, and verifies Redis with a PING check (including authenticated Redis URLs). Tested at the HTTP router, platform server, composition-root, and Redis-check layers. Live compose smoke remains tied to CAL-006 while Docker daemon is unavailable. *Deps:* CAL-006
+- **CAL-009** `[DONE]` · 3 pts — **Branch protection & repo policy.** Protect `main`; require CI + Sonar + 1 review; CODEOWNERS; PR template embedding the DoD checklist. *Done 2026-06-29:* added `.github/CODEOWNERS`, a PR template with the story/verification/DoD checklist, and `.github/branch-protection.md` documenting the required `main` branch rules/check names. Applied `main` branch protection through the GitHub API: required PRs, 1 approving code-owner review, stale-review dismissal, required conversation resolution, up-to-date required checks (`Secrets (gitleaks)`, `Backend (lint · proto · test · coverage · sonar)`, `Frontend (typecheck · build · lint · test)`), no force pushes, and no deletions. SonarCloud token/project setup remains tracked in CAL-004. *AC:* direct pushes blocked. *Deps:* CAL-003, CAL-004
 
 ## EPIC-01 · Domain Model & Database Foundation
 **Goal:** The entities of spec §9 as a pure domain plus a migrated Postgres schema with pgvector.
