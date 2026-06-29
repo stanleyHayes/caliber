@@ -16,7 +16,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.43.0
 	go.uber.org/mock v0.6.0
-	golang.org/x/crypto v0.51.0
+	golang.org/x/crypto v0.52.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260622175928-b703f567277d
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
@@ -91,7 +91,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
-	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
