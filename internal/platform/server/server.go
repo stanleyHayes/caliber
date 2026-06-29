@@ -52,7 +52,7 @@ func Run(
 
 	httpSrv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           httpserver.NewRouter(mux, cfg.IsProd(), log, readiness...),
+		Handler:           httpserver.NewRouter(mux, cfg.IsProd(), cfg.AllowedOrigins, log, readiness...),
 		ReadHeaderTimeout: shutdownTimeout,
 	}
 	go func() {

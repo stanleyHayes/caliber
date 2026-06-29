@@ -17,7 +17,7 @@ import (
 )
 
 func TestSecureHeadersAndHealth(t *testing.T) {
-	r := httpserver.NewRouter(http.NotFoundHandler(), true, nil)
+	r := httpserver.NewRouter(http.NotFoundHandler(), true, nil, nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
 
@@ -30,15 +30,61 @@ func TestSecureHeadersAndHealth(t *testing.T) {
 }
 
 func TestNoHSTSOutsideProd(t *testing.T) {
-	r := httpserver.NewRouter(http.NotFoundHandler(), false, nil)
+	r := httpserver.NewRouter(http.NotFoundHandler(), false, nil, nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
 	assert.Empty(t, rec.Header().Get("Strict-Transport-Security"))
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 }
 
+func TestCORSAllowsConfiguredOrigin(t *testing.T) {
+	const origin = "https://app.caliber.example"
+	r := httpserver.NewRouter(http.NotFoundHandler(), false, []string{origin}, nil)
+
+	// A real cross-origin request from an allowlisted origin gets the origin
+	// reflected (never "*") and is varied on, so caches never leak across origins.
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil)
+	req.Header.Set("Origin", origin)
+	r.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, origin, rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Contains(t, rec.Header().Values("Vary"), "Origin")
+}
+
+func TestCORSPreflightFromAllowedOrigin(t *testing.T) {
+	const origin = "https://app.caliber.example"
+	r := httpserver.NewRouter(http.NotFoundHandler(), false, []string{origin}, nil)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/v1/roles", nil)
+	req.Header.Set("Origin", origin)
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	r.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusNoContent, rec.Code, "preflight is answered here, not by the gateway")
+	assert.Equal(t, origin, rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Contains(t, rec.Header().Get("Access-Control-Allow-Methods"), "POST")
+	assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "Authorization")
+}
+
+func TestCORSRejectsUnlistedOrigin(t *testing.T) {
+	r := httpserver.NewRouter(http.NotFoundHandler(), false, []string{"https://app.caliber.example"}, nil)
+
+	// An origin not on the allowlist gets NO CORS headers — the browser then
+	// blocks the response. The preflight still returns a bare 204.
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/v1/roles", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	r.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusNoContent, rec.Code)
+	assert.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"), "an unlisted origin is never reflected")
+}
+
 func TestReadyzReportsDependencyFailure(t *testing.T) {
-	r := httpserver.NewRouter(http.NotFoundHandler(), false, nil, failingReadiness{})
+	r := httpserver.NewRouter(http.NotFoundHandler(), false, nil, nil, failingReadiness{})
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
@@ -50,7 +96,7 @@ func TestReadyzReportsDependencyFailure(t *testing.T) {
 func TestRequestLoggerEmitsCorrelatedStructuredLog(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&buf, nil))
-	r := httpserver.NewRouter(http.NotFoundHandler(), false, log)
+	r := httpserver.NewRouter(http.NotFoundHandler(), false, nil, log)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))

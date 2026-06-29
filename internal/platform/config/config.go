@@ -36,6 +36,10 @@ type Config struct {
 	RateLimitRPS   float64 // per-principal sustained request rate (token-bucket refill/sec)
 	RateLimitBurst float64 // per-principal burst ceiling (max tokens)
 
+	// AllowedOrigins is the strict CORS allowlist (CAL-114): exact SPA origins
+	// permitted to call the API cross-origin. Empty means same-origin only.
+	AllowedOrigins []string
+
 	WorkerConcurrency int           // Asynq worker concurrency
 	TaskMaxRetry      int           // Asynq max retries per task
 	TaskRetention     time.Duration // how long completed tasks remain inspectable
@@ -66,6 +70,7 @@ func Load() (Config, error) {
 		// cap floods and runaway clients on the expensive AI endpoints (CAL-112).
 		RateLimitRPS:      getfloat("CALIBER_RATE_LIMIT_RPS", 30),
 		RateLimitBurst:    getfloat("CALIBER_RATE_LIMIT_BURST", 60),
+		AllowedOrigins:    getcsv("CALIBER_CORS_ORIGINS"),
 		WorkerConcurrency: getint("CALIBER_WORKER_CONCURRENCY", 4),
 		TaskMaxRetry:      getint("CALIBER_TASK_MAX_RETRY", 3),
 		TaskRetention:     getdur("CALIBER_TASK_RETENTION", 24*time.Hour),
@@ -141,6 +146,22 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// getcsv parses a comma-separated env var into a trimmed, empty-dropped slice
+// (nil when unset), used for the CORS origin allowlist.
+func getcsv(key string) []string {
+	raw := os.Getenv(key)
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var out []string
+	for part := range strings.SplitSeq(raw, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // getdur parses a Go duration (e.g. "15m", "168h") from the environment,

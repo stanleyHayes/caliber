@@ -17,13 +17,17 @@ type ReadinessChecker interface {
 	Check(ctx context.Context) error
 }
 
-// NewRouter builds the chi router: request-id + structured access-log +
-// panic-recovery middleware, health and readiness endpoints, and the gateway
-// mounted under /v1/. When log is non-nil, every request is logged with its
+// NewRouter builds the chi router: request-id + strict CORS + structured
+// access-log + panic-recovery middleware, health and readiness endpoints, and
+// the gateway mounted under /v1/. allowedOrigins is the CORS allowlist (empty =
+// same-origin only). When log is non-nil, every request is logged with its
 // correlation id (CAL-007).
-func NewRouter(gateway http.Handler, hsts bool, log *slog.Logger, readiness ...ReadinessChecker) http.Handler {
+func NewRouter(
+	gateway http.Handler, hsts bool, allowedOrigins []string, log *slog.Logger, readiness ...ReadinessChecker,
+) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
+	r.Use(cors(allowedOrigins))
 	if log != nil {
 		r.Use(requestLogger(log))
 	}
@@ -74,6 +78,42 @@ func secureHeaders(hsts bool) func(http.Handler) http.Handler {
 			h.Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 			if hsts {
 				h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// cors applies a strict, allowlist-based CORS policy (CAL-114). The SPA is served
+// from a different origin than the API, so cross-origin XHR must be explicitly
+// permitted — but only for exact, configured origins. A request whose Origin is
+// not on the allowlist receives no CORS headers (the browser blocks it); the
+// origin is reflected (never "*") and varied on so caches never leak one origin's
+// response to another. Preflights (OPTIONS) are answered 204 here.
+func cors(allowedOrigins []string) func(http.Handler) http.Handler {
+	allowed := make(map[string]struct{}, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		allowed[o] = struct{}{}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" {
+				if _, ok := allowed[origin]; ok {
+					h := w.Header()
+					h.Set("Access-Control-Allow-Origin", origin)
+					h.Add("Vary", "Origin")
+					h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+					h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+					h.Set("Access-Control-Max-Age", "600")
+				}
+			}
+			// Answer the preflight here regardless of allow decision: an allowed
+			// origin gets the headers above + 204; a disallowed one gets a bare 204
+			// with no CORS headers, so the browser blocks the real request.
+			if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+				w.WriteHeader(http.StatusNoContent)
+				return
 			}
 			next.ServeHTTP(w, r)
 		})
