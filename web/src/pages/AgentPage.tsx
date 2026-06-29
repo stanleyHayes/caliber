@@ -23,7 +23,7 @@ export function AgentPage() {
   return (
     <Stack spacing={4} sx={{ maxWidth: 760, mx: 'auto' }}>
       <Stack spacing={1}>
-        <Typography variant="h3">Your job-search agent</Typography>
+        <Typography variant="h3" component="h1">Your job-search agent</Typography>
         <Typography color="text.secondary">
           It works while you sleep — honestly. It only applies where your verified profile already qualifies you,
           and every application draws on your real evidence.

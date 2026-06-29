@@ -21,7 +21,7 @@ export function LoginPage() {
       <Paper variant="outlined" sx={{ p: 4 }}>
         <Stack spacing={3} component="form" onSubmit={onSubmit}>
           <Stack spacing={0.5}>
-            <Typography variant="h4">Welcome back</Typography>
+            <Typography variant="h4" component="h1">Welcome back</Typography>
             <Typography color="text.secondary">Sign in to Caliber.</Typography>
           </Stack>
           {login.isError && <Alert severity="error">{login.error.message}</Alert>}

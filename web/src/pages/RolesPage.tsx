@@ -14,7 +14,7 @@ export function RolesPage() {
     <Stack spacing={4} sx={{ maxWidth: 820, mx: 'auto' }}>
       <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
         <Stack spacing={1} sx={{ flexGrow: 1 }}>
-          <Typography variant="h3">Your roles</Typography>
+          <Typography variant="h3" component="h1">Your roles</Typography>
           <Typography color="text.secondary">Every role you have described, with its spec and rubric.</Typography>
         </Stack>
         <Button component={Link} to="/roles/new" variant="contained">
