@@ -2,7 +2,9 @@ package httpserver_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -35,6 +37,16 @@ func TestNoHSTSOutsideProd(t *testing.T) {
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 }
 
+func TestReadyzReportsDependencyFailure(t *testing.T) {
+	r := httpserver.NewRouter(http.NotFoundHandler(), false, nil, failingReadiness{})
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.JSONEq(t, `{"status":"not_ready"}`, rec.Body.String())
+}
+
 func TestRequestLoggerEmitsCorrelatedStructuredLog(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&buf, nil))
@@ -55,3 +67,7 @@ func TestRequestLoggerEmitsCorrelatedStructuredLog(t *testing.T) {
 	assert.NotEmpty(t, entry["request_id"], "every request is correlated by its chi request id (CAL-007)")
 	assert.Contains(t, entry, "duration_ms")
 }
+
+type failingReadiness struct{}
+
+func (failingReadiness) Check(context.Context) error { return errors.New("down") }

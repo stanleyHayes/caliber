@@ -3,6 +3,7 @@
 package httpserver
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
@@ -11,11 +12,16 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
+// ReadinessChecker reports whether the app can serve dependency-backed traffic.
+type ReadinessChecker interface {
+	Check(ctx context.Context) error
+}
+
 // NewRouter builds the chi router: request-id + structured access-log +
 // panic-recovery middleware, health and readiness endpoints, and the gateway
 // mounted under /v1/. When log is non-nil, every request is logged with its
 // correlation id (CAL-007).
-func NewRouter(gateway http.Handler, hsts bool, log *slog.Logger) http.Handler {
+func NewRouter(gateway http.Handler, hsts bool, log *slog.Logger, readiness ...ReadinessChecker) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	if log != nil {
@@ -24,7 +30,7 @@ func NewRouter(gateway http.Handler, hsts bool, log *slog.Logger) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(secureHeaders(hsts))
 	r.Get("/healthz", health("ok"))
-	r.Get("/readyz", health("ready"))
+	r.Get("/readyz", ready(readiness...))
 	r.Handle("/v1/*", gateway)
 	return r
 }
@@ -80,5 +86,25 @@ func health(statusText string) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(body)
+	}
+}
+
+func ready(checks ...ReadinessChecker) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		for _, check := range checks {
+			if check == nil {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			err := check.Check(ctx)
+			cancel()
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte(`{"status":"not_ready"}`))
+				return
+			}
+		}
+		health("ready")(w, r)
 	}
 }

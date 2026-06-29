@@ -41,6 +41,7 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
+	"github.com/xcreativs/caliber/internal/platform/readiness"
 	"github.com/xcreativs/caliber/internal/platform/seed"
 	"github.com/xcreativs/caliber/internal/platform/server"
 )
@@ -65,13 +66,13 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	svc, cleanup, err := buildServices(ctx, cfg, log)
+	svc, cleanup, ready, err := buildServices(ctx, cfg, log)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
-	return server.Run(ctx, cfg, log, svc)
+	return server.Run(ctx, cfg, log, svc, ready)
 }
 
 // repositories bundles the persistence ports the services share.
@@ -91,7 +92,7 @@ type repositories struct {
 func openRepositories(
 	ctx context.Context, cfg config.Config, model app.LLMClient, embedder app.Embedder,
 	auditRepo audit.AuditRepository, log *slog.Logger,
-) (repositories, *grpcadapter.MatchServer, func(), error) {
+) (repositories, *grpcadapter.MatchServer, func(), []readiness.NamedCheck, error) {
 	repos := repositories{
 		roles: memory.NewRoleRepo(), users: memory.NewUserRepo(), refresh: memory.NewRefreshStore(),
 		candidates: memory.NewCandidateRepo(), profiles: memory.NewTalentProfileRepo(), apps: memory.NewApplicationRepo(),
@@ -109,15 +110,15 @@ func openRepositories(
 			memory.NewRecaller(repos.candidates), embedder, model, repos.matchRepo)
 		rejections := matchingapp.NewRejectionRecorder(repos.roles, auditRepo, time.Now)
 		match := grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister), rejections)
-		return repos, match, cleanup, nil
+		return repos, match, cleanup, nil, nil
 	}
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		return repos, nil, cleanup, err
+		return repos, nil, cleanup, nil, err
 	}
 	if err = pool.Ping(ctx); err != nil {
 		pool.Close()
-		return repos, nil, cleanup, err
+		return repos, nil, cleanup, nil, err
 	}
 	repos.roles = postgres.NewRoleRepo(pool)
 	repos.users = postgres.NewUserRepo(pool)
@@ -130,30 +131,43 @@ func openRepositories(
 		repos.roles, repos.candidates, repos.profiles, postgres.NewRecaller(pool), embedder, model, repos.matchRepo)
 	rejections := matchingapp.NewRejectionRecorder(repos.roles, auditRepo, time.Now)
 	log.Info("persistence selected", "provider", "postgres")
-	return repos, grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.roles, shortlister), rejections), pool.Close, nil
+	checks := []readiness.NamedCheck{
+		{Name: "postgres", Check: readiness.Func(pool.Ping)},
+	}
+	match := grpcadapter.NewMatchServer(
+		shortlister,
+		matchingapp.NewRefiner(repos.roles, shortlister),
+		rejections,
+	)
+	return repos, match, pool.Close, checks, nil
 }
 
-func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (grpcadapter.Services, func(), error) {
+func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (grpcadapter.Services, func(), *readiness.Aggregate, error) {
 	model := buildLLM(cfg, log)
 	embedder := buildEmbedder(cfg, log)
 	cleanup := func() {}
 	svc := grpcadapter.Services{}
+	ready := readiness.New()
 	if cfg.IsProd() && cfg.DatabaseURL == "" {
-		return svc, cleanup, errors.New("CALIBER_DATABASE_URL is required in production")
+		return svc, cleanup, ready, errors.New("CALIBER_DATABASE_URL is required in production")
 	}
 
 	auditRepo := memory.NewAuditRepo()
-	repos, match, cleanup, err := openRepositories(ctx, cfg, model, embedder, auditRepo, log)
+	repos, match, cleanup, checks, err := openRepositories(ctx, cfg, model, embedder, auditRepo, log)
 	if err != nil {
-		return svc, cleanup, err
+		return svc, cleanup, ready, err
 	}
+	if cfg.RedisURL != "" {
+		checks = append(checks, readiness.Redis(cfg.RedisURL))
+	}
+	ready = readiness.New(checks...)
 	if match != nil {
 		svc.Match = match
 	}
 
 	tokens, terr := buildTokenService(cfg, log)
 	if terr != nil {
-		return svc, cleanup, terr
+		return svc, cleanup, ready, terr
 	}
 	idOpts := []identityapp.Option{
 		identityapp.WithProvisioner(provisioning.NewCandidateProvisioner(repos.candidates)),
@@ -182,7 +196,7 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	svc.Dashboard = grpcadapter.NewDashboardServer(dashboardapp.NewAggregator(repos.candidates, repos.profiles, repos.users, repos.roles))
 	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(memory.NewContestRepo(), auditRepo, time.Now))
 	svc.Audit = grpcadapter.NewAuditServer(auditRepo)
-	return svc, cleanup, nil
+	return svc, cleanup, ready, nil
 }
 
 //nolint:ireturn // selects/constructs the concrete TokenService; interface return is intentional.
