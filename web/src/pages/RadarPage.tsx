@@ -21,7 +21,7 @@ export function RadarPage() {
   return (
     <Stack spacing={4} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Stack spacing={1}>
-        <Typography variant="h3">Talent Radar</Typography>
+        <Typography variant="h3" component="h1">Talent Radar</Typography>
         <Typography color="text.secondary">The live god-view: pool, supply &amp; demand, and the headline metric.</Typography>
       </Stack>
 

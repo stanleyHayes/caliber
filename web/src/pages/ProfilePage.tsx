@@ -30,7 +30,7 @@ export function ProfilePage() {
   return (
     <Stack spacing={4} sx={{ maxWidth: 760, mx: 'auto' }}>
       <Stack spacing={1}>
-        <Typography variant="h3">Talent Passport</Typography>
+        <Typography variant="h3" component="h1">Talent Passport</Typography>
         <Typography color="text.secondary">
           Paste your CV. Caliber extracts an evidence-linked profile — every competency cites its source, and
           your job-search agent only ever uses what is here.

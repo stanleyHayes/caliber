@@ -37,7 +37,7 @@ export function DashboardPage() {
     <Stack spacing={3} sx={{ maxWidth: 720 }}>
       <Box>
         <Chip label={ROLE_LABEL[role]} color="primary" size="small" sx={{ mb: 1 }} />
-        <Typography variant="h3">Welcome{user ? `, ${user.name}` : ''}.</Typography>
+        <Typography variant="h3" component="h1">Welcome{user ? `, ${user.name}` : ''}.</Typography>
       </Box>
       <Card variant="outlined">
         <CardContent>

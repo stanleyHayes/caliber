@@ -39,7 +39,7 @@ export function RegisterPage() {
       <Paper variant="outlined" sx={{ p: 4 }}>
         <Stack spacing={3} component="form" onSubmit={onSubmit}>
           <Stack spacing={0.5}>
-            <Typography variant="h4">Create your account</Typography>
+            <Typography variant="h4" component="h1">Create your account</Typography>
             <Typography color="text.secondary">Passwords must be at least 12 characters.</Typography>
           </Stack>
           {register.isError && <Alert severity="error">{register.error.message}</Alert>}

@@ -26,7 +26,7 @@ export function InterviewPage() {
   return (
     <Stack spacing={4} sx={{ maxWidth: 760, mx: 'auto' }}>
       <Stack spacing={1}>
-        <Typography variant="h3">Screening interview</Typography>
+        <Typography variant="h3" component="h1">Screening interview</Typography>
         <Typography color="text.secondary">
           An adaptive AI interviewer probes each rubric competency, then scores your answers with
           evidence — no black box.

@@ -35,7 +35,7 @@ export function EmployerFlowPage() {
   return (
     <Stack spacing={4} sx={{ maxWidth: 820, mx: 'auto' }}>
       <Stack spacing={1}>
-        <Typography variant="h3">Describe the role</Typography>
+        <Typography variant="h3" component="h1">Describe the role</Typography>
         <Typography color="text.secondary">
           Write the hiring need in plain language. Caliber turns it into a structured spec and a
           weighted, bias-safe rubric — then ranks your pool with reasons.

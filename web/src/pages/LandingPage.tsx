@@ -48,7 +48,7 @@ export function LandingPage() {
       <Container maxWidth="md" sx={{ position: 'relative', py: { xs: 8, md: 14 } }}>
         <Stack spacing={4} sx={{ alignItems: 'flex-start' }}>
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <Typography sx={{ fontFamily: fonts.title, fontWeight: 700, fontSize: { xs: 44, md: 72 }, lineHeight: 1.05 }}>
+            <Typography component="h1" sx={{ fontFamily: fonts.title, fontWeight: 700, fontSize: { xs: 44, md: 72 }, lineHeight: 1.05 }}>
               Hire on evidence, not guesswork.
             </Typography>
           </motion.div>
@@ -79,7 +79,7 @@ export function LandingPage() {
               style={{ transformPerspective: 800 }}
             >
               <Box sx={{ p: 3, height: '100%', border: 1, borderColor: 'divider', borderRadius: 3, bgcolor: 'background.paper' }}>
-                <Typography variant="h6" gutterBottom>
+                <Typography variant="h6" component="h2" gutterBottom>
                   {f.title}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
