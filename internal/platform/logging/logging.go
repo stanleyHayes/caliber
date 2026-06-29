@@ -8,12 +8,15 @@ import (
 )
 
 // New returns a JSON structured logger at the given level and installs it as
-// the slog default. Every request/job attaches a correlation id downstream.
+// the slog default. Every request/job attaches a correlation id downstream. The
+// JSON handler is wrapped in a redacting handler so personal data (emails,
+// bearer tokens, JWTs, and secret-named fields) is scrubbed from every line as a
+// defense-in-depth backstop to PII-free logging (CAL-117).
 func New(level string) *slog.Logger {
 	h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: parseLevel(level),
 	})
-	l := slog.New(h)
+	l := slog.New(newRedactingHandler(h))
 	slog.SetDefault(l)
 	return l
 }

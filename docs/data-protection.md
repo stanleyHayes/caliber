@@ -28,6 +28,14 @@ companion to [fairness.md](fairness.md).
   exception: it records the employer's own justification (CAL-081), because an
   unexplained decline is exactly what the human-approval gate exists to prevent —
   the decider's words, not candidate PII.
+- **Defense-in-depth log redaction (CAL-117).** The root structured logger wraps
+  its JSON handler in a redacting handler (`internal/platform/logging/redact.go`)
+  that scrubs every record — message and attributes, recursively through groups
+  and `With`-bound fields — before it is written: values under secret/identifier
+  key names (`email`, `password`, `authorization`, `token`, `phone`, …) are
+  blanked, and PII-shaped substrings (email addresses, `Bearer` credentials, JWTs)
+  are masked wherever they appear, even inside an otherwise neutral field. This is
+  a backstop, not a licence to log PII; call sites still avoid it deliberately.
 - **Untrusted-by-default.** All candidate/role text is sanitised and fenced
   before it reaches a model (CAL-119), and treated as data, never instructions.
 - **No protected attributes in scoring inputs** (CAL-085) — they are not even
