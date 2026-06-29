@@ -148,6 +148,30 @@ func (s *Interviewer) CandidateForInterview(ctx context.Context, interviewID ker
 	return iv.CandidateID, nil
 }
 
+// ScoreAsync generates the report card for an interview off the request path.
+// It is invoked by the async worker (CAL-067); the inline interview path uses
+// finish directly inside Answer.
+func (s *Interviewer) ScoreAsync(ctx context.Context, interviewID kernel.ID) (*interviewdom.ReportCard, error) {
+	iv, err := s.interviews.ByID(ctx, interviewID)
+	if err != nil {
+		return nil, err
+	}
+	if len(iv.Turns) == 0 {
+		return nil, kernel.Invalid("interview: cannot score an interview with no answers")
+	}
+	if iv.Report != nil {
+		return iv.Report, nil
+	}
+	rl, err := s.roles.ByID(ctx, iv.RoleID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.finish(ctx, rl, iv); err != nil {
+		return nil, err
+	}
+	return iv.Report, nil
+}
+
 // EmployerForInterview returns the employer who owns the role an interview was
 // screened against, so inbound adapters can authorize that a reviewer reading the
 // report card owns the role (CAL-116 IDOR protection) — a report card must not be

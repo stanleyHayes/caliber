@@ -2,69 +2,94 @@ package grpcadapter
 
 import (
 	"context"
-	"sync"
 
+	queueadapter "github.com/xcreativs/caliber/internal/adapters/outbound/queue"
 	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
+	appqueue "github.com/xcreativs/caliber/internal/app/queue"
 	agentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
 
-// AgentServer implements caliberv1.CandidateAgentServiceServer (Flow C). It runs
-// the agent inline (no async queue yet) and remembers the last wake-up view per
-// candidate for GetWakeUpView.
+// AgentServer implements caliberv1.CandidateAgentServiceServer (Flow C).
+// When a real task dispatcher is wired, RunAgent/TimeAdvance enqueue background
+// work; otherwise they fall back to the synchronous dev path.
 type AgentServer struct {
 	caliberv1.UnimplementedCandidateAgentServiceServer
 
-	runner *candidateagentapp.AgentRunner
-	apps   agentdom.ApplicationRepository
-
-	mu      sync.Mutex
-	wakeups map[string]agentdom.WakeUpView
+	runner     *candidateagentapp.AgentRunner
+	apps       agentdom.ApplicationRepository
+	dispatcher appqueue.TaskDispatcher
 }
 
 // NewAgentServer builds the candidate-agent gRPC service.
-func NewAgentServer(runner *candidateagentapp.AgentRunner, apps agentdom.ApplicationRepository) *AgentServer {
-	return &AgentServer{runner: runner, apps: apps, wakeups: map[string]agentdom.WakeUpView{}}
+func NewAgentServer(
+	runner *candidateagentapp.AgentRunner,
+	apps agentdom.ApplicationRepository,
+	dispatcher appqueue.TaskDispatcher,
+) *AgentServer {
+	if dispatcher == nil {
+		dispatcher = queueadapter.NewNoop()
+	}
+	return &AgentServer{runner: runner, apps: apps, dispatcher: dispatcher}
 }
 
-// RunAgent runs an agent pass inline and returns a job id (the run is already
-// complete; an async queue lands with EPIC-03).
+// RunAgent enqueues a candidate-agent run when a dispatcher is available and
+// returns the real task ID; in the dev path it runs synchronously.
 func (s *AgentServer) RunAgent(ctx context.Context, req *caliberv1.RunAgentRequest) (*caliberv1.RunAgentResponse, error) {
 	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
 		return nil, errToStatus(err)
 	}
-	view, err := s.runner.Run(ctx, kernel.ID(req.GetCandidateId()), 0)
+	candidateID := kernel.ID(req.GetCandidateId())
+
+	if queueadapter.IsNoop(s.dispatcher) {
+		if _, err := s.runner.Run(ctx, candidateID, 0); err != nil {
+			return nil, errToStatus(err)
+		}
+		return &caliberv1.RunAgentResponse{JobId: ""}, nil
+	}
+
+	taskID, err := s.dispatcher.DispatchCandidateAgentRun(ctx, candidateID)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
-	s.remember(req.GetCandidateId(), view)
-	return &caliberv1.RunAgentResponse{JobId: kernel.NewID().String()}, nil
+	return &caliberv1.RunAgentResponse{JobId: taskID}, nil
 }
 
-// TimeAdvance runs the agent "overnight" and returns the wake-up view.
+// TimeAdvance enqueues a candidate-agent run (the "overnight" demo action) and
+// returns the current wake-up view. When no dispatcher is wired it runs inline.
 func (s *AgentServer) TimeAdvance(ctx context.Context, req *caliberv1.TimeAdvanceRequest) (*caliberv1.TimeAdvanceResponse, error) {
 	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
 		return nil, errToStatus(err)
 	}
-	view, err := s.runner.Run(ctx, kernel.ID(req.GetCandidateId()), 0)
-	if err != nil {
+	candidateID := kernel.ID(req.GetCandidateId())
+
+	if queueadapter.IsNoop(s.dispatcher) {
+		view, err := s.runner.Run(ctx, candidateID, 0)
+		if err != nil {
+			return nil, errToStatus(err)
+		}
+		return &caliberv1.TimeAdvanceResponse{WakeUp: wakeUpToProto(view)}, nil
+	}
+
+	if _, err := s.dispatcher.DispatchCandidateAgentRun(ctx, candidateID); err != nil {
 		return nil, errToStatus(err)
 	}
-	s.remember(req.GetCandidateId(), view)
+	view, _ := s.runner.WakeUpView(ctx, candidateID)
 	return &caliberv1.TimeAdvanceResponse{WakeUp: wakeUpToProto(view)}, nil
 }
 
-// GetWakeUpView returns the last remembered wake-up view (zero if none yet).
+// GetWakeUpView returns the live wake-up view derived from current data.
 func (s *AgentServer) GetWakeUpView(
 	ctx context.Context, req *caliberv1.GetWakeUpViewRequest,
 ) (*caliberv1.GetWakeUpViewResponse, error) {
 	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
 		return nil, errToStatus(err)
 	}
-	s.mu.Lock()
-	view := s.wakeups[req.GetCandidateId()]
-	s.mu.Unlock()
+	view, err := s.runner.WakeUpView(ctx, kernel.ID(req.GetCandidateId()))
+	if err != nil {
+		return nil, errToStatus(err)
+	}
 	return &caliberv1.GetWakeUpViewResponse{WakeUp: wakeUpToProto(view)}, nil
 }
 
@@ -85,12 +110,6 @@ func (s *AgentServer) ListApplications(
 		out = append(out, applicationToProto(a))
 	}
 	return &caliberv1.ListApplicationsResponse{Applications: out, Page: pageResponseToProto(page, total)}, nil
-}
-
-func (s *AgentServer) remember(candidateID string, view agentdom.WakeUpView) {
-	s.mu.Lock()
-	s.wakeups[candidateID] = view
-	s.mu.Unlock()
 }
 
 func wakeUpToProto(v agentdom.WakeUpView) *caliberv1.WakeUpView {

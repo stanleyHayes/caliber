@@ -89,6 +89,26 @@ type llmAssessment struct {
 	TailoredSummary string  `json:"tailored_summary"`
 }
 
+// WakeUpView computes the current candidate wake-up summary from live data
+// (applications, matches, screenings, employer interest). It does not run the
+// agent or call the LLM, so it is safe to call on every GetWakeUpView request.
+func (r *AgentRunner) WakeUpView(ctx context.Context, candidateID kernel.ID) (agentdom.WakeUpView, error) {
+	cand, profile, ok, err := r.wakeUpInputs(ctx, candidateID)
+	if err != nil || !ok {
+		return agentdom.WakeUpView{}, err
+	}
+	newMatches, err := r.countEligibleOpenRoles(ctx, cand, profile)
+	if err != nil {
+		return agentdom.WakeUpView{}, err
+	}
+	view := agentdom.WakeUpView{
+		NewMatches:            newMatches,
+		ApplicationsSubmitted: r.countSubmittedAgentApplications(ctx, candidateID),
+	}
+	r.enrichInsights(ctx, candidateID, &view)
+	return view, nil
+}
+
 // Run scans up to scanLimit open roles and submits agent-authored applications
 // for honest strong matches, returning a wake-up summary. Without a verified
 // profile the agent does nothing (it cannot act honestly).
@@ -117,6 +137,54 @@ func (r *AgentRunner) Run(ctx context.Context, candidateID kernel.ID, scanLimit 
 	}
 	r.enrichInsights(ctx, candidateID, &view)
 	return view, nil
+}
+
+func (r *AgentRunner) wakeUpInputs(
+	ctx context.Context,
+	candidateID kernel.ID,
+) (*talent.Candidate, *talent.TalentProfile, bool, error) {
+	cand, err := r.candidates.ByID(ctx, candidateID)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	profile, err := r.profiles.ByCandidateID(ctx, candidateID)
+	if err != nil {
+		if kernel.KindOf(err) == kernel.KindNotFound {
+			return nil, nil, false, nil
+		}
+		return nil, nil, false, err
+	}
+	return cand, profile, true, nil
+}
+
+func (r *AgentRunner) countEligibleOpenRoles(
+	ctx context.Context,
+	cand *talent.Candidate,
+	profile *talent.TalentProfile,
+) (int, error) {
+	roles, _, err := r.roles.ListOpen(ctx, kernel.NewPage(1, defaultScanLimit))
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, rl := range roles {
+		if r.eligible(cand, profile, rl) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (r *AgentRunner) countSubmittedAgentApplications(ctx context.Context, candidateID kernel.ID) int {
+	count := 0
+	if apps, _, err := r.apps.ByCandidate(ctx, candidateID, kernel.NewPage(1, defaultScanLimit)); err == nil {
+		for _, a := range apps {
+			if a.Source == agentdom.SourceAgent && a.Status == agentdom.StatusSubmitted {
+				count++
+			}
+		}
+	}
+	return count
 }
 
 // enrichInsights fills the wake-up view's screening and employer-interest counts

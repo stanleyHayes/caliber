@@ -28,14 +28,17 @@ lint: ## run golangci-lint (enforces hexagonal import boundaries)
 vet: ## run go vet
 	go vet ./...
 
+COVERAGE_EXCLUDES := 'node_modules|internal/gen/|internal/mocks/|internal/platform/migrate/|internal/adapters/outbound/postgres/sqlcdb/'
+
 test: ## run tests with race + coverage (Docker-gated integration tests skip fast if Docker is down)
 	go test -race -coverprofile=coverage.out ./...
 
 test-short: ## run tests fast, skipping the testcontainers integration tests
 	go test -short ./...
 
-cover: test ## show total coverage
-	go tool cover -func=coverage.out | tail -1
+cover: test ## show app-code coverage (excludes generated/vendor packages)
+	grep -vE $(COVERAGE_EXCLUDES) coverage.out > coverage.app.out
+	go tool cover -func=coverage.app.out | tail -1
 
 build: ## compile everything
 	go build ./...
