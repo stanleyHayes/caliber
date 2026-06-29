@@ -21,7 +21,7 @@ func TestBuildServicesWiresEveryServiceInMemory(t *testing.T) {
 	// the deterministic dev provider.
 	cfg := config.Config{Env: "dev"}
 
-	svc, cleanup, err := buildServices(context.Background(), cfg, log)
+	svc, cleanup, ready, err := buildServices(context.Background(), cfg, log)
 	if err != nil {
 		t.Fatalf("buildServices returned error: %v", err)
 	}
@@ -29,6 +29,9 @@ func TestBuildServicesWiresEveryServiceInMemory(t *testing.T) {
 		t.Fatal("expected a non-nil cleanup function")
 	}
 	defer cleanup()
+	if ready == nil {
+		t.Fatal("expected a non-nil readiness checker")
+	}
 
 	checks := map[string]any{
 		"Identity":       svc.Identity,
@@ -56,7 +59,10 @@ func TestBuildServicesWiresEveryServiceInMemory(t *testing.T) {
 // a database URL must fail fast rather than silently boot on in-memory storage.
 func TestBuildServicesRequiresDatabaseInProd(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
-	_, _, err := buildServices(context.Background(), config.Config{Env: "prod"}, log)
+	svc, cleanup, ready, err := buildServices(context.Background(), config.Config{Env: "prod"}, log)
+	_ = svc
+	_ = cleanup
+	_ = ready
 	if err == nil {
 		t.Fatal("expected buildServices to fail in prod without CALIBER_DATABASE_URL")
 	}

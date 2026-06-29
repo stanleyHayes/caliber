@@ -29,10 +29,8 @@ func NewMatchServer(
 
 // AvailabilityCounter exposes the shortlister as the cheap pool-availability
 // counter behind the instant pool-depth signal (consumed by RoleServer). Returns
-// a nil counter when no shortlister is wired (e.g. partially-built test servers).
-//
-//nolint:ireturn // intentionally hands RoleServer the optional counter interface, nil-safe.
-func (s *MatchServer) AvailabilityCounter() AvailabilityCounter {
+// nil when no shortlister is wired (e.g. partially-built test servers).
+func (s *MatchServer) AvailabilityCounter() *matchingapp.Shortlister {
 	if s.shortlister == nil {
 		return nil
 	}

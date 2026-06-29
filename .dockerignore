@@ -2,6 +2,10 @@
 .github
 bin
 docs/openapi
+node_modules
+web/dist
+web/node_modules
+web/.vite
 *.md
 *.docx
 *.pdf

@@ -48,3 +48,43 @@ func TestRunServesHealthThenShutsDown(t *testing.T) {
 		t.Fatal("server did not shut down in time")
 	}
 }
+
+func TestRunServesReadyzWithInjectedChecks(t *testing.T) {
+	cfg := config.Config{
+		Env: "dev", LogLevel: "error",
+		HTTPAddr: "127.0.0.1:18081", GRPCAddr: "127.0.0.1:19091",
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, cfg, logging.New("error"), grpcadapter.Services{}, readyFunc(func(context.Context) error { return nil }))
+	}()
+
+	var resp *http.Response
+	var err error
+	for range 100 {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:18081/readyz", nil)
+		resp, err = http.DefaultClient.Do(req)
+		if err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	assert.JSONEq(t, `{"status":"ready"}`, string(body))
+
+	cancel()
+	select {
+	case runErr := <-done:
+		require.NoError(t, runErr)
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not shut down in time")
+	}
+}
+
+type readyFunc func(context.Context) error
+
+func (f readyFunc) Check(ctx context.Context) error { return f(ctx) }

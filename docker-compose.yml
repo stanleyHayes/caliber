@@ -1,4 +1,4 @@
-# Local dev stack: Postgres+pgvector, Redis, and the api/worker services.
+# Local dev stack: Postgres+pgvector, Redis, migrations, API, worker, and Vite.
 # Usage: docker compose up --build
 services:
   postgres:
@@ -27,6 +27,19 @@ services:
       timeout: 3s
       retries: 10
 
+  migrate:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.migrate
+    environment:
+      CALIBER_ENV: dev
+      CALIBER_LOG_LEVEL: info
+      CALIBER_DATABASE_URL: postgres://caliber:caliber@postgres:5432/caliber?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build:
       context: .
@@ -42,6 +55,8 @@ services:
       - "8080:8080"
       - "9090:9090"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -56,10 +71,28 @@ services:
       CALIBER_DATABASE_URL: postgres://caliber:caliber@postgres:5432/caliber?sslmode=disable
       CALIBER_REDIS_URL: redis://redis:6379/0
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
+  web:
+    image: node:24-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_PROXY_TARGET: http://api:8080
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/app
+      - web_node_modules:/app/node_modules
+    depends_on:
+      api:
+        condition: service_started
+
 volumes:
   pgdata:
+  web_node_modules:

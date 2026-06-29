@@ -1,0 +1,23 @@
+# Project Caliber default ownership.
+#
+# Keep this broad for the POC: the project owner reviews every change, while
+# path-specific entries make sensitive surfaces obvious in GitHub's review UI.
+
+* @stanleyHayes
+
+/.github/ @stanleyHayes
+/AGENTS.md @stanleyHayes
+/CLAUDE.md @stanleyHayes
+/agent_plan.md @stanleyHayes
+
+/proto/ @stanleyHayes
+/internal/domain/ @stanleyHayes
+/internal/app/ @stanleyHayes
+/internal/adapters/outbound/auth/ @stanleyHayes
+/internal/adapters/outbound/llm/ @stanleyHayes
+/internal/adapters/outbound/postgres/ @stanleyHayes
+
+/db/migrations/ @stanleyHayes
+/db/queries/ @stanleyHayes
+/deploy/ @stanleyHayes
+/web/ @stanleyHayes
