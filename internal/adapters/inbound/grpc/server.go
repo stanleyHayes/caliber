@@ -25,6 +25,7 @@ type Services struct {
 	Talent    caliberv1.TalentServiceServer
 	Contest   caliberv1.ContestServiceServer
 	Audit     caliberv1.AuditServiceServer
+	Privacy   caliberv1.PrivacyServiceServer
 
 	// AccessVerifier, when set, installs the auth interceptor that authenticates
 	// bearer access tokens and injects the principal into each request context.
@@ -66,6 +67,7 @@ func NewGRPCServer(svc Services) *grpc.Server {
 	caliberv1.RegisterDashboardServiceServer(s, svc.Dashboard)
 	caliberv1.RegisterContestServiceServer(s, svc.Contest)
 	caliberv1.RegisterAuditServiceServer(s, svc.Audit)
+	caliberv1.RegisterPrivacyServiceServer(s, svc.Privacy)
 	reflection.Register(s)
 	return s
 }
@@ -94,11 +96,20 @@ func withStubs(svc Services) Services {
 	if svc.Dashboard == nil {
 		svc.Dashboard = caliberv1.UnimplementedDashboardServiceServer{}
 	}
+	return withRemainingStubs(svc)
+}
+
+// withRemainingStubs continues withStubs for the remaining services (split so
+// each stays under the cyclomatic-complexity bound).
+func withRemainingStubs(svc Services) Services {
 	if svc.Contest == nil {
 		svc.Contest = caliberv1.UnimplementedContestServiceServer{}
 	}
 	if svc.Audit == nil {
 		svc.Audit = caliberv1.UnimplementedAuditServiceServer{}
+	}
+	if svc.Privacy == nil {
+		svc.Privacy = caliberv1.UnimplementedPrivacyServiceServer{}
 	}
 	return svc
 }
@@ -118,6 +129,7 @@ func RegisterGateway(ctx context.Context, mux *runtime.ServeMux, endpoint string
 		caliberv1.RegisterDashboardServiceHandlerFromEndpoint,
 		caliberv1.RegisterContestServiceHandlerFromEndpoint,
 		caliberv1.RegisterAuditServiceHandlerFromEndpoint,
+		caliberv1.RegisterPrivacyServiceHandlerFromEndpoint,
 	} {
 		if err := reg(ctx, mux, endpoint, opts); err != nil {
 			return err

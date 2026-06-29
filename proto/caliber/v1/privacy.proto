@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package caliber.v1;
+
+import "google/api/annotations.proto";
+
+// Data-subject-rights service (CAL-118, Ghana DPA 2012). The acting subject is
+// the authenticated candidate, taken from the access token — never a body id.
+service PrivacyService {
+  // ExportMyData returns the authenticated candidate's complete data export
+  // (right of access / DSAR) as a JSON document.
+  rpc ExportMyData(ExportMyDataRequest) returns (ExportMyDataResponse) {
+    option (google.api.http) = {get: "/v1/me/data"};
+  }
+}
+
+message ExportMyDataRequest {}
+
+message ExportMyDataResponse {
+  // document is the candidate's complete data as a single JSON document:
+  // their profile, applications, interviews, and contests.
+  string document = 1;
+}

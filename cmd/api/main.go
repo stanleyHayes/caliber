@@ -26,6 +26,7 @@ import (
 	identityapp "github.com/xcreativs/caliber/internal/app/identity"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
+	privacyapp "github.com/xcreativs/caliber/internal/app/privacy"
 	profilesapp "github.com/xcreativs/caliber/internal/app/profiles"
 	"github.com/xcreativs/caliber/internal/app/provisioning"
 	appqueue "github.com/xcreativs/caliber/internal/app/queue"
@@ -144,8 +145,13 @@ func wireApplicationServices(
 		dispatcher,
 	)
 	svc.Dashboard = grpcadapter.NewDashboardServer(dashboardapp.NewAggregator(repos.Candidates, repos.Profiles, repos.Users, repos.Roles))
-	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(memory.NewContestRepo(), auditRepo, time.Now))
+	contests := memory.NewContestRepo()
+	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(contests, auditRepo, time.Now))
 	svc.Audit = grpcadapter.NewAuditServer(auditRepo)
+	// DSAR right-of-access export (CAL-118): read-only aggregation of everything
+	// held about the authenticated candidate.
+	svc.Privacy = grpcadapter.NewPrivacyServer(
+		privacyapp.NewExporter(repos.Candidates, repos.Profiles, repos.Apps, repos.Interviews, contests))
 }
 
 //nolint:ireturn // selects the concrete task-dispatch adapter for the queue port.
