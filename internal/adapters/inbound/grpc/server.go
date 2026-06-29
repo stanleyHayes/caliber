@@ -34,7 +34,20 @@ type Services struct {
 	// RateLimiter, when set, installs the token-bucket rate-limit interceptor
 	// (CAL-112). It runs after auth so it can key by the authenticated principal.
 	RateLimiter *RateLimiter
+
+	// EnableReflection registers the gRPC server-reflection service. It is a
+	// developer convenience (grpcurl, evans) that publishes the full service and
+	// method schema, so it must stay OFF in production to avoid handing attackers
+	// a map of the API surface (CAL-120). The composition root sets it from the
+	// environment (dev/staging on, prod off).
+	EnableReflection bool
 }
+
+// maxRecvMsgBytes caps an inbound gRPC message. The default is 4 MiB, which is
+// smaller than a legitimate 10 MiB CV upload; we raise it to fit that path while
+// still bounding it so a single oversized frame cannot exhaust memory (CAL-120).
+// It must stay >= the REST body cap, since the gateway relays REST bodies here.
+const maxRecvMsgBytes = 16 << 20 // 16 MiB
 
 // NewGRPCServer builds a gRPC server with every Caliber service registered.
 func NewGRPCServer(svc Services) *grpc.Server {
@@ -49,7 +62,7 @@ func NewGRPCServer(svc Services) *grpc.Server {
 	if svc.RateLimiter != nil {
 		unary = append(unary, NewRateLimitInterceptor(svc.RateLimiter))
 	}
-	var opts []grpc.ServerOption
+	opts := []grpc.ServerOption{grpc.MaxRecvMsgSize(maxRecvMsgBytes)}
 	if len(unary) > 0 {
 		opts = append(opts, grpc.ChainUnaryInterceptor(unary...))
 	}
@@ -68,7 +81,9 @@ func NewGRPCServer(svc Services) *grpc.Server {
 	caliberv1.RegisterContestServiceServer(s, svc.Contest)
 	caliberv1.RegisterAuditServiceServer(s, svc.Audit)
 	caliberv1.RegisterPrivacyServiceServer(s, svc.Privacy)
-	reflection.Register(s)
+	if svc.EnableReflection {
+		reflection.Register(s)
+	}
 	return s
 }
 

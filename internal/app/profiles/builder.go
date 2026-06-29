@@ -6,6 +6,7 @@ package profiles
 import (
 	"context"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/app/prompts"
@@ -13,6 +14,13 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 )
+
+// maxCVTextRunes bounds the CV text fed to the extraction model. A real CV is a
+// few pages (tens of KB); this generous ceiling rejects an abusive payload before
+// it inflates LLM token cost and latency (a cost-amplification DoS), independent
+// of which inbound path supplied the text (CAL-120). Runes, not bytes, so the
+// limit is consistent across scripts.
+const maxCVTextRunes = 200_000
 
 // ProfileBuilder builds and reads a candidate's talent profile.
 type ProfileBuilder struct {
@@ -43,6 +51,9 @@ func (b *ProfileBuilder) CreateFromCV(
 ) (*talent.TalentProfile, error) {
 	if strings.TrimSpace(cvText) == "" {
 		return nil, kernel.Invalid("talent: cv text is required")
+	}
+	if utf8.RuneCountInString(cvText) > maxCVTextRunes {
+		return nil, kernel.Invalidf("talent: cv text exceeds the %d character limit", maxCVTextRunes)
 	}
 	cand, err := b.candidates.ByID(ctx, candidateID)
 	if err != nil {

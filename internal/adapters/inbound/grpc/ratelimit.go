@@ -2,11 +2,15 @@ package grpcadapter
 
 import (
 	"context"
+	"net"
+	"strings"
 	"sync"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -77,10 +81,10 @@ func (r *RateLimiter) Allow(key string) bool {
 
 // NewRateLimitInterceptor returns a unary interceptor that enforces the limiter.
 // It keys by the authenticated principal when present (so a logged-in user's
-// quota follows them across methods), falling back to a per-method anonymous
-// bucket otherwise. Over-limit requests are rejected with ResourceExhausted
-// before reaching the handler. Place it after the auth interceptor so the
-// principal is available.
+// quota follows them across methods), falling back to a per-IP, per-method
+// anonymous bucket otherwise. Over-limit requests are rejected with
+// ResourceExhausted before reaching the handler. Place it after the auth
+// interceptor so the principal is available.
 func NewRateLimitInterceptor(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if !limiter.Allow(rateLimitKey(ctx, info.FullMethod)) {
@@ -90,9 +94,38 @@ func NewRateLimitInterceptor(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 	}
 }
 
+// rateLimitKey derives the limiter bucket key for a request. Authenticated calls
+// key by principal. Anonymous calls (login, register, refresh — the flood-prone
+// pre-auth surface) key by *client IP and method*: keying by method alone would
+// pool every anonymous caller into one bucket, so a single attacker could drain
+// it and lock all other users out of logging in (a self-inflicted DoS). Per-IP
+// isolation gives each source its own quota.
 func rateLimitKey(ctx context.Context, fullMethod string) string {
 	if p, ok := PrincipalFromContext(ctx); ok {
 		return "user:" + p.UserID.String()
 	}
-	return "anon:" + fullMethod
+	return "anon:" + clientIP(ctx) + ":" + fullMethod
+}
+
+// clientIP extracts the caller's IP, preferring the left-most X-Forwarded-For
+// entry set by a trusted proxy/load balancer (and by the REST gateway, which
+// dials the gRPC server from localhost) and falling back to the peer address.
+// Only the IP is used — never the port — so a client cannot evade its bucket by
+// opening fresh connections. Returns "unknown" when neither is available, so all
+// such requests share one conservative bucket rather than going unlimited.
+func clientIP(ctx context.Context) string {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		for _, h := range md.Get("x-forwarded-for") {
+			if ip := strings.TrimSpace(strings.Split(h, ",")[0]); ip != "" {
+				return ip
+			}
+		}
+	}
+	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		if host, _, err := net.SplitHostPort(p.Addr.String()); err == nil {
+			return host
+		}
+		return p.Addr.String()
+	}
+	return "unknown"
 }

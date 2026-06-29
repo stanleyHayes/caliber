@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +29,31 @@ func TestSecureHeadersAndHealth(t *testing.T) {
 	assert.Equal(t, "no-referrer", rec.Header().Get("Referrer-Policy"))
 	assert.Equal(t, "geolocation=(), microphone=(), camera=()", rec.Header().Get("Permissions-Policy"))
 	assert.Equal(t, "max-age=31536000; includeSubDomains", rec.Header().Get("Strict-Transport-Security"))
+}
+
+func TestLimitsRequestBody(t *testing.T) {
+	// The gateway handler fully reads the body; http.MaxBytesReader makes that read
+	// fail once the 16 MiB cap is crossed, so an unbounded body is never buffered.
+	echo := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := io.ReadAll(r.Body); err != nil {
+			http.Error(w, "too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	r := httpserver.NewRouter(echo, false, nil, nil)
+
+	// A modest body passes through.
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequestWithContext(
+		t.Context(), http.MethodPost, "/v1/anything", bytes.NewReader(make([]byte, 1024))))
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// One byte past the cap is rejected.
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequestWithContext(
+		t.Context(), http.MethodPost, "/v1/anything", bytes.NewReader(make([]byte, (16<<20)+1))))
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
 }
 
 func TestNoHSTSOutsideProd(t *testing.T) {

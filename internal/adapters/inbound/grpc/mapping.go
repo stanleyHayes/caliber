@@ -3,6 +3,8 @@
 package grpcadapter
 
 import (
+	"log/slog"
+
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
 	"github.com/xcreativs/caliber/internal/domain/role"
@@ -28,7 +30,12 @@ func errToStatus(err error) error {
 	case kernel.KindTooManyRequests:
 		return status.Error(codes.ResourceExhausted, err.Error())
 	default:
-		return status.Error(codes.Internal, err.Error())
+		// An unclassified (internal) error may carry raw infrastructure detail —
+		// pgx/pgconn text, schema or constraint fragments. Log it server-side for
+		// diagnosis but return an opaque message so it never reaches the client
+		// (CWE-209). The author-controlled kinds above keep their explanatory text.
+		slog.Error("grpc internal error", "error", err.Error())
+		return status.Error(codes.Internal, "internal error")
 	}
 }
 

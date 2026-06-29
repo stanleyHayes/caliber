@@ -20,6 +20,14 @@ type ReadinessChecker interface {
 const corsAllowedHeaders = "Authorization, Content-Type, Connect-Protocol-Version, " +
 	"Connect-Timeout, Grpc-Timeout, X-Requested-With"
 
+// maxRequestBodyBytes caps an inbound REST request body (CAL-120). It is sized to
+// fit the largest legitimate payload — a 10 MiB CV upload base64-encoded into
+// JSON (~13.3 MiB) plus envelope — while still rejecting an unbounded body that
+// would otherwise be buffered into memory. It stays at/under the gRPC
+// MaxRecvMsgSize the gateway relays into, so a body that passes here is not later
+// rejected downstream.
+const maxRequestBodyBytes = 16 << 20 // 16 MiB
+
 // NewRouter builds the chi router: request-id + strict CORS + structured
 // access-log + panic-recovery middleware, health and readiness endpoints, and
 // the gateway mounted under /v1/. allowedOrigins is the CORS allowlist (empty =
@@ -35,6 +43,7 @@ func NewRouter(
 		r.Use(requestLogger(log))
 	}
 	r.Use(middleware.Recoverer)
+	r.Use(limitBody(maxRequestBodyBytes))
 	r.Use(secureHeaders(hsts))
 	r.Get("/healthz", health("ok"))
 	r.Get("/readyz", ready(readiness...))
@@ -63,6 +72,21 @@ func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 				slog.Int("status", status),
 				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
 			)
+		})
+	}
+}
+
+// limitBody caps every request body at maxBytes via http.MaxBytesReader, so a
+// handler that reads the body (the gateway decoding JSON) sees an error past the
+// ceiling instead of buffering an unbounded payload into memory. Bodyless
+// requests (health checks, GETs) are unaffected — the reader only trips on read.
+func limitBody(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -99,8 +100,13 @@ func (o *OpenAI) Embed(ctx context.Context, text string) ([]float32, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
+		// Keep the third-party error body for diagnosis in our own logs, but do not
+		// fold it into the returned error: it propagates upward and could surface a
+		// provider's internal detail to a caller. The returned error carries only
+		// the status code (CAL-120).
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrBody))
-		return nil, fmt.Errorf("openai embeddings: status %d: %s", resp.StatusCode, string(body))
+		slog.Error("openai embeddings request failed", "status", resp.StatusCode, "body", string(body))
+		return nil, fmt.Errorf("openai embeddings: provider returned status %d", resp.StatusCode)
 	}
 
 	var parsed embedResponse

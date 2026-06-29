@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,6 +100,34 @@ func TestCreateProfileFromCV_RejectsOversizeAndUnsupported(t *testing.T) {
 		CandidateId: cid.String(), CvFile: []byte("%PDF-1.7"), CvFilename: "cv.pdf",
 	})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestCreateProfileFromCV_RejectsOversizedIntake(t *testing.T) {
+	srv := NewTalentServer(profilesapp.NewProfileBuilder(memory.NewCandidateRepo(), memory.NewTalentProfileRepo(), llm.NewDev()))
+	cid := kernel.NewID()
+	self := asCandidate(context.Background(), cid)
+
+	// An oversized intake field is rejected at the boundary, before extraction —
+	// the untrusted free-text never reaches storage or the prompt (CAL-120 L6).
+	_, err := srv.CreateProfileFromCV(self, &caliberv1.CreateProfileFromCVRequest{
+		CandidateId: cid.String(),
+		CvText:      "Senior engineer.",
+		Intake:      &caliberv1.CandidateIntake{Location: strings.Repeat("x", maxIntakeFieldLen+1)},
+	})
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestValidateIntake(t *testing.T) {
+	assert.NoError(t, validateIntake(nil), "intake is optional")
+	assert.NoError(t, validateIntake(&caliberv1.CandidateIntake{
+		TargetTitles: []string{"Backend Engineer"}, Location: "Accra", DealBreakers: []string{"no relocation"},
+	}))
+
+	tooMany := make([]string, maxTargetTitles+1)
+	require.Error(t, validateIntake(&caliberv1.CandidateIntake{TargetTitles: tooMany}))
+	require.Error(t, validateIntake(&caliberv1.CandidateIntake{TargetTitles: []string{strings.Repeat("t", maxIntakeFieldLen+1)}}))
+	require.Error(t, validateIntake(&caliberv1.CandidateIntake{DealBreakers: make([]string, maxDealBreakers+1)}))
+	require.Error(t, validateIntake(&caliberv1.CandidateIntake{DealBreakers: []string{strings.Repeat("d", maxDealBreakerLen+1)}}))
 }
 
 func TestTalentProfileAuthz(t *testing.T) {

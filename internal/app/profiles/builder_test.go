@@ -2,6 +2,7 @@ package profiles_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,6 +47,21 @@ func TestCreateFromCVCreatesProfileAndMergesIntake(t *testing.T) {
 	require.NotNil(t, updatedCand)
 	assert.Equal(t, "Accra", updatedCand.Location, "intake location merged into the candidate")
 	assert.InDelta(t, 9000.0, updatedCand.Intake.SalaryFloor, 0.01)
+}
+
+func TestCreateFromCVRejectsOversizedText(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	// The length guard runs before any repo or LLM call, so the mocks expect
+	// nothing: an abusive payload is rejected before it can drive token cost.
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	llm := mocks.NewMockLLMClient(ctrl)
+
+	huge := strings.Repeat("a", 200_001) // one rune past the 200k cap
+	_, err := profilesapp.NewProfileBuilder(candidates, profiles, llm).
+		CreateFromCV(context.Background(), kernel.NewID(), huge, talent.CandidateIntake{})
+	require.Error(t, err)
+	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 }
 
 func TestCreateFromCVDropsUnevidencedCompetencies(t *testing.T) {

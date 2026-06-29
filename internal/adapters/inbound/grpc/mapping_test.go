@@ -28,6 +28,18 @@ func TestErrToStatus(t *testing.T) {
 	assert.Equal(t, codes.Internal, status.Code(errToStatus(errors.New("plain"))))
 }
 
+// TestErrToStatus_InternalIsOpaque locks the information-disclosure guard (CWE-209):
+// an unclassified/internal error must never echo its raw text to the client — the
+// status message is a fixed, generic string regardless of the underlying detail.
+func TestErrToStatus_InternalIsOpaque(t *testing.T) {
+	leaky := errors.New("pq: relation \"users\" does not exist at 10.0.0.5:5432")
+	st := status.Convert(errToStatus(leaky))
+	assert.Equal(t, codes.Internal, st.Code())
+	assert.Equal(t, "internal error", st.Message())
+	assert.NotContains(t, st.Message(), "users")
+	assert.NotContains(t, st.Message(), "10.0.0.5")
+}
+
 func TestEnumMappings(t *testing.T) {
 	assert.Equal(t, caliberv1.Seniority_SENIORITY_LEAD, seniorityToProto(role.SeniorityLead))
 	assert.Equal(t, caliberv1.Seniority_SENIORITY_UNSPECIFIED, seniorityToProto(role.Seniority(99)))

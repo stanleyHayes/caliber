@@ -2,6 +2,7 @@ package grpcadapter
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -9,12 +10,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
+
+// ctxFromIP builds a request context whose peer is the given IP, as the gRPC
+// transport would populate it.
+func ctxFromIP(ip string) context.Context {
+	return peer.NewContext(context.Background(),
+		&peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP(ip), Port: 54321}})
+}
 
 // fakeClock is a manually-advanced clock for deterministic limiter tests.
 type fakeClock struct{ t time.Time }
@@ -99,4 +109,35 @@ func TestRateLimitInterceptor_KeysAnonByMethod(t *testing.T) {
 	require.Equal(t, codes.ResourceExhausted, status.Code(err))
 	_, err = interceptor(context.Background(), nil, b, okHandler)
 	assert.NoError(t, err, "a different anonymous method has its own bucket")
+}
+
+func TestRateLimitInterceptor_IsolatesAnonByIP(t *testing.T) {
+	clk := &fakeClock{t: time.Unix(1700000000, 0)}
+	limiter := NewRateLimiter(1, 1, clk.now) // burst 1 per key
+	interceptor := NewRateLimitInterceptor(limiter)
+	login := &grpc.UnaryServerInfo{FullMethod: "/caliber.v1.IdentityService/Login"}
+
+	// One IP exhausts its own bucket on the login method...
+	_, err := interceptor(ctxFromIP("203.0.113.7"), nil, login, okHandler)
+	require.NoError(t, err)
+	_, err = interceptor(ctxFromIP("203.0.113.7"), nil, login, okHandler)
+	require.Equal(t, codes.ResourceExhausted, status.Code(err))
+
+	// ...but a different source IP is unaffected: it cannot be locked out of
+	// logging in by the first IP's flood (CAL-120 H2).
+	_, err = interceptor(ctxFromIP("198.51.100.42"), nil, login, okHandler)
+	assert.NoError(t, err, "a distinct client IP has its own anonymous bucket")
+}
+
+func TestClientIP(t *testing.T) {
+	// Peer address: host is returned without the port.
+	assert.Equal(t, "203.0.113.7", clientIP(ctxFromIP("203.0.113.7")))
+
+	// X-Forwarded-For from a proxy wins, and only the left-most entry is used.
+	fwd := metadata.NewIncomingContext(ctxFromIP("10.0.0.1"),
+		metadata.Pairs("x-forwarded-for", "198.51.100.9, 10.0.0.1"))
+	assert.Equal(t, "198.51.100.9", clientIP(fwd))
+
+	// No peer and no metadata -> a single shared, conservative bucket.
+	assert.Equal(t, "unknown", clientIP(context.Background()))
 }

@@ -127,6 +127,8 @@ func wireApplicationServices(
 	svc.Identity = grpcadapter.NewIdentityServer(identitySvc)
 	svc.AccessVerifier = tokens
 	svc.RateLimiter = grpcadapter.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst, time.Now)
+	// Server reflection is a dev aid only — never expose the API schema in prod.
+	svc.EnableReflection = !cfg.IsProd()
 
 	svc.Role = grpcadapter.NewRoleServer(
 		roles.NewSpecGenerator(model, repos.Roles, time.Now),
