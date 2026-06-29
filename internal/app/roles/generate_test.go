@@ -3,6 +3,7 @@ package roles_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,6 +67,9 @@ func TestGenerateInputValidation(t *testing.T) {
 	_, err := g.Generate(context.Background(), kernel.ID(""), "x")
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 	_, err = g.Generate(context.Background(), kernel.NewID(), "   ")
+	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
+	// Oversized free-text is length-capped before it reaches the model (CAL-111).
+	_, err = g.Generate(context.Background(), kernel.NewID(), strings.Repeat("a", roles.MaxFreeTextLen+1))
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 }
 

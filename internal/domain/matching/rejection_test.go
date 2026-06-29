@@ -2,6 +2,7 @@ package matching_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,14 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/matching"
 )
+
+func TestNewRejection_RejectsOversizedReason(t *testing.T) {
+	// Untrusted human input is length-capped at the domain boundary (CAL-111).
+	huge := strings.Repeat("a", matching.MaxReasonLen+1)
+	_, err := matching.NewRejection(kernel.NewID(), kernel.NewID(), huge, true)
+	require.Error(t, err)
+	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
+}
 
 func TestNewRejection_RequiresHumanApproval(t *testing.T) {
 	// The defining invariant (CAL-081): the system never auto-rejects. A

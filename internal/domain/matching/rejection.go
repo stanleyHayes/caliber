@@ -8,6 +8,11 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
 
+// MaxReasonLen bounds the human-entered decline reason (CAL-111): untrusted
+// input is length-capped at the domain boundary so an oversized payload cannot
+// be stored or drive downstream cost.
+const MaxReasonLen = 2000
+
 // Rejection is a human's approved decision to decline a candidate for a role.
 //
 // CAL-081 — the system never auto-rejects. The AI ranks and screens, but a
@@ -35,6 +40,9 @@ func NewRejection(roleID, candidateID kernel.ID, reason string, humanApproved bo
 	reason = strings.TrimSpace(guard.Sanitize(reason))
 	if reason == "" {
 		return Rejection{}, kernel.Invalid("rejection: a reason is required (a decline must be explainable)")
+	}
+	if len([]rune(reason)) > MaxReasonLen {
+		return Rejection{}, kernel.Invalidf("rejection: reason exceeds %d characters", MaxReasonLen)
 	}
 	return Rejection{RoleID: roleID, CandidateID: candidateID, Reason: reason}, nil
 }

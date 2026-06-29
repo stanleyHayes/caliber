@@ -13,6 +13,11 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/salary"
 )
 
+// MaxFreeTextLen bounds the free-text hiring need (CAL-111): it is untrusted
+// input forwarded to the model, so it is length-capped before generation to cap
+// cost and resource use.
+const MaxFreeTextLen = 8000
+
 // SpecGenerator turns a free-text hiring need into a structured, persisted Role.
 type SpecGenerator struct {
 	llm   app.LLMClient
@@ -52,6 +57,9 @@ func (g *SpecGenerator) Generate(ctx context.Context, employerID kernel.ID, free
 	}
 	if strings.TrimSpace(freeText) == "" {
 		return nil, kernel.Invalid("roles: hiring need text is required")
+	}
+	if len([]rune(freeText)) > MaxFreeTextLen {
+		return nil, kernel.Invalidf("roles: hiring need text exceeds %d characters", MaxFreeTextLen)
 	}
 	parsed, err := app.DecodeJSON[llmRoleSpec](ctx, g.llm,
 		prompts.Get(prompts.IDRoleSpec).Request(guard.FenceUntrusted("HIRING_NEED", freeText)),
