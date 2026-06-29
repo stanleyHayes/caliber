@@ -3,6 +3,7 @@ package cvtext_test
 import (
 	"archive/zip"
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,16 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/cvtext"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
+
+func TestExtract_DocxRejectsZipBombBody(t *testing.T) {
+	// A DOCX whose decompressed body exceeds the cap is rejected before it can
+	// inflate in memory — a small compressed payload that would expand to many MiB.
+	huge := makeDocx(t, strings.Repeat("A", 5<<20)) // ~5 MiB document.xml, > 4 MiB cap
+	assert.Less(t, len(huge), 1<<20, "the compressed payload is small (highly repetitive) — a zip bomb")
+	_, err := cvtext.Extract("cv.docx", huge)
+	require.Error(t, err)
+	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
+}
 
 // makeDocx builds a minimal valid DOCX (a zip with word/document.xml) whose body
 // contains the given paragraphs as <w:t> runs.

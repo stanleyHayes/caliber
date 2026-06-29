@@ -20,6 +20,12 @@ import (
 // docBodyName is the part of a DOCX archive holding the document text.
 const docBodyName = "word/document.xml"
 
+// maxDocxTextBytes bounds the *decompressed* document body so a zip bomb (a small
+// DOCX whose body inflates to gigabytes) cannot exhaust memory on a single
+// upload. It is generous relative to the downstream rune budget; a real CV is far
+// smaller.
+const maxDocxTextBytes = 4 << 20 // 4 MiB
+
 // Extract returns the plain text of a CV file, dispatching on the filename's
 // extension. An empty/unknown extension is treated as plain text. PDF and other
 // binary formats return a kernel.Invalid error inviting the caller to paste text.
@@ -52,12 +58,18 @@ func extractDocx(data []byte) (string, error) {
 	if body == nil {
 		return "", kernel.Invalid("cvtext: DOCX is missing its document body")
 	}
+	// Reject an oversized declared body up front, then hard-cap the decompressed
+	// stream — defending against a zip bomb whether the archive's size metadata is
+	// honest or forged.
+	if body.UncompressedSize64 > maxDocxTextBytes {
+		return "", kernel.Invalid("cvtext: DOCX document body is too large")
+	}
 	rc, err := body.Open()
 	if err != nil {
 		return "", kernel.Wrap(err, kernel.KindInvalid, "cvtext: cannot open the DOCX body")
 	}
 	defer func() { _ = rc.Close() }()
-	return decodeDocxText(rc)
+	return decodeDocxText(io.LimitReader(rc, maxDocxTextBytes))
 }
 
 // decodeDocxText walks the WordprocessingML stream, concatenating the text runs
