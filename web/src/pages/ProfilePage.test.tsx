@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, type TalentProfile, type User } from '../api/types';
+import { ApiError, type Contest, type TalentProfile, type User } from '../api/types';
 import { useAuthStore } from '../stores/auth';
 import { ProfilePage } from './ProfilePage';
 
@@ -15,6 +15,9 @@ vi.mock('../query/talent', () => ({
   useProfile: () => profileResult,
   useCreateProfile: () => createResult,
 }));
+
+let contestsResult: { data?: { contests: Contest[] } };
+vi.mock('../query/contest', () => ({ useMyContests: () => contestsResult }));
 
 const user: User = {
   id: 'cand-1',
@@ -37,6 +40,7 @@ beforeEach(() => {
   mutate.mockReset();
   profileResult = { isPending: false, error: new ApiError(404, 'not found') };
   createResult = { mutate, isPending: false, isError: false, error: null };
+  contestsResult = { data: { contests: [] } };
 });
 afterEach(() => {
   useAuthStore.getState().clear();

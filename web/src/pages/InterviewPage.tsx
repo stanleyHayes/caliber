@@ -2,6 +2,7 @@ import { Alert, Box, Card, CardContent, Skeleton, Stack, TextField, Typography }
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
+import { ContestAssessment } from '../components/contest/ContestAssessment';
 import { DotsButton } from '../components/DotsButton';
 import { QuestionPanel } from '../components/interview/QuestionPanel';
 import { ReportCardView } from '../components/interview/ReportCardView';
@@ -89,9 +90,12 @@ export function InterviewPage() {
       {interview.status === 'done' && interview.report && (
         <Stack spacing={2}>
           <ReportCardView report={interview.report} />
-          <DotsButton variant="outlined" onClick={interview.reset} sx={{ alignSelf: 'flex-start' }}>
-            Run another interview
-          </DotsButton>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+            <DotsButton variant="outlined" onClick={interview.reset}>
+              Run another interview
+            </DotsButton>
+            <ContestAssessment subject="CONTEST_SUBJECT_REPORT_CARD" subjectId={interview.report.interviewId} />
+          </Stack>
         </Stack>
       )}
     </Stack>

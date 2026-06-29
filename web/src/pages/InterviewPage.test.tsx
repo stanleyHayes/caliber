@@ -21,6 +21,11 @@ type InterviewMock = {
 let interviewMock: InterviewMock;
 vi.mock('../hooks/useInterview', () => ({ useInterview: () => interviewMock }));
 
+// The done state embeds ContestAssessment, which uses useRaiseContest.
+vi.mock('../query/contest', () => ({
+  useRaiseContest: () => ({ mutate: vi.fn(), isPending: false, isError: false, isSuccess: false, error: null }),
+}));
+
 const user: User = {
   id: 'cand-1',
   email: 'ama@example.com',

@@ -296,3 +296,33 @@ export interface ProfileResponse {
 export interface ListRolesResponse {
   roles: Role[];
 }
+
+// ----- Contests (RaiseContest / ListMyContests) -----
+
+export type ContestSubject = 'CONTEST_SUBJECT_UNSPECIFIED' | 'CONTEST_SUBJECT_MATCH' | 'CONTEST_SUBJECT_REPORT_CARD';
+
+export type ContestStatus =
+  | 'CONTEST_STATUS_UNSPECIFIED'
+  | 'CONTEST_STATUS_OPEN'
+  | 'CONTEST_STATUS_UPHELD'
+  | 'CONTEST_STATUS_DISMISSED';
+
+export interface Contest {
+  id: string;
+  candidateId: string;
+  subject: ContestSubject;
+  subjectId: string;
+  reason: string;
+  status: ContestStatus;
+  resolution: string;
+  createdAt?: string;
+  resolvedAt?: string;
+}
+
+export interface RaiseContestResponse {
+  contest: Contest;
+}
+
+export interface ListMyContestsResponse {
+  contests: Contest[];
+}

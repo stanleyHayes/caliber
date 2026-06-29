@@ -2,8 +2,10 @@ import { Alert, Box, Card, CardContent, Skeleton, Stack, TextField, Typography }
 import { useState } from 'react';
 
 import { ApiError } from '../api/types';
+import { MyContestsList } from '../components/contest/MyContestsList';
 import { DotsButton } from '../components/DotsButton';
 import { ProfileView } from '../components/talent/ProfileView';
+import { useMyContests } from '../query/contest';
 import { useCreateProfile, useProfile } from '../query/talent';
 import { useAuthStore } from '../stores/auth';
 
@@ -11,6 +13,7 @@ export function ProfilePage() {
   const candidateId = useAuthStore((s) => s.user?.id);
   const profile = useProfile(candidateId);
   const create = useCreateProfile(candidateId);
+  const contests = useMyContests(Boolean(candidateId));
   const [cv, setCv] = useState('');
   const [location, setLocation] = useState('');
 
@@ -62,6 +65,13 @@ export function ProfilePage() {
             </Stack>
           </CardContent>
         </Card>
+      )}
+
+      {(contests.data?.contests.length ?? 0) > 0 && (
+        <Stack spacing={2}>
+          <Typography variant="h6">Your disputes</Typography>
+          <MyContestsList contests={contests.data?.contests ?? []} />
+        </Stack>
       )}
     </Stack>
   );
