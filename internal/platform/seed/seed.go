@@ -9,7 +9,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/domain/identity"
+	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/domain/talent"
@@ -37,6 +39,7 @@ type Repositories struct {
 	Candidates talent.CandidateRepository
 	Profiles   talent.TalentProfileRepository
 	Roles      role.RoleRepository
+	Interviews interviewdom.InterviewRepository
 }
 
 // Result summarises what was loaded.
@@ -44,46 +47,108 @@ type Result struct {
 	Employers  int
 	Roles      int
 	Candidates int
+	Interviews int // pre-run screening interviews completed (CAL-101)
+}
+
+// LoadOption customises the hand-curated seed load.
+type LoadOption func(*loadConfig)
+
+type loadConfig struct {
+	preRunLLM app.LLMClient
+}
+
+// WithPreRunInterviews runs screening interviews for a curated subset of seeded
+// candidates during load, producing stored report cards (CAL-101).
+func WithPreRunInterviews(llm app.LLMClient) LoadOption {
+	return func(c *loadConfig) { c.preRunLLM = llm }
 }
 
 // Load materialises the demo dataset into repos. All demo users share
 // DefaultPassword (hashed once via hasher); now stamps creation times.
-func Load(ctx context.Context, repos Repositories, hasher Hasher, now time.Time) (Result, error) {
+func Load(ctx context.Context, repos Repositories, hasher Hasher, now time.Time, opts ...LoadOption) (Result, error) {
+	cfg := &loadConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	pwHash, err := hasher.Hash(DefaultPassword)
 	if err != nil {
 		return Result{}, err
 	}
 	data := demoData()
 
-	employers := make([]*identity.User, len(data.employers))
-	for i, e := range data.employers {
-		u, uerr := newUser(e.email, e.name, identity.RoleEmployer, pwHash, now)
-		if uerr != nil {
-			return Result{}, uerr
+	employers, err := seedEmployers(ctx, repos, data.employers, pwHash, now)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := seedRoles(ctx, repos, data.roles, employers, now); err != nil {
+		return Result{}, err
+	}
+	if err := seedCandidates(ctx, repos, data.candidates, pwHash, now); err != nil {
+		return Result{}, err
+	}
+
+	res := Result{Employers: len(data.employers), Roles: len(data.roles), Candidates: len(data.candidates)}
+	preRunCount, err := maybePreRunInterviews(ctx, repos, cfg)
+	if err != nil {
+		return Result{}, err
+	}
+	res.Interviews = preRunCount
+	return res, nil
+}
+
+func seedEmployers(
+	ctx context.Context, repos Repositories, specs []employerSpec, pwHash string, now time.Time,
+) ([]*identity.User, error) {
+	employers := make([]*identity.User, len(specs))
+	for i, e := range specs {
+		u, err := newUser(e.email, e.name, identity.RoleEmployer, pwHash, now)
+		if err != nil {
+			return nil, err
 		}
-		if cerr := repos.Users.Create(ctx, u); cerr != nil {
-			return Result{}, cerr
+		if err := repos.Users.Create(ctx, u); err != nil {
+			return nil, err
 		}
 		employers[i] = u
 	}
+	return employers, nil
+}
 
-	for _, r := range data.roles {
-		rl, rerr := role.NewRole(employers[r.employer].ID, r.spec(), r.rubric(), now)
-		if rerr != nil {
-			return Result{}, rerr
+func seedRoles(
+	ctx context.Context, repos Repositories, specs []roleSpec, employers []*identity.User, now time.Time,
+) error {
+	for _, r := range specs {
+		rl, err := role.NewRole(employers[r.employer].ID, r.spec(), r.rubric(), now)
+		if err != nil {
+			return err
 		}
-		if cerr := repos.Roles.Create(ctx, rl); cerr != nil {
-			return Result{}, cerr
+		if err := repos.Roles.Create(ctx, rl); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
-	for _, c := range data.candidates {
-		if lerr := loadCandidate(ctx, repos, c, pwHash, now); lerr != nil {
-			return Result{}, lerr
+func seedCandidates(
+	ctx context.Context, repos Repositories, specs []candidateSpec, pwHash string, now time.Time,
+) error {
+	for _, c := range specs {
+		if err := loadCandidate(ctx, repos, c, pwHash, now); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
-	return Result{Employers: len(data.employers), Roles: len(data.roles), Candidates: len(data.candidates)}, nil
+func maybePreRunInterviews(ctx context.Context, repos Repositories, cfg *loadConfig) (int, error) {
+	if cfg.preRunLLM == nil {
+		return 0, nil
+	}
+	preRun, err := preRunInterviews(ctx, repos, cfg.preRunLLM, handCuratedPreRunTargets())
+	if err != nil {
+		return 0, err
+	}
+	return preRun.InterviewCount, nil
 }
 
 func loadCandidate(ctx context.Context, repos Repositories, c candidateSpec, pwHash string, now time.Time) error {

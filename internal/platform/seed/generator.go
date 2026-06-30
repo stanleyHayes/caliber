@@ -62,10 +62,16 @@ func (g *Generator) Generate(ctx context.Context, repos Repositories) (Result, e
 		return Result{}, err
 	}
 
+	preRun, err := preRunInterviews(ctx, repos, g.llm, generatedPreRunTargets())
+	if err != nil {
+		return Result{}, fmt.Errorf("pre-run interviews: %w", err)
+	}
+
 	return Result{
 		Employers:  len(employers),
 		Roles:      len(roleList),
 		Candidates: candCount,
+		Interviews: preRun.InterviewCount,
 	}, nil
 }
 

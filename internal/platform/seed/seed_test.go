@@ -9,22 +9,31 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authadapter "github.com/xcreativs/caliber/internal/adapters/outbound/auth"
+	llmadapter "github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
+	"github.com/xcreativs/caliber/internal/domain/identity"
+	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/platform/seed"
 )
 
 type handles struct {
-	users *memory.UserRepo
-	cands *memory.CandidateRepo
-	profs *memory.TalentProfileRepo
-	roles *memory.RoleRepo
+	users      *memory.UserRepo
+	cands      *memory.CandidateRepo
+	profs      *memory.TalentProfileRepo
+	roles      *memory.RoleRepo
+	interviews *memory.InterviewRepo
 }
 
 func newRepos() (seed.Repositories, handles) {
-	h := handles{memory.NewUserRepo(), memory.NewCandidateRepo(), memory.NewTalentProfileRepo(), memory.NewRoleRepo()}
-	return seed.Repositories{Users: h.users, Candidates: h.cands, Profiles: h.profs, Roles: h.roles}, h
+	h := handles{
+		memory.NewUserRepo(), memory.NewCandidateRepo(), memory.NewTalentProfileRepo(),
+		memory.NewRoleRepo(), memory.NewInterviewRepo(),
+	}
+	return seed.Repositories{
+		Users: h.users, Candidates: h.cands, Profiles: h.profs, Roles: h.roles, Interviews: h.interviews,
+	}, h
 }
 
 func TestLoad_PopulatesConsistentDataset(t *testing.T) {
@@ -60,6 +69,40 @@ func TestLoad_ProducesTwoWayAlerts(t *testing.T) {
 	assert.NotEmpty(t, alerts)
 }
 
+func TestLoad_PreRunsInterviewsWhenLLMProvided(t *testing.T) {
+	ctx := context.Background()
+	repos, h := newRepos()
+
+	res, err := seed.Load(ctx, repos, authadapter.NewArgon2idHasher(), time.Unix(1700000000, 0), seed.WithPreRunInterviews(llmadapter.NewDev()))
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.Interviews, "two hand-curated hero interviews are pre-run")
+
+	ama := findUser(ctx, t, h.users, "ama.mensah@example.com")
+	kofi := findUser(ctx, t, h.users, "kofi.asante@example.com")
+	esi := findUser(ctx, t, h.users, "esi.owusu@example.com")
+	yaw := findUser(ctx, t, h.users, "yaw.boateng@example.com")
+
+	assertReportCardStored(ctx, t, h.interviews, ama.ID)
+	assertReportCardStored(ctx, t, h.interviews, kofi.ID)
+	assertNoInterview(ctx, t, h.interviews, esi.ID)
+	assertNoInterview(ctx, t, h.interviews, yaw.ID)
+}
+
+func TestLoad_SkipsPreRunWithoutLLM(t *testing.T) {
+	ctx := context.Background()
+	repos, h := newRepos()
+
+	res, err := seed.Load(ctx, repos, authadapter.NewArgon2idHasher(), time.Unix(1700000000, 0))
+	require.NoError(t, err)
+	assert.Zero(t, res.Interviews)
+
+	candidates, _, err := h.cands.List(ctx, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	for _, c := range candidates {
+		assertNoInterview(ctx, t, h.interviews, c.ID)
+	}
+}
+
 func TestDefaultPassword_IsLoginable(t *testing.T) {
 	hasher := authadapter.NewArgon2idHasher()
 	hash, err := hasher.Hash(seed.DefaultPassword)
@@ -67,4 +110,29 @@ func TestDefaultPassword_IsLoginable(t *testing.T) {
 	ok, err := hasher.Verify(hash, seed.DefaultPassword)
 	require.NoError(t, err)
 	assert.True(t, ok, "seeded demo accounts can log in with DefaultPassword")
+}
+
+func findUser(ctx context.Context, t *testing.T, users *memory.UserRepo, email string) *identity.User {
+	t.Helper()
+	u, err := users.ByEmail(ctx, identity.Email(email))
+	require.NoErrorf(t, err, "find user %s", email)
+	return u
+}
+
+func assertReportCardStored(ctx context.Context, t *testing.T, interviews *memory.InterviewRepo, candidateID kernel.ID) {
+	t.Helper()
+	ivs, total, err := interviews.ByCandidate(ctx, candidateID, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	require.Equalf(t, int64(1), total, "candidate %s should have one pre-run interview", candidateID)
+	require.NotNil(t, ivs[0].Report, "pre-run interview should have a report card")
+	assert.NotEqual(t, interviewdom.VerdictUnspecified, ivs[0].Report.Verdict)
+	assert.NotEmpty(t, ivs[0].Report.Scores, "report card has scored competencies")
+}
+
+func assertNoInterview(ctx context.Context, t *testing.T, interviews *memory.InterviewRepo, candidateID kernel.ID) {
+	t.Helper()
+	ivs, total, err := interviews.ByCandidate(ctx, candidateID, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	assert.Zerof(t, total, "candidate %s should not have a pre-run interview", candidateID)
+	assert.Empty(t, ivs)
 }

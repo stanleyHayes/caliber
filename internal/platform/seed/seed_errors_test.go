@@ -38,6 +38,7 @@ func TestLoad_PropagatesRepositoryError(t *testing.T) {
 		Candidates: memory.NewCandidateRepo(),
 		Profiles:   memory.NewTalentProfileRepo(),
 		Roles:      memory.NewRoleRepo(),
+		Interviews: memory.NewInterviewRepo(),
 	}
 	_, err := seed.Load(context.Background(), repos, staticHasher{}, time.Unix(1, 0))
 	assert.Error(t, err, "a repository failure aborts the seed")

@@ -91,13 +91,14 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 		return
 	}
 	seedRepos := seed.Repositories{
-		Users: repos.Users, Candidates: repos.Candidates, Profiles: repos.Profiles, Roles: repos.Roles,
+		Users: repos.Users, Candidates: repos.Candidates, Profiles: repos.Profiles, Roles: repos.Roles, Interviews: repos.Interviews,
 	}
+	// Use the raw provider (dev/Claude) rather than the guarded/audited facade
+	// for seeding: we are generating fixtures, not serving user traffic, and
+	// the rate/concurrency guard would otherwise throttle a batch run.
+	seedLLM := newLLMProvider(cfg, log)
 	if cfg.SeedGenerated {
-		// Use the raw provider (dev/Claude) rather than the guarded/audited facade
-		// for seeding: we are generating fixtures, not serving user traffic, and
-		// the rate/concurrency guard would otherwise throttle a batch run.
-		gen := seed.NewGenerator(authadapter.NewArgon2idHasher(), newLLMProvider(cfg, log), time.Now)
+		gen := seed.NewGenerator(authadapter.NewArgon2idHasher(), seedLLM, time.Now)
 		res, err := gen.Generate(ctx, seedRepos)
 		if err != nil {
 			log.Warn("generated demo seed skipped", "err", err)
@@ -109,7 +110,7 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 		return
 	}
 
-	res, err := seed.Load(ctx, seedRepos, authadapter.NewArgon2idHasher(), time.Now())
+	res, err := seed.Load(ctx, seedRepos, authadapter.NewArgon2idHasher(), time.Now(), seed.WithPreRunInterviews(seedLLM))
 	if err != nil {
 		log.Warn("demo seed skipped", "err", err)
 		return

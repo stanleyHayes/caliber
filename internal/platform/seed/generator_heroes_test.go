@@ -228,6 +228,25 @@ func TestGenerator_HeroPairsAreDeterministic(t *testing.T) {
 	assert.Equal(t, first, second, "hero candidate profiles are deterministic across runs")
 }
 
+func TestGenerator_PreRunsInterviewsForHeroes(t *testing.T) {
+	ctx := context.Background()
+	now := func() time.Time { return time.Unix(1700000000, 0) }
+	gen := seed.NewGenerator(authadapter.NewArgon2idHasher(), llmadapter.NewDev(), now)
+	repos, h := newRepos()
+
+	res, err := gen.Generate(ctx, repos)
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.Interviews, "two generated hero interviews are pre-run")
+
+	ama := findUser(ctx, t, h.users, heroEmail("Ama", "Mensah"))
+	kofi := findUser(ctx, t, h.users, heroEmail("Kofi", "Asante"))
+	esi := findUser(ctx, t, h.users, heroEmail("Esi", "Owusu"))
+
+	assertReportCardStored(ctx, t, h.interviews, ama.ID)
+	assertReportCardStored(ctx, t, h.interviews, kofi.ID)
+	assertNoInterview(ctx, t, h.interviews, esi.ID)
+}
+
 func findRoleID(ctx context.Context, t *testing.T, roles *memory.RoleRepo, title string) kernel.ID {
 	t.Helper()
 	open, _, err := roles.ListOpen(ctx, kernel.NewPage(1, 100))
