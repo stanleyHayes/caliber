@@ -45,6 +45,12 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.DashboardCacheTTL != 30*time.Second {
 		t.Errorf("DashboardCacheTTL = %v, want 30s", cfg.DashboardCacheTTL)
 	}
+	if cfg.InterviewMaxQuestions != 4 {
+		t.Errorf("InterviewMaxQuestions = %d, want 4", cfg.InterviewMaxQuestions)
+	}
+	if cfg.InterviewMaxDuration != 10*time.Minute {
+		t.Errorf("InterviewMaxDuration = %v, want 10m", cfg.InterviewMaxDuration)
+	}
 }
 
 func TestLoadParsesStrictCORSOrigins(t *testing.T) {

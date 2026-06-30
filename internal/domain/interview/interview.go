@@ -2,6 +2,7 @@ package interview
 
 import (
 	"strings"
+	"time"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
@@ -28,6 +29,7 @@ type Interview struct {
 	Turns       []InterviewTurn
 	Pending     *PendingQuestion
 	Report      *ReportCard
+	StartedAt   time.Time // set by the use-case when the interview begins
 }
 
 // NewInterview opens a new interview in the Open state.

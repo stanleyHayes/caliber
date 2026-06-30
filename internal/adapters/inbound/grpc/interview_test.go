@@ -18,6 +18,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/app"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
+	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
@@ -67,6 +68,7 @@ func interviewRole(t *testing.T) *role.Role {
 // devShapedLLM returns a question or report card depending on the system prompt.
 func devShapedLLM(ctrl *gomock.Controller) *mocks.MockLLMClient {
 	llm := mocks.NewMockLLMClient(ctrl)
+	llm.EXPECT().Warm(gomock.Any()).Return(nil).AnyTimes()
 	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, req app.LLMRequest) (app.LLMResponse, error) {
 			if strings.Contains(req.System, "score a screening interview") {
@@ -84,7 +86,7 @@ func TestStartInterviewStreamsQuestionThenReport(t *testing.T) {
 	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil).AnyTimes()
 
 	// maxTurns = 1 -> the first answer completes the interview.
-	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 1))
+	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), interviewdom.Config{MaxQuestions: 1}))
 
 	candidateID := kernel.NewID()
 	ctx, cancel := context.WithCancel(asCandidate(t.Context(), candidateID))
@@ -133,7 +135,7 @@ func TestStartInterviewStreamCancellation(t *testing.T) {
 	roles := mocks.NewMockRoleRepository(ctrl)
 	rl := interviewRole(t)
 	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil).AnyTimes()
-	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 4))
+	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), interviewdom.DefaultConfig()))
 
 	candidateID := kernel.NewID()
 	ctx, cancel := context.WithCancel(asCandidate(t.Context(), candidateID))
@@ -195,7 +197,7 @@ func TestStartInterviewStreamBackpressureSlowConsumer(t *testing.T) {
 	roles := mocks.NewMockRoleRepository(ctrl)
 	rl := interviewRole(t)
 	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil).AnyTimes()
-	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 4))
+	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), interviewdom.DefaultConfig()))
 
 	candidateID := kernel.NewID()
 	ctx, cancel := context.WithCancel(asCandidate(t.Context(), candidateID))
@@ -254,7 +256,7 @@ func TestGetReportCardHandler(t *testing.T) {
 	roles := mocks.NewMockRoleRepository(ctrl)
 	rl := interviewRole(t)
 	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil).AnyTimes()
-	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 1)
+	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), interviewdom.Config{MaxQuestions: 1})
 	srv := NewInterviewServer(interviewer)
 
 	iv, q, err := interviewer.Start(context.Background(), rl.ID, kernel.NewID(), 1) // ModeText
@@ -278,7 +280,7 @@ func TestGetReportCardOwnershipIDOR(t *testing.T) {
 	roles := mocks.NewMockRoleRepository(ctrl)
 	rl := interviewRole(t)
 	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil).AnyTimes()
-	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 1)
+	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), interviewdom.Config{MaxQuestions: 1})
 	srv := NewInterviewServer(interviewer)
 
 	candidateID := kernel.NewID()
@@ -305,7 +307,7 @@ func TestGetReportCardNotReady(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	roles := mocks.NewMockRoleRepository(ctrl)
 	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(interviewRole(t), nil).AnyTimes()
-	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 4)
+	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), interviewdom.DefaultConfig())
 	iv, _, err := interviewer.Start(context.Background(), kernel.NewID(), kernel.NewID(), 1)
 	require.NoError(t, err)
 	_, err = NewInterviewServer(interviewer).GetReportCard(asRole(context.Background(), identity.RoleEmployer),
@@ -371,7 +373,7 @@ func TestInterviewAuthz(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	roles := mocks.NewMockRoleRepository(ctrl)
 	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(interviewRole(t), nil).AnyTimes()
-	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 1))
+	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), interviewdom.Config{MaxQuestions: 1}))
 
 	// StartInterview: a candidate may only screen as themselves.
 	other := &fakeInterviewStream{ctx: asCandidate(t.Context(), kernel.NewID())}
@@ -399,7 +401,7 @@ func TestInterviewOwnership(t *testing.T) {
 	roles := mocks.NewMockRoleRepository(ctrl)
 	rl := interviewRole(t)
 	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil).AnyTimes()
-	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 1)
+	interviewer := interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), interviewdom.Config{MaxQuestions: 1})
 	srv := NewInterviewServer(interviewer)
 
 	owner := kernel.NewID()

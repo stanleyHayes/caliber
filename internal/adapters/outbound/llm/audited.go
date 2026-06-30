@@ -53,6 +53,27 @@ func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 	return resp, err
 }
 
+// Warm delegates to the inner client and records a redacted warm-up trace
+// (CAL-104).
+func (a *Audited) Warm(ctx context.Context) error {
+	start := a.now()
+	err := a.inner.Warm(ctx)
+	if a.recorder != nil {
+		a.recorder.Record(app.AICallRecord{
+			Operation:     "warm",
+			PromptID:      "",
+			PromptVersion: "",
+			Model:         a.model,
+			Latency:       a.now().Sub(start),
+			PromptChars:   0,
+			ResponseChars: 0,
+			Failed:        err != nil,
+			At:            start,
+		})
+	}
+	return err
+}
+
 // SlogRecorder logs each AI-call trace via slog at info level. It records only
 // redacted metadata (operation, model, sizes, latency), never prompt content.
 type SlogRecorder struct {

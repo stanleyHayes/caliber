@@ -56,6 +56,20 @@ func (mr *MockLLMClientMockRecorder) Complete(ctx, req any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Complete", reflect.TypeOf((*MockLLMClient)(nil).Complete), ctx, req)
 }
 
+// Warm mocks base method.
+func (m *MockLLMClient) Warm(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Warm", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Warm indicates an expected call of Warm.
+func (mr *MockLLMClientMockRecorder) Warm(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Warm", reflect.TypeOf((*MockLLMClient)(nil).Warm), ctx)
+}
+
 // MockEmbedder is a mock of Embedder interface.
 type MockEmbedder struct {
 	ctrl     *gomock.Controller

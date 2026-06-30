@@ -36,6 +36,8 @@ func (s *scriptedLLM) Complete(_ context.Context, req app.LLMRequest) (app.LLMRe
 	return app.LLMResponse{Text: r.text}, nil
 }
 
+func (s *scriptedLLM) Warm(_ context.Context) error { return nil }
+
 type payload struct {
 	Name string `json:"name"`
 }

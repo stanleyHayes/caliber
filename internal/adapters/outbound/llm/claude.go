@@ -65,6 +65,15 @@ func NewClaude(opts ...ClaudeOption) *Claude {
 	}
 }
 
+// Warm sends a tiny, throw-away completion to eagerly establish the provider
+// connection before the interview starts (CAL-104). Errors are surfaced so the
+// caller can fail fast instead of discovering a cold session on the first
+// question.
+func (c *Claude) Warm(ctx context.Context) error {
+	_, err := c.Complete(ctx, app.LLMRequest{Prompt: "ping", MaxTokens: 1})
+	return err
+}
+
 // Complete sends a single-turn message and returns the concatenated text blocks.
 func (c *Claude) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResponse, error) {
 	maxTokens := int64(req.MaxTokens)

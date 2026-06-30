@@ -25,6 +25,10 @@ type Dev struct{}
 // NewDev returns a deterministic dev LLM client.
 func NewDev() *Dev { return &Dev{} }
 
+// Warm is a no-op for the deterministic dev provider; there is no external
+// connection to initialise (CAL-104).
+func (d *Dev) Warm(_ context.Context) error { return nil }
+
 // Complete returns a canned, schema-valid JSON document for the request.
 func (d *Dev) Complete(_ context.Context, req app.LLMRequest) (app.LLMResponse, error) {
 	var doc any

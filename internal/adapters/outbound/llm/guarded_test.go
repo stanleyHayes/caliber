@@ -26,6 +26,8 @@ type fakeLLM struct {
 	gate     chan struct{} // when non-nil, Complete blocks until a token is sent
 }
 
+func (f *fakeLLM) Warm(_ context.Context) error { return nil }
+
 func (f *fakeLLM) Complete(_ context.Context, req app.LLMRequest) (app.LLMResponse, error) {
 	f.mu.Lock()
 	f.lastReq = req

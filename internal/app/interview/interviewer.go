@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/app/prompts"
@@ -17,17 +18,14 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/talent"
 )
 
-const (
-	defaultMaxTurns = 4
-)
-
 // Interviewer runs the screening interview over the domain ports.
 type Interviewer struct {
 	roles      role.RoleRepository
 	interviews interviewdom.InterviewRepository
 	llm        app.LLMClient
-	maxTurns   int
+	cfg        interviewdom.Config
 	profiles   talent.TalentProfileRepository // optional: passport update on completion
+	now        func() time.Time
 }
 
 // Option customizes an Interviewer.
@@ -39,14 +37,19 @@ func WithPassportUpdater(profiles talent.TalentProfileRepository) Option {
 	return func(s *Interviewer) { s.profiles = profiles }
 }
 
-// NewInterviewer wires the use-case. A non-positive maxTurns defaults to 4.
+// WithClock overrides the time source, used to enforce the duration cap in
+// deterministic tests.
+func WithClock(now func() time.Time) Option {
+	return func(s *Interviewer) { s.now = now }
+}
+
+// NewInterviewer wires the use-case. A zero cfg is replaced with the domain
+// defaults (CAL-104).
 func NewInterviewer(
-	roles role.RoleRepository, interviews interviewdom.InterviewRepository, llm app.LLMClient, maxTurns int, opts ...Option,
+	roles role.RoleRepository, interviews interviewdom.InterviewRepository, llm app.LLMClient, cfg interviewdom.Config, opts ...Option,
 ) *Interviewer {
-	if maxTurns <= 0 {
-		maxTurns = defaultMaxTurns
-	}
-	s := &Interviewer{roles: roles, interviews: interviews, llm: llm, maxTurns: maxTurns}
+	cfg = cfg.WithDefaults()
+	s := &Interviewer{roles: roles, interviews: interviews, llm: llm, cfg: cfg, now: time.Now}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -70,7 +73,8 @@ type llmReport struct {
 }
 
 // Start opens an interview for the candidate against the role and returns the
-// first question.
+// first question. It pre-warms the LLM session so the first question is served
+// from an already-initialised connection (CAL-104).
 func (s *Interviewer) Start(
 	ctx context.Context, roleID, candidateID kernel.ID, mode interviewdom.InterviewMode,
 ) (*interviewdom.Interview, *interviewdom.PendingQuestion, error) {
@@ -82,7 +86,11 @@ func (s *Interviewer) Start(
 	if err != nil {
 		return nil, nil, err
 	}
+	iv.StartedAt = s.now()
 	if err := iv.Transition(interviewdom.StateAsking); err != nil {
+		return nil, nil, err
+	}
+	if err := s.llm.Warm(ctx); err != nil {
 		return nil, nil, err
 	}
 	if err := s.ask(ctx, rl, iv); err != nil {
@@ -111,7 +119,7 @@ func (s *Interviewer) Answer(
 		return nil, nil, err
 	}
 
-	if len(iv.Turns) >= s.maxTurns {
+	if s.shouldFinish(iv) {
 		if err := s.finish(ctx, rl, iv); err != nil {
 			return nil, nil, err
 		}
@@ -186,6 +194,18 @@ func (s *Interviewer) EmployerForInterview(ctx context.Context, interviewID kern
 		return "", err
 	}
 	return rl.EmployerID, nil
+}
+
+// shouldFinish reports whether the interview has reached its configured question
+// count or total-duration cap (CAL-104).
+func (s *Interviewer) shouldFinish(iv *interviewdom.Interview) bool {
+	if len(iv.Turns) >= s.cfg.MaxQuestions {
+		return true
+	}
+	if s.cfg.MaxDuration > 0 && !iv.StartedAt.IsZero() && s.now().Sub(iv.StartedAt) >= s.cfg.MaxDuration {
+		return true
+	}
+	return false
 }
 
 // ask generates the next adaptive question and records it as pending.

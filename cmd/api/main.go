@@ -25,6 +25,7 @@ import (
 	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
 	identityapp "github.com/xcreativs/caliber/internal/app/identity"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
+	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
 	privacyapp "github.com/xcreativs/caliber/internal/app/privacy"
 	profilesapp "github.com/xcreativs/caliber/internal/app/profiles"
@@ -94,9 +95,10 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 	}
 	ready = readiness.New(checks...)
 
+	cachedEmbedder := matchingapp.NewCachedEmbedder(embedder)
 	shortlister := matchingapp.NewShortlister(
 		repos.Roles, repos.Candidates, repos.Profiles,
-		recallerFor(cfg, repos), embedder, model, repos.Matches)
+		recallerFor(cfg, repos), cachedEmbedder, model, repos.Matches)
 	rejections := matchingapp.NewRejectionRecorder(repos.Roles, auditRepo, time.Now)
 	matchServer := grpcadapter.NewMatchServer(shortlister, matchingapp.NewRefiner(repos.Roles, shortlister), rejections)
 	svc.Match = matchServer
@@ -136,7 +138,9 @@ func wireApplicationServices(
 		matchServer.AvailabilityCounter(),
 	)
 	svc.Interview = grpcadapter.NewInterviewServer(
-		interviewapp.NewInterviewer(repos.Roles, repos.Interviews, model, 0, interviewapp.WithPassportUpdater(repos.Profiles)),
+		interviewapp.NewInterviewer(repos.Roles, repos.Interviews, model,
+			interviewdom.Config{MaxQuestions: cfg.InterviewMaxQuestions, MaxDuration: cfg.InterviewMaxDuration},
+			interviewapp.WithPassportUpdater(repos.Profiles)),
 	)
 	svc.Talent = grpcadapter.NewTalentServer(profilesapp.NewProfileBuilder(repos.Candidates, repos.Profiles, model))
 	svc.Agent = grpcadapter.NewAgentServer(

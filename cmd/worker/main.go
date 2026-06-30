@@ -20,6 +20,7 @@ import (
 	queueadapter "github.com/xcreativs/caliber/internal/adapters/outbound/queue"
 	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
+	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
 	"github.com/xcreativs/caliber/internal/platform/wiring"
@@ -70,7 +71,8 @@ func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		candidateagentapp.WithWakeUpInsights(repos.Interviews, repos.Matches),
 	)
 	interviewer := interviewapp.NewInterviewer(
-		repos.Roles, repos.Interviews, model, 0,
+		repos.Roles, repos.Interviews, model,
+		interviewdom.Config{MaxQuestions: cfg.InterviewMaxQuestions, MaxDuration: cfg.InterviewMaxDuration},
 		interviewapp.WithPassportUpdater(repos.Profiles),
 	)
 

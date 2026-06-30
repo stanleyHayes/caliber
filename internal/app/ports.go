@@ -9,6 +9,10 @@ import (
 // interaction in the platform routes through this port (default impl: Claude).
 type LLMClient interface {
 	Complete(ctx context.Context, req LLMRequest) (LLMResponse, error)
+	// Warm performs a lightweight, provider-specific pre-warm so the first real
+	// interview question is served from an already-initialised session. It is a
+	// no-op for providers that do not need warming (CAL-104).
+	Warm(ctx context.Context) error
 }
 
 // PromptRef identifies the registry prompt a request was built from, so the

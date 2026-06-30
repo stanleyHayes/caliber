@@ -97,7 +97,7 @@ func TestInterviewScoringHandlerProducesReportCard(t *testing.T) {
 		Text: `{"verdict":"advance","confidence":"high","scores":[{"competency":"Go","score":4.5,"evidence":"built a payments service in Go"}],"recommended_next_step":"Schedule onsite."}`,
 	}, nil)
 
-	interviewer := interviewapp.NewInterviewer(roles, interviews, llm, 4)
+	interviewer := interviewapp.NewInterviewer(roles, interviews, llm, interviewdom.DefaultConfig())
 	mux := jobs.NewMux(slog.New(slog.DiscardHandler))
 	jobs.RegisterHandlers(mux, jobs.HandlerDeps{Interviewer: interviewer}, slog.New(slog.DiscardHandler))
 
@@ -129,7 +129,7 @@ func TestInterviewScoringHandlerRejectsEmptyTranscript(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, interviews.Create(context.Background(), iv))
 
-	interviewer := interviewapp.NewInterviewer(roles, interviews, mocks.NewMockLLMClient(ctrl), 4)
+	interviewer := interviewapp.NewInterviewer(roles, interviews, mocks.NewMockLLMClient(ctrl), interviewdom.DefaultConfig())
 	mux := jobs.NewMux(slog.New(slog.DiscardHandler))
 	jobs.RegisterHandlers(mux, jobs.HandlerDeps{Interviewer: interviewer}, slog.New(slog.DiscardHandler))
 

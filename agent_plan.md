@@ -227,7 +227,7 @@ caliber/
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
 | | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~70% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | TODO | 0% |
-| | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | TODO | 0% |
+| | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | WIP | ~20% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | WIP | ~45% |
 | | EPIC-17 | SEO & Web Performance | 10 | 43 | TODO | 0% |
 | | EPIC-18 | Observability & Operations | 8 | 37 | TODO | 0% |
@@ -454,7 +454,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-15 · Demo Hardening & Run-of-Show
 **Goal:** Make the demo reliable, repeatable, venue-proof. (Spec §13 Phase 5, §14, §16.)
 
-- **CAL-104** `[TODO]` · 5 pts — **Latency tuning & session pre-warm.** Cap question count/time; pre-warm LLM sessions; stream everything. *AC:* interview + shortlist feel instant. *Deps:* CAL-065, CAL-068
+- **CAL-104** `[DONE]` · 5 pts — **Latency tuning & session pre-warm.** Added `interview.Config` with `MaxQuestions`/`MaxDuration` caps (env-driven via `CALIBER_INTERVIEW_MAX_QUESTIONS`/`CALIBER_INTERVIEW_MAX_DURATION`), enforced in `Interviewer.Answer`; added `LLMClient.Warm` port method with implementations in dev/Claude/Audited/Guarded and pre-warm on `Start`; added `CachedEmbedder` so role embeddings are reused across `GenerateShortlist`/`CountAvailable`/re-rank. *AC:* interview + shortlist feel instant. *Deps:* CAL-065, CAL-068
 - **CAL-105** `[TODO]` · 3 pts — **Run-of-show wiring.** Sequence: Frame → Flow A → Flow B → Flow C → close on dashboard. *AC:* one path drives the whole narrative. *Deps:* CAL-090, CAL-091, CAL-092, CAL-093
 - **CAL-106** `[TODO]` · 5 pts — **Pre-recorded backup capture.** Clean live-style interview recording as insurance for venue network failure. *AC:* recording ready; live path primary. *Deps:* CAL-091
 - **CAL-107** `[TODO]` · 5 pts — **Offline/standby deployment fallback.** Local/standby deployment where feasible. *AC:* demo survives a network drop. *Deps:* CAL-006

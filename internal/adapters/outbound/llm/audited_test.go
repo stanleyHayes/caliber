@@ -23,6 +23,8 @@ func (s stubLLM) Complete(_ context.Context, _ app.LLMRequest) (app.LLMResponse,
 	return s.resp, s.err
 }
 
+func (s stubLLM) Warm(_ context.Context) error { return nil }
+
 func seqClock(times ...time.Time) func() time.Time {
 	i := 0
 	return func() time.Time {

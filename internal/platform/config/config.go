@@ -49,6 +49,9 @@ type Config struct {
 
 	DashboardCacheTTL time.Duration // Talent Radar snapshot TTL (CAL-080)
 
+	InterviewMaxQuestions int           // Flow B hard cap on question count (CAL-104)
+	InterviewMaxDuration  time.Duration // Flow B hard cap on total elapsed time (CAL-104)
+
 	WorkerConcurrency int           // Asynq worker concurrency
 	TaskMaxRetry      int           // Asynq max retries per task
 	TaskRetention     time.Duration // how long completed tasks remain inspectable
@@ -87,6 +90,8 @@ func Load() (Config, error) {
 		RateLimitRPS:      getfloat("CALIBER_RATE_LIMIT_RPS", 30),
 		RateLimitBurst:    getfloat("CALIBER_RATE_LIMIT_BURST", 60),
 		DashboardCacheTTL: getdur("CALIBER_DASHBOARD_CACHE_TTL", 30*time.Second),
+		InterviewMaxQuestions: getint("CALIBER_INTERVIEW_MAX_QUESTIONS", 4),
+		InterviewMaxDuration:  getdur("CALIBER_INTERVIEW_MAX_DURATION", 10*time.Minute),
 		WorkerConcurrency: getint("CALIBER_WORKER_CONCURRENCY", 4),
 		TaskMaxRetry:      getint("CALIBER_TASK_MAX_RETRY", 3),
 		TaskRetention:     getdur("CALIBER_TASK_RETENTION", 24*time.Hour),

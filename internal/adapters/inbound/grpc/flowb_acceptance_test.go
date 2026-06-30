@@ -45,7 +45,8 @@ func TestFlowBEndToEnd(t *testing.T) {
 	require.NoError(t, roleRepo.Create(ctx, rl))
 
 	const maxTurns = 2
-	interviewer := interviewapp.NewInterviewer(roleRepo, interviewRepo, llm.NewDev(), maxTurns,
+	interviewer := interviewapp.NewInterviewer(roleRepo, interviewRepo, llm.NewDev(),
+		interviewdom.Config{MaxQuestions: maxTurns},
 		interviewapp.WithPassportUpdater(profRepo))
 
 	// Start: the first adaptive question is asked.

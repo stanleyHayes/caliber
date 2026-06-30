@@ -63,10 +63,13 @@ func TestStartOpensAndAsksFirstQuestion(t *testing.T) {
 	d := newDeps(ctrl)
 	rl := sampleRole(t)
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
-	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: questionJSON}, nil)
+	gomock.InOrder(
+		d.llm.EXPECT().Warm(gomock.Any()).Return(nil),
+		d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: questionJSON}, nil),
+	)
 	d.interviews.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
 
-	iv := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	iv := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	got, q, err := iv.Start(context.Background(), rl.ID, kernel.NewID(), interviewdom.ModeText)
 	require.NoError(t, err)
 	assert.Equal(t, interviewdom.StateAsking, got.State)
@@ -85,7 +88,7 @@ func TestAnswerAsksNextQuestion(t *testing.T) {
 	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: questionJSON}, nil)
 	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	pending, report, err := interviewer.Answer(context.Background(), iv.ID, "I built a payments service in Go.")
 	require.NoError(t, err)
 	assert.Nil(t, report)
@@ -104,7 +107,7 @@ func TestAnswerCompletesAndScores(t *testing.T) {
 	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
 	// maxTurns = 1 -> the first answer completes the interview.
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 1)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.Config{MaxQuestions: 1})
 	pending, report, err := interviewer.Answer(context.Background(), iv.ID, "I built a payments service in Go.")
 	require.NoError(t, err)
 	assert.Nil(t, pending)
@@ -121,7 +124,7 @@ func TestReportNotReady(t *testing.T) {
 	d := newDeps(ctrl)
 	iv := askingInterview(t, kernel.NewID()) // open, no report
 	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, err := interviewer.Report(context.Background(), iv.ID)
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 }
@@ -130,7 +133,7 @@ func TestStartRoleNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	d := newDeps(ctrl)
 	d.roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, _, err := interviewer.Start(context.Background(), kernel.NewID(), kernel.NewID(), interviewdom.ModeText)
 	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
 }
@@ -144,7 +147,7 @@ func TestAnswerRejectsBadQuestionJSON(t *testing.T) {
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
 	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil).Times(app.DefaultLLMAttempts)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, _, err := interviewer.Answer(context.Background(), iv.ID, "an answer")
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 }
@@ -158,7 +161,7 @@ func TestAnswerRejectsBadReportJSON(t *testing.T) {
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
 	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: "not json"}, nil).Times(app.DefaultLLMAttempts)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 1)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.Config{MaxQuestions: 1})
 	_, _, err := interviewer.Answer(context.Background(), iv.ID, "an answer")
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 }
@@ -175,7 +178,7 @@ func TestAnswerScoresDeclineLowConfidence(t *testing.T) {
 	}, nil)
 	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 1)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.Config{MaxQuestions: 1})
 	_, report, err := interviewer.Answer(context.Background(), iv.ID, "um, not sure")
 	require.NoError(t, err)
 	require.NotNil(t, report)
@@ -194,7 +197,7 @@ func TestReportReturnsCompletedCard(t *testing.T) {
 	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: reportJSON}, nil)
 	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 1)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.Config{MaxQuestions: 1})
 	_, _, err := interviewer.Answer(context.Background(), iv.ID, "built payments in Go")
 	require.NoError(t, err)
 	card, err := interviewer.Report(context.Background(), iv.ID)
@@ -207,10 +210,14 @@ func TestStartPropagatesQuestionGenerationFailure(t *testing.T) {
 	d := newDeps(ctrl)
 	rl := sampleRole(t)
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
-	// The first-question LLM call fails: Start must surface it and never persist.
-	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{}, errors.New("model down"))
+	// The session is pre-warmed before the first question; if the warm-up fails,
+	// Start surfaces it and never persists the interview.
+	gomock.InOrder(
+		d.llm.EXPECT().Warm(gomock.Any()).Return(nil),
+		d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{}, errors.New("model down")),
+	)
 
-	iv := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	iv := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, _, err := iv.Start(context.Background(), rl.ID, kernel.NewID(), interviewdom.ModeText)
 	require.Error(t, err)
 }
@@ -220,10 +227,13 @@ func TestStartPropagatesPersistFailure(t *testing.T) {
 	d := newDeps(ctrl)
 	rl := sampleRole(t)
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
-	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: questionJSON}, nil)
+	gomock.InOrder(
+		d.llm.EXPECT().Warm(gomock.Any()).Return(nil),
+		d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: questionJSON}, nil),
+	)
 	d.interviews.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db down"))
 
-	iv := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	iv := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, _, err := iv.Start(context.Background(), rl.ID, kernel.NewID(), interviewdom.ModeText)
 	require.Error(t, err)
 }
@@ -237,7 +247,7 @@ func TestAnswerPropagatesRoleLookupFailure(t *testing.T) {
 	// The role load (after recording the answer) fails: surfaced, nothing scored.
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(nil, kernel.NotFound("gone"))
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, _, err := interviewer.Answer(context.Background(), iv.ID, "I shipped a Go service.")
 	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
 }
@@ -253,7 +263,7 @@ func TestAnswerPropagatesUpdateFailure(t *testing.T) {
 	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: questionJSON}, nil)
 	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("db down"))
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, _, err := interviewer.Answer(context.Background(), iv.ID, "I shipped a Go service.")
 	require.Error(t, err)
 }
@@ -266,7 +276,7 @@ func TestEmployerForInterviewResolvesRoleOwner(t *testing.T) {
 	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
 	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	owner, err := interviewer.EmployerForInterview(context.Background(), iv.ID)
 	require.NoError(t, err)
 	assert.Equal(t, rl.EmployerID, owner, "the owner is the employer of the screened role")
@@ -277,7 +287,7 @@ func TestEmployerForInterviewNotFound(t *testing.T) {
 	d := newDeps(ctrl)
 	d.interviews.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, err := interviewer.EmployerForInterview(context.Background(), kernel.NewID())
 	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
 }
@@ -300,7 +310,7 @@ func TestAnswerMarksPassportScreenedOnCompletion(t *testing.T) {
 	profiles.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, p *talent.TalentProfile) error { updated = p; return nil })
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 1, interviewapp.WithPassportUpdater(profiles))
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.Config{MaxQuestions: 1}, interviewapp.WithPassportUpdater(profiles))
 	_, report, err := interviewer.Answer(context.Background(), iv.ID, "concrete answer")
 	require.NoError(t, err)
 	require.NotNil(t, report)
@@ -323,7 +333,7 @@ func TestAnswerAppliesHonestSignalPressureOnVagueAnswer(t *testing.T) {
 		})
 	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, _, err := interviewer.Answer(context.Background(), iv.ID, "It was good, basically various stuff.")
 	require.NoError(t, err)
 	assert.Contains(t, captured.Prompt, "presses for a specific, real example",
@@ -345,7 +355,7 @@ func TestAnswerNoPressureOnConcreteAnswer(t *testing.T) {
 		})
 	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, _, err := interviewer.Answer(context.Background(), iv.ID,
 		"I led the migration of our payments service to Go and cut p99 latency by 40%.")
 	require.NoError(t, err)
@@ -366,7 +376,7 @@ func TestScoreAsyncGeneratesReport(t *testing.T) {
 	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: reportJSON}, nil)
 	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	report, err := interviewer.ScoreAsync(context.Background(), iv.ID)
 	require.NoError(t, err)
 	require.NotNil(t, report)
@@ -384,7 +394,7 @@ func TestScoreAsyncReturnsExistingReport(t *testing.T) {
 
 	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	got, err := interviewer.ScoreAsync(context.Background(), iv.ID)
 	require.NoError(t, err)
 	assert.Equal(t, interviewdom.VerdictDecline, got.Verdict)
@@ -399,7 +409,79 @@ func TestScoreAsyncRejectsEmptyTranscript(t *testing.T) {
 
 	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
 
-	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, 4)
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
 	_, err = interviewer.ScoreAsync(context.Background(), iv.ID)
 	assert.Error(t, err)
+}
+
+func TestStartPreWarmsBeforeFirstQuestion(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+
+	var warmed, completed bool
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	gomock.InOrder(
+		d.llm.EXPECT().Warm(gomock.Any()).DoAndReturn(func(context.Context) error { warmed = true; return nil }),
+		d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).DoAndReturn(func(context.Context, app.LLMRequest) (app.LLMResponse, error) { completed = true; return app.LLMResponse{Text: questionJSON}, nil }),
+	)
+	d.interviews.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
+	_, _, err := interviewer.Start(context.Background(), rl.ID, kernel.NewID(), interviewdom.ModeText)
+	require.NoError(t, err)
+	assert.True(t, warmed, "session must be pre-warmed before the first question (CAL-104)")
+	assert.True(t, completed, "first question must be generated after the warm-up")
+}
+
+func TestStartFailsFastWhenWarmFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.llm.EXPECT().Warm(gomock.Any()).Return(errors.New("provider cold start failed"))
+	// Complete and Create must not be called if the warm-up fails.
+
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.DefaultConfig())
+	_, _, err := interviewer.Start(context.Background(), rl.ID, kernel.NewID(), interviewdom.ModeText)
+	require.Error(t, err)
+}
+
+func TestDurationCapFinishesInterview(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	iv := askingInterview(t, rl.ID)
+
+	start := time.Unix(1000, 0)
+	iv.StartedAt = start
+	clock := func() time.Time { return start.Add(2 * time.Minute) }
+
+	d.interviews.EXPECT().ByID(gomock.Any(), iv.ID).Return(iv, nil)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: reportJSON}, nil)
+	d.interviews.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+
+	cfg := interviewdom.Config{MaxQuestions: 10, MaxDuration: time.Minute}
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, cfg, interviewapp.WithClock(clock))
+	pending, report, err := interviewer.Answer(context.Background(), iv.ID, "I built a payments service in Go.")
+	require.NoError(t, err)
+	assert.Nil(t, pending)
+	require.NotNil(t, report)
+	assert.Equal(t, interviewdom.StateClosed, iv.State, "duration cap must close the interview (CAL-104)")
+}
+
+func TestInterviewConfigDefaultsApply(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	rl := sampleRole(t)
+	d.roles.EXPECT().ByID(gomock.Any(), rl.ID).Return(rl, nil)
+	d.llm.EXPECT().Warm(gomock.Any()).Return(nil)
+	d.llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: questionJSON}, nil)
+	d.interviews.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+
+	// Zero config is upgraded to the domain defaults.
+	interviewer := interviewapp.NewInterviewer(d.roles, d.interviews, d.llm, interviewdom.Config{})
+	_, _, err := interviewer.Start(context.Background(), rl.ID, kernel.NewID(), interviewdom.ModeText)
+	require.NoError(t, err)
 }

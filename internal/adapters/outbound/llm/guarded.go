@@ -82,6 +82,20 @@ func (g *Guarded) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 	return g.inner.Complete(ctx, req)
 }
 
+// Warm applies the same budget and concurrency guardrails to the pre-warm call
+// (CAL-104).
+func (g *Guarded) Warm(ctx context.Context) error {
+	if g.limiter != nil && !g.limiter.Allow() {
+		return kernel.TooManyRequests("llm: request budget exceeded; retry later")
+	}
+	release, err := g.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return g.inner.Warm(ctx)
+}
+
 // reportInjection runs the advisory injection scan and hands any detected
 // categories to the telemetry hook. It never blocks the call.
 func (g *Guarded) reportInjection(prompt string) {
