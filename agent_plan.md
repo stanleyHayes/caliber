@@ -459,7 +459,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-106** `[TODO]` · 5 pts — **Pre-recorded backup capture.** Clean live-style interview recording as insurance for venue network failure. *AC:* recording ready; live path primary. *Deps:* CAL-091
 - **CAL-107** `[TODO]` · 5 pts — **Offline/standby deployment fallback.** Local/standby deployment where feasible. *AC:* demo survives a network drop. *Deps:* CAL-006
 - **CAL-108** `[TODO]` · 3 pts — **Full dry run + acceptance sweep.** Verify all §15 acceptance criteria on seed data in one rehearsal. *AC:* every §15 item passes. *Deps:* CAL-059, CAL-068, CAL-075, CAL-093
-- **CAL-109** `[TODO]` · 3 pts — **Demo runbook & failure playbook.** Written run-of-show, reset steps, fallback triggers. *AC:* any team member can drive it. *Deps:* CAL-103, CAL-105
+- **CAL-109** `[DONE]` · 3 pts — **Demo runbook & failure playbook.** Written run-of-show, reset steps, fallback triggers. *AC:* any team member can drive it. *Deps:* CAL-103, CAL-105. *Done:* `docs/demo-runbook.md` created with run-of-show sequence, demo accounts, reset/reseed steps, talking points, expected outputs, and a failure playbook covering network drop, LLM latency, stream failure, worker/queue issues, and venue fallback.
 
 ---
 
