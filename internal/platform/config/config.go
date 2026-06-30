@@ -46,6 +46,8 @@ type Config struct {
 	RateLimitRPS   float64 // per-principal sustained request rate (token-bucket refill/sec)
 	RateLimitBurst float64 // per-principal burst ceiling (max tokens)
 
+	DashboardCacheTTL time.Duration // Talent Radar snapshot TTL (CAL-080)
+
 	WorkerConcurrency int           // Asynq worker concurrency
 	TaskMaxRetry      int           // Asynq max retries per task
 	TaskRetention     time.Duration // how long completed tasks remain inspectable
@@ -82,6 +84,7 @@ func Load() (Config, error) {
 		// cap floods and runaway clients on the expensive AI endpoints (CAL-112).
 		RateLimitRPS:      getfloat("CALIBER_RATE_LIMIT_RPS", 30),
 		RateLimitBurst:    getfloat("CALIBER_RATE_LIMIT_BURST", 60),
+		DashboardCacheTTL: getdur("CALIBER_DASHBOARD_CACHE_TTL", 30*time.Second),
 		WorkerConcurrency: getint("CALIBER_WORKER_CONCURRENCY", 4),
 		TaskMaxRetry:      getint("CALIBER_TASK_MAX_RETRY", 3),
 		TaskRetention:     getdur("CALIBER_TASK_RETENTION", 24*time.Hour),

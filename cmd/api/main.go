@@ -146,7 +146,13 @@ func wireApplicationServices(
 		repos.Apps,
 		dispatcher,
 	)
-	svc.Dashboard = grpcadapter.NewDashboardServer(dashboardapp.NewAggregator(repos.Candidates, repos.Profiles, repos.Users, repos.Roles))
+	svc.Dashboard = grpcadapter.NewDashboardServer(
+		dashboardapp.NewCachedAggregator(
+			dashboardapp.NewAggregator(repos.Candidates, repos.Profiles, repos.Users, repos.Roles),
+			cfg.DashboardCacheTTL,
+			time.Now,
+		),
+	)
 	contests := memory.NewContestRepo()
 	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(contests, auditRepo, time.Now))
 	svc.Audit = grpcadapter.NewAuditServer(auditRepo)

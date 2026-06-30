@@ -3,6 +3,7 @@ package config
 import (
 	"slices"
 	"testing"
+	"time"
 )
 
 func clearCORSOriginsEnv(t *testing.T) {
@@ -40,6 +41,9 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	}
 	if cfg.WorkerConcurrency != 4 {
 		t.Errorf("WorkerConcurrency = %d, want 4", cfg.WorkerConcurrency)
+	}
+	if cfg.DashboardCacheTTL != 30*time.Second {
+		t.Errorf("DashboardCacheTTL = %v, want 30s", cfg.DashboardCacheTTL)
 	}
 }
 

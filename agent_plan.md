@@ -223,7 +223,7 @@ caliber/
 | | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~45% |
 | | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | WIP | ~50% |
 | | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~55% |
-| | EPIC-11 | Talent Radar Dashboard | 5 | 24 | WIP | ~55% |
+| | EPIC-11 | Talent Radar Dashboard | 5 | 24 | WIP | ~60% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
 | | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~70% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | TODO | 0% |
@@ -409,7 +409,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 - **CAL-077** `[WIP]` · 5 pts — **Supply/demand snapshot by role family.** Counts and gaps per role family. *AC:* numbers reconcile with seed data. *Deps:* CAL-076
 - **CAL-078** `[DONE]` · 5 pts — **Two-way match alerts.** `Aggregator.Alerts` computes a deterministic bias-safe fit (CAL-053 `ComputeFit`) for every passive candidate against each open role and emits a `candidate_for_role` alert per strong pair plus one best-fit `role_for_candidate` alert per candidate; alert IDs are deterministic (`type:role:candidate`) and the feed is paginated. gRPC `GetAlerts` maps the alert type to the `AlertType` enum end-to-end. *AC:* alerts generated from EPIC-07 two-way matching; paginated. *Deps:* CAL-053
 - **CAL-079** `[WIP]` · 5 pts — **Time-to-shortlist metric.** Headline metric showing collapse from weeks → hours. *AC:* computed and displayed as the closing visual. *Deps:* CAL-059 **[Audit gap]** the metric is a hard-coded demo constant (504h→2h), not computed from real per-role timing; AC requires it computed.
-- **CAL-080** `[TODO]` · 4 pts — **Dashboard aggregation performance.** Cache/precompute snapshots for snappy live rendering. *AC:* dashboard loads within demo budget. *Deps:* CAL-076
+- **CAL-080** `[DONE]` · 4 pts — **Dashboard aggregation performance.** Added an in-memory TTL snapshot cache (`CachedAggregator`) over the Talent Radar read model, caching pool, supply/demand, alerts, and time-to-shortlist. Configurable via `CALIBER_DASHBOARD_CACHE_TTL` (default 30s); snapshots can be refreshed on demand with `RefreshSnapshots()`. Tests prove cache hits skip repository work, TTL expiry triggers recompute, and cached reads are materially faster than slow underlying calls. *AC:* dashboard loads within demo budget. *Deps:* CAL-076
 
 ## EPIC-12 · Trust, Explainability, Audit & Guardrails
 **Goal:** Demonstrable features (not disclaimers) that let the client sell to enterprise/public-sector buyers later. (Spec §11.)

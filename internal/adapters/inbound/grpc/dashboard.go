@@ -13,11 +13,12 @@ import (
 type DashboardServer struct {
 	caliberv1.UnimplementedDashboardServiceServer
 
-	agg *dashboardapp.Aggregator
+	agg dashboardapp.TalentRadar
 }
 
 // NewDashboardServer builds the dashboard gRPC service from its read model.
-func NewDashboardServer(agg *dashboardapp.Aggregator) *DashboardServer {
+// It accepts any TalentRadar implementation, including the cached decorator.
+func NewDashboardServer(agg dashboardapp.TalentRadar) *DashboardServer {
 	return &DashboardServer{agg: agg}
 }
 
