@@ -2,6 +2,7 @@ package grpcadapter
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -127,6 +128,126 @@ func TestStartInterviewStreamsQuestionThenReport(t *testing.T) {
 	assert.NotEmpty(t, card.GetScores()[0].GetEvidence())
 }
 
+func TestStartInterviewStreamCancellation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	roles := mocks.NewMockRoleRepository(ctrl)
+	rl := interviewRole(t)
+	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil).AnyTimes()
+	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 4))
+
+	candidateID := kernel.NewID()
+	ctx, cancel := context.WithCancel(asCandidate(t.Context(), candidateID))
+	stream := &fakeInterviewStream{ctx: ctx}
+	done := make(chan error, 1)
+	go func() {
+		done <- srv.StartInterview(&caliberv1.StartInterviewRequest{
+			RoleId: rl.ID.String(), CandidateId: candidateID.String(), Mode: caliberv1.InterviewMode_INTERVIEW_MODE_TEXT,
+		}, stream)
+	}()
+
+	require.Eventually(t, func() bool { return len(stream.messages()) >= 2 }, 2*time.Second, 5*time.Millisecond,
+		"expected status + first question before cancellation")
+	cancel()
+
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(2 * time.Second):
+		t.Fatal("StartInterview did not return after context cancellation")
+	}
+}
+
+// slowInterviewStream passes the first blockAfter messages through, then blocks
+// on unblockCh until it is closed, simulating a slow consumer.
+type slowInterviewStream struct {
+	grpc.ServerStreamingServer[caliberv1.StartInterviewResponse]
+	ctx        context.Context
+	mu         sync.Mutex
+	sent       []*caliberv1.StartInterviewResponse
+	blockAfter int
+	unblockCh  chan struct{}
+}
+
+func (s *slowInterviewStream) Context() context.Context { return s.ctx }
+
+func (s *slowInterviewStream) Send(m *caliberv1.StartInterviewResponse) error {
+	s.mu.Lock()
+	count := len(s.sent)
+	s.mu.Unlock()
+	if count >= s.blockAfter {
+		<-s.unblockCh
+	}
+	s.mu.Lock()
+	s.sent = append(s.sent, m)
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *slowInterviewStream) messages() []*caliberv1.StartInterviewResponse {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]*caliberv1.StartInterviewResponse(nil), s.sent...)
+}
+
+func TestStartInterviewStreamBackpressureSlowConsumer(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	roles := mocks.NewMockRoleRepository(ctrl)
+	rl := interviewRole(t)
+	roles.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(rl, nil).AnyTimes()
+	srv := NewInterviewServer(interviewapp.NewInterviewer(roles, memory.NewInterviewRepo(), devShapedLLM(ctrl), 4))
+
+	candidateID := kernel.NewID()
+	ctx, cancel := context.WithCancel(asCandidate(t.Context(), candidateID))
+	defer cancel()
+	stream := &slowInterviewStream{ctx: ctx, blockAfter: 2, unblockCh: make(chan struct{})}
+	done := make(chan error, 1)
+	go func() {
+		done <- srv.StartInterview(&caliberv1.StartInterviewRequest{
+			RoleId: rl.ID.String(), CandidateId: candidateID.String(), Mode: caliberv1.InterviewMode_INTERVIEW_MODE_TEXT,
+		}, stream)
+	}()
+
+	require.Eventually(t, func() bool { return len(stream.messages()) >= 2 }, 2*time.Second, 5*time.Millisecond,
+		"expected status + first question before blocking")
+
+	var interviewID string
+	for _, m := range stream.messages() {
+		if q := m.GetQuestion(); q != nil {
+			interviewID = q.GetInterviewId()
+			break
+		}
+	}
+	require.NotEmpty(t, interviewID)
+
+	const published = 20
+	accepted := 0
+	for i := 0; i < published; i++ {
+		if srv.broker.publish(interviewID, statusEvent("status", strconv.Itoa(i))) {
+			accepted++
+		}
+	}
+	assert.Less(t, accepted, published, "some events should be dropped under backpressure")
+	assert.GreaterOrEqual(t, accepted, srv.broker.capacity, "buffer should accept up to capacity events")
+
+	close(stream.unblockCh)
+
+	require.Eventually(t, func() bool { return len(stream.messages()) >= 2+accepted }, 2*time.Second, 5*time.Millisecond,
+		"stream should drain buffered events after the consumer unblocks")
+
+	// The stream handler loops waiting for more events; cancel to make it return.
+	cancel()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(2 * time.Second):
+		t.Fatal("stream did not return after cancellation")
+	}
+
+	total := len(stream.messages())
+	assert.GreaterOrEqual(t, total, 2)
+	assert.Less(t, total, 2+published, "slow consumer should not receive every published event")
+}
+
 func TestGetReportCardHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	roles := mocks.NewMockRoleRepository(ctrl)
@@ -194,16 +315,59 @@ func TestGetReportCardNotReady(t *testing.T) {
 func TestInterviewBroker(t *testing.T) {
 	b := newInterviewBroker()
 	ch := b.subscribe("iv-1")
-	b.publish("iv-1", statusEvent("asking", "next"))
+	require.True(t, b.publish("iv-1", statusEvent("asking", "next")))
 	select {
 	case msg := <-ch:
 		assert.Equal(t, "asking", msg.GetStatus().GetState())
 	case <-time.After(time.Second):
 		t.Fatal("expected a published message")
 	}
-	b.publish("unknown", statusEvent("x", "y")) // no subscriber: no panic, no-op
+	assert.False(t, b.publish("unknown", statusEvent("x", "y")), "no subscriber: dropped")
 	b.unsubscribe("iv-1")
-	b.publish("iv-1", statusEvent("late", "after close")) // must not panic after unsubscribe
+	assert.False(t, b.publish("iv-1", statusEvent("late", "after close")), "must not panic after unsubscribe")
+}
+
+func TestInterviewBrokerBackpressureDropsWhenFull(t *testing.T) {
+	b := newInterviewBrokerWithCapacity(2)
+	ch := b.subscribe("iv-1")
+	assert.True(t, b.publish("iv-1", statusEvent("a", "1")), "first publish accepted")
+	assert.True(t, b.publish("iv-1", statusEvent("a", "2")), "second publish accepted")
+	assert.False(t, b.publish("iv-1", statusEvent("a", "3")), "third publish drops under backpressure")
+	assert.Equal(t, "a", (<-ch).GetStatus().GetState())
+	assert.Equal(t, "a", (<-ch).GetStatus().GetState())
+}
+
+func TestInterviewBrokerConcurrentPublishUnsubscribe(t *testing.T) {
+	b := newInterviewBrokerWithCapacity(4)
+	_ = b.subscribe("iv-1")
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			b.publish("iv-1", statusEvent("status", strconv.Itoa(i)))
+		}(i)
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.unsubscribe("iv-1")
+	}()
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// OK: no panic despite concurrent publish/unsubscribe.
+	case <-time.After(2 * time.Second):
+		t.Fatal("concurrent publish/unsubscribe did not complete")
+	}
 }
 
 func TestInterviewAuthz(t *testing.T) {
