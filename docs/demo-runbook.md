@@ -24,6 +24,7 @@ Run-of-show sequence: **Frame → Flow A → Flow B → Flow C → Close on Rada
 |------|-------------|-------------|------|
 | **Local in-memory dev** | Fastest, no Docker, no network needed | In-memory; resets on API restart | Hand-curated demo dataset (default) |
 | **Docker Compose full stack** | Staging rehearsal, persistent DB, worker queue | Postgres + Redis | Migrations applied; seed loaded at API boot |
+| **Offline/standby deployment** | Venue network drop or no API keys | Postgres + Redis inside Docker | Migrations applied; seed loaded at API boot |
 
 The demo works fully offline when `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are unset — the deterministic `dev` LLM/embedder returns golden responses.  
 Set the keys to demo against the live Claude/OpenAI providers.
@@ -85,6 +86,33 @@ docker compose up --build
 
 This brings up Postgres+pgvector, Redis, migrations, API, worker, and the Vite dev server.  
 Open **http://localhost:5173**.  Asynqmon queue UI is available at `/asynqmon` on the API port if Redis is wired.
+
+### Option C — Offline/standby deployment (CAL-107)
+
+A self-contained stack that survives a venue network drop. It uses the deterministic `dev` LLM/embedder, so no Anthropic/OpenAI keys or external calls are needed. Build the images once while you have network, then run them locally without any outbound connectivity.
+
+```bash
+# 1. Pull base images and build the Caliber images (needs network once)
+make offline-build
+
+# 2. Verify everything is available locally
+make offline-check
+
+# 3. Start the stack at the venue
+make offline-demo
+```
+
+Open **http://localhost:5173**. The UI is served by nginx and proxies `/v1/*` to the API, so no `VITE_API_URL` is required. Stop the stack with `make offline-stop`.
+
+To prepare a laptop for a fully air-gapped demo:
+
+```bash
+make offline-pull     # pull base images
+make offline-build    # build api/worker/migrate/web images
+make offline-check    # confirm all images are local
+# disconnect from the network, then:
+make offline-demo
+```
 
 ---
 
@@ -302,7 +330,7 @@ make run-api
 | **Seed data missing / wrong** | Radar empty, no demo accounts login, shortlist empty. | Verify `CALIBER_SEED_DEMO=true`. Check API boot logs for `loaded demo dataset` and `demo_login_password`. Restart the API (in-memory) or `docker compose down -v && up --build`. |
 | **401/403 during demo** | "Session expired" or permission denied. | Re-login with the correct role account. Employer/recruiter for Flow A and Radar; candidate for Flow B/C. |
 | **Unexpected / fabricated AI output** | A match or summary cites evidence not in the profile. | Pause and use it as a teaching moment: show the no-fabrication guardrail. If reproducible, switch to the deterministic `dev` provider for the rest of the demo. |
-| **Venue loses all connectivity** | Cannot reach localhost or Docker. | Open the pre-recorded backup at `web/public/interview-backup.json` in the browser or an editor, or display the transcript + report card from that file. Regenerate with `make backup-capture` if the role or candidate narrative changes. |
+| **Venue loses all connectivity** | Cannot reach localhost or Docker. | 1) Start the offline standby stack: `make offline-demo` (works without external network after images are built). 2) If Docker itself is unavailable, open the pre-recorded backup at `web/public/interview-backup.json` in the browser or an editor, or display the transcript + report card from that file. Regenerate with `make backup-capture` if the role or candidate narrative changes. |
 
 ---
 

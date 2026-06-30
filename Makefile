@@ -1,7 +1,7 @@
 MODULE := github.com/xcreativs/caliber
 GOBIN  := $(shell go env GOPATH)/bin
 
-.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker run-of-show run-of-show-keep-alive backup-capture tidy
+.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker run-of-show run-of-show-keep-alive backup-capture tidy offline-build offline-pull offline-demo offline-stop offline-check
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
@@ -81,3 +81,23 @@ backup-capture: ## record a clean Flow B transcript + report card to web/public/
 
 tidy: ## sync go.mod/go.sum
 	go mod tidy
+
+offline-pull: ## pull base images needed by the offline stack (requires network once)
+	docker pull pgvector/pgvector:pg17
+	docker pull redis:7-alpine
+	docker pull node:24-alpine
+	docker pull nginx:1.27-alpine
+	docker pull golang:1.26.4
+	docker pull gcr.io/distroless/static-debian12:nonroot
+
+offline-build: ## build all images for the self-contained offline demo stack
+	docker compose -f docker-compose.offline.yml build
+
+offline-demo: ## start the self-contained offline demo stack (no external network needed after build)
+	scripts/offline-demo.sh
+
+offline-stop: ## stop the offline demo stack
+	scripts/offline-demo.sh --stop
+
+offline-check: ## verify images and compose config for the offline stack
+	scripts/offline-demo.sh --check
