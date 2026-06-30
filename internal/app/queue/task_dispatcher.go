@@ -131,6 +131,7 @@ type DispatchOption func(*Opts)
 // implementations can read the configured values without leaking provider types.
 type Opts struct {
 	ProcessIn time.Duration
+	ProcessAt time.Time
 	UniqueTTL time.Duration
 	MaxRetry  int
 	Queue     string
@@ -139,6 +140,12 @@ type Opts struct {
 // ProcessIn schedules the task to run after the given delay.
 func ProcessIn(d time.Duration) DispatchOption {
 	return func(o *Opts) { o.ProcessIn = d }
+}
+
+// ProcessAt schedules the task to run at the given absolute time.
+// If both ProcessAt and ProcessIn are supplied, ProcessAt takes precedence.
+func ProcessAt(t time.Time) DispatchOption {
+	return func(o *Opts) { o.ProcessAt = t }
 }
 
 // Unique prevents duplicate task enqueue within the given TTL (per task type + payload).

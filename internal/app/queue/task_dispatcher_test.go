@@ -16,13 +16,16 @@ func TestApplyOptsDefaults(t *testing.T) {
 }
 
 func TestApplyOptsOverride(t *testing.T) {
+	at := time.Now().Add(time.Hour)
 	o := ApplyOpts(
 		ProcessIn(5*time.Minute),
+		ProcessAt(at),
 		Unique(10*time.Minute),
 		MaxRetry(7),
 		Queue(QueueCritical),
 	)
 	assert.Equal(t, 5*time.Minute, o.ProcessIn)
+	assert.WithinDuration(t, at, o.ProcessAt, 0)
 	assert.Equal(t, 10*time.Minute, o.UniqueTTL)
 	assert.Equal(t, 7, o.MaxRetry)
 	assert.Equal(t, QueueCritical, o.Queue)
