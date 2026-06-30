@@ -71,6 +71,14 @@ func (r *UserRepo) Update(_ context.Context, u *identity.User) error {
 	return nil
 }
 
+// Reset clears every user (test/dev reseed helper).
+func (r *UserRepo) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.byID = map[kernel.ID]identity.User{}
+	r.byEmail = map[identity.Email]kernel.ID{}
+}
+
 // Anonymize de-identifies a user account in place (right-to-erasure cascade,
 // CAL-118): the PII (name, email) and the credential are scrubbed while the row
 // is kept so audit/foreign references do not dangle. The email is replaced with a

@@ -20,6 +20,9 @@ func NewCandidateRepo() *CandidateRepo {
 	)}
 }
 
+// Reset clears every candidate (test/dev reseed helper).
+func (r *CandidateRepo) Reset() { r.store.reset() }
+
 // Create stores a new candidate, rejecting a duplicate user.
 func (r *CandidateRepo) Create(_ context.Context, c *talent.Candidate) error {
 	return r.store.create(c, "memory: candidate already exists for user")

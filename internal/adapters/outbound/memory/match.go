@@ -20,6 +20,13 @@ type MatchRepo struct {
 // NewMatchRepo builds an empty in-memory match repository.
 func NewMatchRepo() *MatchRepo { return &MatchRepo{byKey: map[string]matchingdom.Match{}} }
 
+// Reset clears every match (test/dev reseed helper).
+func (r *MatchRepo) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.byKey = map[string]matchingdom.Match{}
+}
+
 func matchKey(roleID, candidateID kernel.ID) string {
 	return roleID.String() + ":" + candidateID.String()
 }

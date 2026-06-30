@@ -20,6 +20,9 @@ func NewTalentProfileRepo() *TalentProfileRepo {
 	)}
 }
 
+// Reset clears every profile (test/dev reseed helper).
+func (r *TalentProfileRepo) Reset() { r.store.reset() }
+
 // Create stores a new profile, rejecting a duplicate candidate profile.
 func (r *TalentProfileRepo) Create(_ context.Context, p *talent.TalentProfile) error {
 	return r.store.create(p, "memory: profile already exists for candidate")

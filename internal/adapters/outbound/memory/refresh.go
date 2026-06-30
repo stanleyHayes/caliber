@@ -21,6 +21,13 @@ func NewRefreshStore() *RefreshStore {
 	return &RefreshStore{records: map[string]app.RefreshRecord{}}
 }
 
+// Reset clears every refresh grant (test/dev reseed helper).
+func (s *RefreshStore) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.records = map[string]app.RefreshRecord{}
+}
+
 // Save records a freshly issued refresh grant.
 func (s *RefreshStore) Save(_ context.Context, rec app.RefreshRecord) error {
 	s.mu.Lock()

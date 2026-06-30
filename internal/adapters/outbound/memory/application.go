@@ -21,6 +21,14 @@ func NewApplicationRepo() *ApplicationRepo {
 	return &ApplicationRepo{byID: map[kernel.ID]candidateagent.Application{}}
 }
 
+// Reset clears every application (test/dev reseed helper).
+func (r *ApplicationRepo) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.byID = map[kernel.ID]candidateagent.Application{}
+	r.order = r.order[:0]
+}
+
 // Create stores a new application.
 func (r *ApplicationRepo) Create(_ context.Context, app *candidateagent.Application) error {
 	r.mu.Lock()

@@ -19,6 +19,13 @@ func NewInterviewRepo() *InterviewRepo {
 	return &InterviewRepo{byID: map[kernel.ID]interview.Interview{}}
 }
 
+// Reset clears every interview (test/dev reseed helper).
+func (r *InterviewRepo) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.byID = map[kernel.ID]interview.Interview{}
+}
+
 // Create stores a new interview.
 func (r *InterviewRepo) Create(_ context.Context, i *interview.Interview) error {
 	r.mu.Lock()

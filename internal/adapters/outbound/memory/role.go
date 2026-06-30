@@ -20,6 +20,13 @@ type RoleRepo struct {
 // NewRoleRepo returns an empty in-memory role repository.
 func NewRoleRepo() *RoleRepo { return &RoleRepo{items: make(map[kernel.ID]role.Role)} }
 
+// Reset clears every role (test/dev reseed helper).
+func (r *RoleRepo) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.items = make(map[kernel.ID]role.Role)
+}
+
 // Create stores a new role.
 func (r *RoleRepo) Create(_ context.Context, rl *role.Role) error {
 	r.mu.Lock()

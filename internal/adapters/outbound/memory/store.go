@@ -113,3 +113,12 @@ func (s *keyedStore[T]) list(page kernel.Page) ([]*T, int64) {
 	}
 	return out, total
 }
+
+// reset removes every entry while keeping the store ready for reuse.
+func (s *keyedStore[T]) reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.byID = map[kernel.ID]T{}
+	s.bySecond = map[kernel.ID]kernel.ID{}
+	s.order = s.order[:0]
+}

@@ -18,6 +18,13 @@ type AuditRepo struct {
 // NewAuditRepo builds an empty in-memory audit trail.
 func NewAuditRepo() *AuditRepo { return &AuditRepo{} }
 
+// Reset clears every audit entry (test/dev reseed helper).
+func (r *AuditRepo) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.entries = nil
+}
+
 // Append stores a new audit entry.
 func (r *AuditRepo) Append(_ context.Context, e *audit.AuditEntry) error {
 	r.mu.Lock()

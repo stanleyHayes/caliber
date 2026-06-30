@@ -5,6 +5,7 @@ package wiring
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -43,9 +44,25 @@ type Repositories struct {
 	Pool       *pgxpool.Pool // non-nil when DatabaseURL is configured
 }
 
-// OpenRepositories selects in-memory (dev) or Postgres repositories. With a
-// database it also returns pgvector-backed readiness checks for Postgres.
+// OpenRepositories selects in-memory (dev) or Postgres repositories and, in the
+// in-memory dev path, loads the deterministic demo dataset when cfg.SeedDemo is
+// true. With a database it also returns pgvector-backed readiness checks.
 func OpenRepositories(
+	ctx context.Context, cfg config.Config, log *slog.Logger,
+) (Repositories, func(), []readiness.NamedCheck, error) {
+	repos, cleanup, checks, err := openRepositories(ctx, cfg, log)
+	if err != nil {
+		return repos, cleanup, checks, err
+	}
+	if cfg.DatabaseURL == "" && cfg.SeedDemo {
+		SeedDemo(ctx, cfg, repos, log)
+	}
+	return repos, cleanup, checks, nil
+}
+
+// openRepositories creates repositories without seeding, so reseed can open a
+// blank store and then reload the demo dataset itself.
+func openRepositories(
 	ctx context.Context, cfg config.Config, log *slog.Logger,
 ) (Repositories, func(), []readiness.NamedCheck, error) {
 	repos := Repositories{
@@ -56,7 +73,6 @@ func OpenRepositories(
 	cleanup := func() {}
 	if cfg.DatabaseURL == "" {
 		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories")
-		SeedDemo(ctx, cfg, repos, log)
 		return repos, cleanup, nil, nil
 	}
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
@@ -79,6 +95,55 @@ func OpenRepositories(
 	log.Info("persistence selected", "provider", "postgres")
 	checks := []readiness.NamedCheck{{Name: "postgres", Check: readiness.Func(pool.Ping)}}
 	return repos, pool.Close, checks, nil
+}
+
+// ResetRepositories wipes all data from the provided repositories. It supports
+// both Postgres (via TRUNCATE against repos.Pool) and in-memory dev
+// implementations. The audit trail is only present as an in-memory repository in
+// the current architecture and is therefore reset only in the in-memory path.
+func ResetRepositories(ctx context.Context, repos Repositories) error {
+	if repos.Pool != nil {
+		return postgres.TruncateAll(ctx, repos.Pool)
+	}
+	resetMemory(repos.Users)
+	resetMemory(repos.Roles)
+	resetMemory(repos.Candidates)
+	resetMemory(repos.Profiles)
+	resetMemory(repos.Apps)
+	resetMemory(repos.Interviews)
+	resetMemory(repos.Matches)
+	resetMemory(repos.Refresh)
+	return nil
+}
+
+type memoryResetter interface{ Reset() }
+
+func resetMemory(r any) {
+	if rr, ok := r.(memoryResetter); ok {
+		rr.Reset()
+	}
+}
+
+// Reseed opens repositories, wipes them, and reloads the deterministic demo
+// dataset. It works for both Postgres and in-memory dev paths (CAL-103).
+func Reseed(ctx context.Context, cfg config.Config, log *slog.Logger) error {
+	repos, cleanup, _, err := openRepositories(ctx, cfg, log)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	log.Info("resetting repositories")
+	if err := ResetRepositories(ctx, repos); err != nil {
+		return fmt.Errorf("reset: %w", err)
+	}
+
+	// The reseed command always seeds; preserve the user's choice of generated
+	// vs hand-curated demo data.
+	seedCfg := cfg
+	seedCfg.SeedDemo = true
+	SeedDemo(ctx, seedCfg, repos, log)
+	return nil
 }
 
 // SeedDemo loads the deterministic demo dataset into the in-memory dev stack so
