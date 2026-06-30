@@ -4,6 +4,7 @@ package queue
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -48,6 +49,79 @@ type InterviewScoringPayload struct {
 // BatchRematchPayload travels as JSON inside TypeBatchRematch tasks.
 type BatchRematchPayload struct {
 	RoleID string `json:"role_id"`
+}
+
+// RetryPolicy configures how retries are scheduled for a task type.
+// MaxRetry is the hard ceiling; once exhausted the task is archived (dead-lettered).
+// InitialDelay and MaxDelay bound the exponential backoff, and Jitter adds
+// randomized spread to avoid thundering-herd retries.
+type RetryPolicy struct {
+	MaxRetry     int
+	InitialDelay time.Duration
+	MaxDelay     time.Duration
+	Jitter       float64 // 0.0-1.0 fraction of the calculated delay to randomize
+}
+
+// DefaultRetryPolicy returns the recommended retry policy for a task type.
+func DefaultRetryPolicy(taskType TaskType) RetryPolicy {
+	switch taskType {
+	case TypeCandidateAgentRun, TypeInterviewScoring:
+		return RetryPolicy{
+			MaxRetry:     3,
+			InitialDelay: 5 * time.Second,
+			MaxDelay:     5 * time.Minute,
+			Jitter:       0.2,
+		}
+	case TypeBatchRematch:
+		return RetryPolicy{
+			MaxRetry:     2,
+			InitialDelay: 10 * time.Second,
+			MaxDelay:     2 * time.Minute,
+			Jitter:       0.2,
+		}
+	default:
+		return RetryPolicy{
+			MaxRetry:     3,
+			InitialDelay: 10 * time.Second,
+			MaxDelay:     1 * time.Minute,
+			Jitter:       0.2,
+		}
+	}
+}
+
+// ComputeBackoff calculates the delay before the nth retry using exponential
+// backoff capped at MaxDelay plus bounded jitter. n is zero-based: n=0 is the
+// first retry after the initial failure.
+func ComputeBackoff(policy RetryPolicy, n int) time.Duration {
+	if n < 0 {
+		n = 0
+	}
+	if policy.InitialDelay <= 0 {
+		policy.InitialDelay = time.Second
+	}
+	if policy.MaxDelay <= 0 {
+		policy.MaxDelay = policy.InitialDelay
+	}
+	if policy.MaxDelay < policy.InitialDelay {
+		policy.MaxDelay = policy.InitialDelay
+	}
+
+	delay := policy.InitialDelay << n
+	if delay <= 0 || delay > policy.MaxDelay {
+		delay = policy.MaxDelay
+	}
+
+	if policy.Jitter > 0 {
+		spread := time.Duration(float64(delay) * policy.Jitter)
+		if spread > 0 {
+			offset := time.Duration(rand.Int63n(int64(spread) + 1))
+			delay = delay - spread/2 + offset
+			if delay < 0 {
+				delay = 0
+			}
+		}
+	}
+	return delay
 }
 
 // DispatchOption customizes a single task enqueue.

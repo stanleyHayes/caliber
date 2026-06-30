@@ -39,11 +39,15 @@ func EncodeHealthcheckPayload(payload HealthcheckPayload) ([]byte, error) {
 type HealthcheckCallback func(context.Context, HealthcheckPayload) error
 
 type options struct {
-	healthcheck HealthcheckCallback
-	idempotency IdempotencyStore
+	healthcheck       HealthcheckCallback
+	idempotency       IdempotencyStore
+	retryDelay        asynq.RetryDelayFunc
+	errorHandler      asynq.ErrorHandler
+	taskCheckInterval time.Duration
+	concurrency       int
 }
 
-// Option customizes worker handlers.
+// Option customizes worker handlers and server behavior.
 type Option func(*options)
 
 // WithHealthcheckCallback observes healthcheck task processing. Tests use this
@@ -59,6 +63,37 @@ func WithHealthcheckCallback(fn HealthcheckCallback) Option {
 func WithIdempotencyStore(store IdempotencyStore) Option {
 	return func(opts *options) {
 		opts.idempotency = store
+	}
+}
+
+// WithRetryDelayFunc overrides the server's retry-delay function. Production
+// uses queue.RetryDelayFunc; tests may supply a fast, deterministic function.
+func WithRetryDelayFunc(fn asynq.RetryDelayFunc) Option {
+	return func(opts *options) {
+		opts.retryDelay = fn
+	}
+}
+
+// WithErrorHandler overrides the server's error handler. Production uses the
+// archive alert handler; tests may substitute a recorder.
+func WithErrorHandler(h asynq.ErrorHandler) Option {
+	return func(opts *options) {
+		opts.errorHandler = h
+	}
+}
+
+// WithTaskCheckInterval sets how often the server polls for scheduled/retry
+// tasks when queues are empty. Defaults to 1s.
+func WithTaskCheckInterval(d time.Duration) Option {
+	return func(opts *options) {
+		opts.taskCheckInterval = d
+	}
+}
+
+// WithConcurrency sets the worker concurrency. Defaults to 4.
+func WithConcurrency(n int) Option {
+	return func(opts *options) {
+		opts.concurrency = n
 	}
 }
 
@@ -180,6 +215,57 @@ func handleBatchRematch(log *slog.Logger) func(context.Context, *asynq.Task) err
 	}
 }
 
+// NewArchiveAlertHandler returns an Asynq ErrorHandler that logs a structured
+// alert when a task has exhausted its retries and is about to be archived
+// (dead-lettered).
+//
+//nolint:ireturn // Asynq requires this interface shape for its ErrorHandler config.
+func NewArchiveAlertHandler(log *slog.Logger) asynq.ErrorHandler {
+	return asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
+		retried, _ := asynq.GetRetryCount(ctx)
+		maxRetry, _ := asynq.GetMaxRetry(ctx)
+		if retried < maxRetry {
+			return
+		}
+		taskID, _ := asynq.GetTaskID(ctx)
+		queueName, _ := asynq.GetQueueName(ctx)
+		if log != nil {
+			log.Error("task archived after max retries",
+				"alert", "dead_letter",
+				"task_type", task.Type(),
+				"task_id", taskID,
+				"queue", queueName,
+				"max_retry", maxRetry,
+				"error", err,
+			)
+		}
+	})
+}
+
+// ArchiveInspector provides visibility into Asynq's dead-letter archive.
+type ArchiveInspector struct {
+	inspector *asynq.Inspector
+}
+
+// NewArchiveInspector builds an inspector for archived tasks.
+func NewArchiveInspector(redisOpt asynq.RedisConnOpt) *ArchiveInspector {
+	return &ArchiveInspector{inspector: asynq.NewInspector(redisOpt)}
+}
+
+// ListArchived returns tasks that have been archived after exhausting retries.
+func (a *ArchiveInspector) ListArchived(ctx context.Context, queue string, opts ...asynq.ListOption) ([]*asynq.TaskInfo, error) {
+	_ = ctx // API reserved for future cancellation; asynq.Inspector does not accept context today.
+	return a.inspector.ListArchivedTasks(queue, opts...)
+}
+
+// Close releases the underlying inspector.
+func (a *ArchiveInspector) Close() error {
+	if a == nil || a.inspector == nil {
+		return nil
+	}
+	return a.inspector.Close()
+}
+
 // Worker wraps an Asynq server with Caliber's lifecycle conventions.
 type Worker struct {
 	server  *asynq.Server
@@ -197,12 +283,31 @@ func NewWorker(redisURL string, log *slog.Logger, opts ...Option) (*Worker, erro
 
 // NewWorkerFromRedis builds a worker from an Asynq Redis connection option.
 func NewWorkerFromRedis(redisOpt asynq.RedisConnOpt, log *slog.Logger, opts ...Option) *Worker {
+	cfg := options{
+		concurrency:       4,
+		taskCheckInterval: time.Second,
+		retryDelay:        queue.RetryDelayFunc(),
+		errorHandler:      NewArchiveAlertHandler(log),
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	if cfg.concurrency <= 0 {
+		cfg.concurrency = 4
+	}
+	if cfg.taskCheckInterval <= 0 {
+		cfg.taskCheckInterval = time.Second
+	}
+
 	return &Worker{
 		server: asynq.NewServer(redisOpt, asynq.Config{
-			Concurrency:     4,
-			Queues:          queue.Priorities(),
-			ShutdownTimeout: 10 * time.Second,
-			Logger:          slogAdapter{log: log},
+			Concurrency:       cfg.concurrency,
+			Queues:            queue.Priorities(),
+			ShutdownTimeout:   10 * time.Second,
+			Logger:            slogAdapter{log: log},
+			RetryDelayFunc:    cfg.retryDelay,
+			ErrorHandler:      cfg.errorHandler,
+			TaskCheckInterval: cfg.taskCheckInterval,
 		}),
 		handler: NewMux(log, opts...),
 	}
