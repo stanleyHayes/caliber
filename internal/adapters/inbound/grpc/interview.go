@@ -15,41 +15,82 @@ import (
 // interviewBroker fans a candidate's submitted answers (unary SubmitAnswer) out
 // to their open StartInterview server-stream: SubmitAnswer publishes the next
 // question (or report card) and the stream handler forwards it to the client.
+//
+// Backpressure is handled with a bounded per-subscription buffer: once the
+// buffer is full, additional events are dropped rather than blocking the
+// publisher or unbounded memory growth. Cancellation is respected because the
+// stream handler selects on its context and unsubscribes on exit, closing the
+// subscription channel safely.
 type interviewBroker struct {
 	mu       sync.Mutex
-	channels map[string]chan *caliberv1.StartInterviewResponse
+	channels map[string]*brokerSubscription
+	capacity int
+}
+
+type brokerSubscription struct {
+	mu   sync.Mutex
+	ch   chan *caliberv1.StartInterviewResponse
+	done chan struct{} // closed when the subscription is torn down
 }
 
 func newInterviewBroker() *interviewBroker {
-	return &interviewBroker{channels: map[string]chan *caliberv1.StartInterviewResponse{}}
+	return newInterviewBrokerWithCapacity(4)
+}
+
+func newInterviewBrokerWithCapacity(capacity int) *interviewBroker {
+	if capacity <= 0 {
+		capacity = 4
+	}
+	return &interviewBroker{channels: map[string]*brokerSubscription{}, capacity: capacity}
 }
 
 func (b *interviewBroker) subscribe(id string) chan *caliberv1.StartInterviewResponse {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	ch := make(chan *caliberv1.StartInterviewResponse, 4)
-	b.channels[id] = ch
-	return ch
+	sub := &brokerSubscription{
+		ch:   make(chan *caliberv1.StartInterviewResponse, b.capacity),
+		done: make(chan struct{}),
+	}
+	b.channels[id] = sub
+	return sub.ch
 }
 
-func (b *interviewBroker) publish(id string, msg *caliberv1.StartInterviewResponse) {
+// publish delivers a message to the subscriber. It returns true if the message
+// was accepted into the buffer, false if there is no subscriber or the buffer
+// is full (backpressure). It is safe to call concurrently with unsubscribe.
+func (b *interviewBroker) publish(id string, msg *caliberv1.StartInterviewResponse) bool {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	if ch, ok := b.channels[id]; ok {
-		select {
-		case ch <- msg:
-		default: // buffer full (no live consumer keeping up); drop rather than block
-		}
+	sub, ok := b.channels[id]
+	b.mu.Unlock()
+	if !ok {
+		return false
+	}
+	sub.mu.Lock()
+	defer sub.mu.Unlock()
+	select {
+	case <-sub.done:
+		return false
+	case sub.ch <- msg:
+		return true
+	default: // buffer full (slow consumer); drop rather than block
+		return false
 	}
 }
 
 func (b *interviewBroker) unsubscribe(id string) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	if ch, ok := b.channels[id]; ok {
+	sub, ok := b.channels[id]
+	if ok {
 		delete(b.channels, id)
-		close(ch)
 	}
+	b.mu.Unlock()
+	if !ok {
+		return
+	}
+	sub.mu.Lock()
+	close(sub.done)
+	close(sub.ch)
+	sub.mu.Unlock()
 }
 
 // InterviewServer implements caliberv1.InterviewServiceServer (Flow B).
