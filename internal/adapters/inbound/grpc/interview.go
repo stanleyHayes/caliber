@@ -67,9 +67,13 @@ func (b *interviewBroker) publish(id string, msg *caliberv1.StartInterviewRespon
 	}
 	sub.mu.Lock()
 	defer sub.mu.Unlock()
+	// Check for teardown first so we never attempt a send on a closed channel.
 	select {
 	case <-sub.done:
 		return false
+	default:
+	}
+	select {
 	case sub.ch <- msg:
 		return true
 	default: // buffer full (slow consumer); drop rather than block
