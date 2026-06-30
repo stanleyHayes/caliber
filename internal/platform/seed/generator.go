@@ -134,10 +134,14 @@ func buildRoleFreeText(rt roleTemplate) string {
 
 func (g *Generator) generateCandidates(ctx context.Context, repos Repositories, pwHash string) (int, error) {
 	tmpl := generatorTemplates()
+	heroes := heroCandidateMap()
 	builder := profilesapp.NewProfileBuilder(repos.Candidates, repos.Profiles, g.llm)
 
 	for i := range candidateCount {
-		inputs := buildCandidateInputs(tmpl, i)
+		inputs, ok := heroes[i]
+		if !ok {
+			inputs = buildCandidateInputs(tmpl, i)
+		}
 		candID, err := g.createCandidateAccount(ctx, repos, pwHash, inputs)
 		if err != nil {
 			return 0, fmt.Errorf("create candidate %d: %w", i, err)

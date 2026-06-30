@@ -226,7 +226,7 @@ caliber/
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | WIP | ~60% |
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
 | | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~70% |
-| | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | WIP | ~35% |
+| | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | WIP | ~50% |
 | | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | WIP | ~20% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | WIP | ~45% |
 | | EPIC-17 | SEO & Web Performance | 10 | 43 | TODO | 0% |
@@ -446,7 +446,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 
 - **CAL-098** `[DONE]` · 5 pts — **Seed generation pipeline.** Added a deterministic `seed.Generator` that produces 8 Ghana-context employers, 12 roles, and 55 CV/profiles by driving the real `ProfileBuilder` and `SpecGenerator` parsers. Wired behind `CALIBER_SEED_GENERATED` for startup generation; tests verify parser acceptance and the no-fabrication evidence invariant. *AC:* data produced by the real pipeline. *Deps:* CAL-043, CAL-037
 - **CAL-099** `[DONE]` · 5 pts — **Local plausibility curation.** Curated the generated seed tables in `internal/platform/seed/generator_data.go`: expanded Ghanaian first/last names, added real Ghanaian cities (Tema, Ho, Sunyani, Koforidua, Wa), added real Ghanaian universities (GCTU, Valley View, Central, GIMPA, KTU, UMaT), and replaced non-local company entries with Ghana/West-Africa-plausible employers (Zeepay, Absa, CAL Bank, Republic Bank, GT Bank, AirtelTigo). Added `generator_plausibility_test.go` with whitelist regression tests asserting that every generated name, location, institution, and employer is Ghana-plausible and that no generic placeholder tokens appear. *AC:* review pass before demo; parser acceptance and no-fabrication evidence invariant preserved. *Deps:* CAL-098
-- **CAL-100** `[TODO]` · 5 pts — **Hero candidate/role pairs.** Engineer pairs that produce excellent, legible matches so Flow A always lands; keep the rest varied. *AC:* hero pairs deterministic. *Deps:* CAL-098
+- **CAL-100** `[DONE]` · 5 pts — **Hero candidate/role pairs.** Reserved candidate indices 0–2 as deterministic hero pairs (Ama→Senior Backend, Kofi→Data Engineer, Esi→Platform Engineer) with CV families tuned to cover the dev rubric and each role's must-haves; the remaining 52 candidates stay varied. *AC:* hero pairs deterministic; tested through the real shortlist and two-way matching pipelines. *Deps:* CAL-098
 - **CAL-101** `[TODO]` · 3 pts — **Pre-run interviews.** Pre-generate report cards for several candidates; leave 1–2 to run live in Flow B. *AC:* shortlists show real assessments. *Deps:* CAL-064
 - **CAL-102** `[TODO]` · 5 pts — **Seeded application/agent state.** Pre-seed agent state so time-advance produces a crisp wake-up view. *AC:* Flow C demo state ready. *Deps:* CAL-072
 - **CAL-103** `[TODO]` · 5 pts — **Reseed/reset command.** One command to wipe + reseed to a known demo state. *AC:* deterministic, repeatable. *Deps:* CAL-098

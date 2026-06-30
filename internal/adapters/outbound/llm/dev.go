@@ -55,7 +55,7 @@ func (d *Dev) Complete(_ context.Context, req app.LLMRequest) (app.LLMResponse, 
 }
 
 func devRoleSpec(prompt string) map[string]any {
-	title := firstLine(prompt)
+	title := roleTitleFromPrompt(prompt)
 	if title == "" {
 		title = "Software Engineer"
 	}
@@ -140,7 +140,10 @@ func answers(prompt string) []string {
 // devExtract builds a profile grounded in tech keywords actually present in the
 // CV text (no fabrication); evidence cites where the term appears.
 func devExtract(cv string) map[string]any {
-	known := []string{"Go", "Python", "Java", "TypeScript", "React", "Postgres", "SQL", "Kubernetes", "Docker", "AWS", "gRPC", "Communication"}
+	known := []string{
+		"Go", "Python", "Java", "TypeScript", "React", "Postgres", "SQL",
+		"Kubernetes", "Docker", "AWS", "gRPC", "Communication", "System design",
+	}
 	lower := strings.ToLower(cv)
 	// "Core skills" mirrors the dev role generator's must-have so the agent's
 	// must-have-coverage gate can pass on dev data; real extraction is role-aware.
@@ -200,6 +203,37 @@ func firstLine(s string) string {
 		s = s[:80]
 	}
 	return s
+}
+
+// roleTitleFromPrompt extracts the role title from a hiring-need prompt. When the
+// untrusted body is wrapped in [BEGIN UNTRUSTED ...] delimiters, the real title
+// is the first non-empty line after the begin fence; otherwise it falls back to
+// the first line of the prompt so ad-hoc tests keep working.
+func roleTitleFromPrompt(prompt string) string {
+	lines := strings.Split(prompt, "\n")
+	inFence := false
+	sawFence := false
+	for _, ln := range lines {
+		trimmed := strings.TrimSpace(ln)
+		if trimmed == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "[BEGIN UNTRUSTED") {
+			inFence = true
+			sawFence = true
+			continue
+		}
+		if inFence {
+			if strings.HasPrefix(trimmed, "[END UNTRUSTED") {
+				return ""
+			}
+			return trimmed
+		}
+	}
+	if sawFence {
+		return ""
+	}
+	return firstLine(prompt)
 }
 
 var _ app.LLMClient = (*Dev)(nil)

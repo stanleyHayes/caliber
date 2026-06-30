@@ -1,6 +1,11 @@
 package seed
 
-import "github.com/xcreativs/caliber/internal/domain/role"
+import (
+	"strings"
+
+	"github.com/xcreativs/caliber/internal/domain/role"
+	"github.com/xcreativs/caliber/internal/domain/talent"
+)
 
 // familyTemplate describes a candidate role family used to generate realistic,
 // locally-plausible CVs. The skills are deliberately chosen so that the real
@@ -300,5 +305,116 @@ func generatorTemplates() struct {
 				compensation: "GHS 13,000 - 22,000 per month",
 			},
 		},
+	}
+}
+
+// heroCandidate overrides a generated candidate slot so that Flow A always lands
+// a few excellent, legible matches. The same indices are reserved on every run;
+// the rest of the pool (52 candidates) stays varied.
+type heroCandidate struct {
+	idx         int
+	firstName   string
+	lastName    string
+	location    string
+	family      familyTemplate
+	seniority   string
+	years       int
+	salaryFloor float64
+	university  string
+	gradYear    int
+	company1    string
+	company2    string
+	pairedRole  int // index into generatorTemplates().roles
+}
+
+// heroCandidates returns the deterministic hero candidate/role pairs. The
+// families are defined inline so there is no package-level mutable state.
+func heroCandidates() []heroCandidate {
+	return []heroCandidate{
+		{
+			idx: 0, firstName: "Ama", lastName: "Mensah", location: locAccra,
+			family: familyTemplate{
+				name:         "Backend Engineering",
+				degree:       "BSc Computer Science",
+				targetTitles: []string{"Backend Engineer", "Software Engineer"},
+				skills:       []string{"Go", "Python", "SQL", "Postgres", "gRPC", "System design", "Communication"},
+				tools:        []string{"Docker", "Kubernetes", "AWS"},
+			},
+			seniority: "senior", years: 8, salaryFloor: 11000,
+			university: "Ashesi University", gradYear: 2016,
+			company1: "MTN Ghana", company2: "Hubtel", pairedRole: 0,
+		},
+		{
+			idx: 1, firstName: "Kofi", lastName: "Asante", location: locAccra,
+			family: familyTemplate{
+				name:         "Data Engineering",
+				degree:       "BSc Computer Engineering",
+				targetTitles: []string{"Data Engineer", "Software Engineer"},
+				skills:       []string{"Python", "SQL", "Postgres", "Communication", "System design"},
+				tools:        []string{"Airflow", "dbt", "AWS"},
+			},
+			seniority: "mid", years: 5, salaryFloor: 8500,
+			university: "Kwame Nkrumah University of Science and Technology", gradYear: 2019,
+			company1: "mPharma", company2: "Andela Ghana", pairedRole: 1,
+		},
+		{
+			idx: 2, firstName: "Esi", lastName: "Owusu", location: locAccra,
+			family: familyTemplate{
+				name:         "Platform Engineering",
+				degree:       "BSc Computer Engineering",
+				targetTitles: []string{"Platform Engineer", "Software Engineer"},
+				skills:       []string{"Go", "Kubernetes", "Docker", "AWS", "Communication", "System design"},
+				tools:        []string{"Terraform", "CI/CD", "gRPC"},
+			},
+			seniority: "senior", years: 7, salaryFloor: 12000,
+			university: "University of Ghana", gradYear: 2017,
+			company1: "Fidelity Bank Ghana", company2: "Tullow Oil Ghana", pairedRole: 3,
+		},
+	}
+}
+
+// heroCandidateMap returns the hero overrides indexed by candidate slot for O(1)
+// lookup during generation.
+func heroCandidateMap() map[int]candidateInputs {
+	heroes := heroCandidates()
+	m := make(map[int]candidateInputs, len(heroes))
+	for _, h := range heroes {
+		m[h.idx] = h.toInputs()
+	}
+	return m
+}
+
+// toInputs renders a hero candidate override into the same candidateInputs shape
+// used by the rest of the generator, so the pipeline stays uniform.
+func (h heroCandidate) toInputs() candidateInputs {
+	name := h.firstName + " " + h.lastName
+	email := strings.ToLower(h.firstName + "." + h.lastName + ".hero@example.com")
+	intake := talent.CandidateIntake{
+		TargetTitles:   h.family.targetTitles,
+		Location:       h.location,
+		SalaryFloor:    h.salaryFloor,
+		SalaryCurrency: "GHS",
+	}
+	cv := buildCV(cvInputs{
+		name:       name,
+		family:     h.family,
+		seniority:  h.seniority,
+		years:      h.years,
+		location:   h.location,
+		university: h.university,
+		gradYear:   h.gradYear,
+		company1:   h.company1,
+		company2:   h.company2,
+	})
+	return candidateInputs{
+		name:        name,
+		email:       email,
+		location:    h.location,
+		family:      h.family,
+		seniority:   h.seniority,
+		years:       h.years,
+		salaryFloor: h.salaryFloor,
+		cv:          cv,
+		intake:      intake,
 	}
 }
