@@ -90,6 +90,8 @@ func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Queues:          queueadapter.Priorities(),
 		ShutdownTimeout: 10 * time.Second,
 		Logger:          &asynqLogger{log: log},
+		RetryDelayFunc:  queueadapter.RetryDelayFunc(),
+		ErrorHandler:    jobs.NewArchiveAlertHandler(log),
 	})
 
 	log.Info("worker started", "redis_url", redactedURL(cfg.RedisURL), "concurrency", cfg.WorkerConcurrency)

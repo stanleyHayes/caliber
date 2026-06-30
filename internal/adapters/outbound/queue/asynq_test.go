@@ -66,4 +66,43 @@ func TestDispatcherEnqueuesWithOptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, info, 1)
 	assert.Equal(t, string(appqueue.TypeInterviewScoring), info[0].Type)
+	assert.Equal(t, 5, info[0].MaxRetry)
+}
+
+func TestDispatcherUsesDefaultRetryPolicy(t *testing.T) {
+	redis := miniredis.RunT(t)
+	d, err := queue.NewDispatcher("redis://" + redis.Addr() + "/0")
+	require.NoError(t, err)
+	defer func() { require.NoError(t, d.Close()) }()
+
+	_, err = d.DispatchBatchRematch(context.Background(), kernel.NewID())
+	require.NoError(t, err)
+
+	inspector := asynq.NewInspector(asynq.RedisClientOpt{Addr: redis.Addr()})
+	defer func() { _ = inspector.Close() }()
+	info, err := inspector.ListPendingTasks(appqueue.QueueDefault, asynq.PageSize(10))
+	require.NoError(t, err)
+	require.Len(t, info, 1)
+	assert.Equal(t, string(appqueue.TypeBatchRematch), info[0].Type)
+	assert.Equal(t, appqueue.DefaultRetryPolicy(appqueue.TypeBatchRematch).MaxRetry, info[0].MaxRetry)
+}
+
+func TestRetryDelayFuncAppliesExponentialBackoffWithJitter(t *testing.T) {
+	fn := queue.RetryDelayFunc()
+	policy := appqueue.DefaultRetryPolicy(appqueue.TypeCandidateAgentRun)
+	task := asynq.NewTask(string(appqueue.TypeCandidateAgentRun), []byte("{}"))
+
+	base := policy.InitialDelay
+	for i := 0; i < 10; i++ {
+		delay := fn(0, nil, task)
+		spread := time.Duration(float64(base) * policy.Jitter)
+		assert.GreaterOrEqual(t, delay, base-spread/2)
+		assert.LessOrEqual(t, delay, base+spread/2)
+	}
+
+	// High retry counts are capped at MaxDelay (with jitter applied).
+	maxDelay := fn(10, nil, task)
+	spread := time.Duration(float64(policy.MaxDelay) * policy.Jitter)
+	assert.GreaterOrEqual(t, maxDelay, policy.MaxDelay-spread/2)
+	assert.LessOrEqual(t, maxDelay, policy.MaxDelay+spread/2)
 }

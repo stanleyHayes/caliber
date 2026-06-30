@@ -6,14 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/hibiken/asynq"
 
 	appqueue "github.com/xcreativs/caliber/internal/app/queue"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
-
-const defaultMaxRetry = 3
 
 // Priorities returns the weighted queue priorities used by all workers.
 func Priorities() map[string]int {
@@ -105,27 +104,42 @@ func (d *Dispatcher) dispatch(
 		return "", fmt.Errorf("queue: marshal %s: %w", taskType, err)
 	}
 	resolved := appqueue.ApplyOpts(opts...)
-	info, err := d.client.EnqueueContext(ctx, asynq.NewTask(string(taskType), body), taskOptions(resolved)...)
+	info, err := d.client.EnqueueContext(ctx, asynq.NewTask(string(taskType), body), taskOptions(taskType, resolved)...)
 	if err != nil {
 		return "", fmt.Errorf("queue: enqueue %s: %w", taskType, err)
 	}
 	return info.ID, nil
 }
 
-func taskOptions(opts *appqueue.Opts) []asynq.Option {
+// RetryDelayFunc returns an Asynq RetryDelayFunc that applies Caliber's
+// per-task-type exponential backoff with jitter.
+//
+//nolint:ireturn // Asynq requires this function shape for its RetryDelayFunc config.
+func RetryDelayFunc() asynq.RetryDelayFunc {
+	return func(n int, e error, t *asynq.Task) time.Duration {
+		policy := appqueue.DefaultRetryPolicy(appqueue.TaskType(t.Type()))
+		return appqueue.ComputeBackoff(policy, n)
+	}
+}
+
+func taskOptions(taskType appqueue.TaskType, opts *appqueue.Opts) []asynq.Option {
 	queue := appqueue.QueueDefault
 	if opts != nil && opts.Queue != "" {
 		queue = opts.Queue
 	}
+
+	policy := appqueue.DefaultRetryPolicy(taskType)
+	maxRetry := policy.MaxRetry
+	if opts != nil && opts.MaxRetry >= 0 {
+		maxRetry = opts.MaxRetry
+	}
+
 	asynqOpts := []asynq.Option{
 		asynq.Queue(queue),
-		asynq.MaxRetry(defaultMaxRetry),
+		asynq.MaxRetry(maxRetry),
 	}
 	if opts == nil {
 		return asynqOpts
-	}
-	if opts.MaxRetry >= 0 {
-		asynqOpts = append(asynqOpts, asynq.MaxRetry(opts.MaxRetry))
 	}
 	if opts.ProcessIn > 0 {
 		asynqOpts = append(asynqOpts, asynq.ProcessIn(opts.ProcessIn))
