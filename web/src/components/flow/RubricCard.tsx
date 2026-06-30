@@ -11,7 +11,7 @@ export function RubricCard({ rubric }: { rubric: Rubric }) {
           <Typography variant="h6">Scoring rubric</Typography>
           {rubric.competencies.map((c, i) => (
             <Box key={i}>
-              <Stack direction="row" sx={{ mb: 0.5, alignItems: 'center', justifyContent: 'space-between' }}>
+              <Stack direction="row" sx={{ mb: 0.5, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 0.5 }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Typography variant="body2">{c.name}</Typography>
                   {c.mustHave && <Chip size="small" color="primary" label="must-have" />}

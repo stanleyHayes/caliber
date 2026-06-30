@@ -58,7 +58,7 @@ export function LandingPage() {
               and an honest candidate agent — bias-safe and human-in-the-loop.
             </Typography>
           </motion.div>
-          <Stack direction="row" spacing={2}>
+          <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap' }}>
             <Button component={Link} to="/register" variant="contained" size="large">
               Get started
             </Button>

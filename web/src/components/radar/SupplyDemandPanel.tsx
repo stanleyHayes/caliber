@@ -16,7 +16,7 @@ export function SupplyDemandPanel({ items }: { items: SupplyDemandItem[] }) {
           )}
           {items.map((it) => (
             <Box key={it.roleFamily}>
-              <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
+              <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
                 <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
                   {it.roleFamily}
                 </Typography>

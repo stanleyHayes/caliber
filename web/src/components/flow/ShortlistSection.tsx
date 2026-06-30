@@ -68,7 +68,7 @@ export function ShortlistSection({ roleId, version }: { roleId: string; version:
   const { matches, exclusions, poolDepth } = query.data.shortlist;
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
+      <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'baseline', flexWrap: 'wrap', rowGap: 0.5 }}>
         <Typography variant="h6">Explainable shortlist</Typography>
         <Chip size="small" label={`${poolDepth} in pool`} />
       </Stack>

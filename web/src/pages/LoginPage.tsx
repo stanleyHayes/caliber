@@ -18,7 +18,7 @@ export function LoginPage() {
 
   return (
     <Box sx={{ maxWidth: 420, mx: 'auto', mt: { xs: 2, md: 6 } }}>
-      <Paper variant="outlined" sx={{ p: 4 }}>
+      <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 } }}>
         <Stack spacing={3} component="form" onSubmit={onSubmit}>
           <Stack spacing={0.5}>
             <Typography variant="h4" component="h1">Welcome back</Typography>

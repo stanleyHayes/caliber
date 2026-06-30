@@ -8,7 +8,7 @@ export function ProfileView({ profile }: { profile: TalentProfile }) {
     <Card variant="outlined">
       <CardContent>
         <Stack spacing={2.5}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}>
             <Typography variant="h6" sx={{ flexGrow: 1 }}>
               Your Talent Passport
             </Typography>

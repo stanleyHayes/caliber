@@ -17,7 +17,7 @@ export function ApplicationsList({ applications }: { applications: Application[]
         <Card key={a.id} variant="outlined">
           <CardContent>
             <Stack spacing={1}>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}>
                 <Chip size="small" color={applicationStatusColor[a.status]} label={applicationStatusLabel[a.status]} />
                 {a.source === 'APPLICATION_SOURCE_AGENT' && <Chip size="small" variant="outlined" label="by your agent" />}
                 <Box sx={{ flexGrow: 1 }} />

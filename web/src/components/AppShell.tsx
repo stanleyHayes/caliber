@@ -44,27 +44,48 @@ export function AppShell() {
           >
             Caliber
           </Typography>
-          <Box component="nav" aria-label="Primary" sx={{ display: 'flex', alignItems: 'center' }}>
-          {accessToken && (
-            <Button component={Link} to="/radar" color="inherit" sx={{ mr: 1 }}>
-              Radar
-            </Button>
-          )}
-          <ModeToggle />
-          {accessToken ? (
-            <Button onClick={() => logout.mutate()} sx={{ ml: 1 }} color="inherit">
-              Sign out{user ? ` (${user.name})` : ''}
-            </Button>
-          ) : (
-            <>
-              <Button component={Link} to="/login" color="inherit" sx={{ ml: 1 }}>
-                Sign in
+          <Box
+            component="nav"
+            aria-label="Primary"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+              rowGap: 0.5,
+              columnGap: 1,
+            }}
+          >
+            {accessToken && (
+              <Button component={Link} to="/radar" color="inherit" size="small">
+                Radar
               </Button>
-              <Button component={Link} to="/register" variant="contained" sx={{ ml: 1 }}>
-                Get started
+            )}
+            <ModeToggle />
+            {accessToken ? (
+              <Button
+                onClick={() => logout.mutate()}
+                size="small"
+                color="inherit"
+                aria-label={user ? `Sign out (${user.name})` : 'Sign out'}
+              >
+                Sign out
+                {user && (
+                  <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, ml: 0.5 }}>
+                    ({user.name})
+                  </Box>
+                )}
               </Button>
-            </>
-          )}
+            ) : (
+              <>
+                <Button component={Link} to="/login" color="inherit" size="small">
+                  Sign in
+                </Button>
+                <Button component={Link} to="/register" variant="contained" size="small">
+                  Get started
+                </Button>
+              </>
+            )}
           </Box>
         </Toolbar>
       </AppBar>

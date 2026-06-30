@@ -65,7 +65,7 @@ export function RoleEditor({
               onChange={(e) => patchSpec({ title: e.target.value })}
               fullWidth
             />
-            <Stack direction="row" spacing={2}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
                 label="Location"
                 value={spec.location}
@@ -77,7 +77,7 @@ export function RoleEditor({
                 label="Seniority"
                 value={spec.seniority}
                 onChange={(e) => patchSpec({ seniority: e.target.value as Seniority })}
-                sx={{ minWidth: 160 }}
+                sx={{ width: { xs: '100%', sm: 160 } }}
               >
                 {SENIORITIES.map((o) => (
                   <MenuItem key={o.value} value={o.value}>
@@ -86,12 +86,12 @@ export function RoleEditor({
                 ))}
               </TextField>
             </Stack>
-            <Stack direction="row" spacing={2}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
                 label="Currency"
                 value={spec.salaryBand.currency}
                 onChange={(e) => patchSpec({ salaryBand: { ...spec.salaryBand, currency: e.target.value } })}
-                sx={{ width: 120 }}
+                sx={{ width: { xs: '100%', sm: 120 } }}
               />
               <TextField
                 label="Salary low"
@@ -121,32 +121,36 @@ export function RoleEditor({
             </Stack>
             {comps.map((c, i) => (
               <Box key={i}>
-                <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-                  <Typography variant="body2" sx={{ flexGrow: 1 }}>
-                    {c.name}
-                  </Typography>
-                  <Slider
-                    value={c.weight}
-                    onChange={(_, v) => patchComp(i, { weight: v as number })}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    valueLabelDisplay="auto"
-                    valueLabelFormat={(v) => pct(v)}
-                    sx={{ width: 200 }}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Switch checked={c.mustHave} onChange={(e) => patchComp(i, { mustHave: e.target.checked })} />
-                    }
-                    label="must-have"
-                  />
-                </Stack>
+                <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                sx={{ alignItems: { xs: 'flex-start', sm: 'center' } }}
+              >
+                <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 0 }}>
+                  {c.name}
+                </Typography>
+                <Slider
+                  value={c.weight}
+                  onChange={(_, v) => patchComp(i, { weight: v as number })}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  valueLabelDisplay="auto"
+                  valueLabelFormat={(v) => pct(v)}
+                  sx={{ width: { xs: '100%', sm: 200 }, minWidth: { sm: 120 } }}
+                />
+                <FormControlLabel
+                  control={
+                    <Switch checked={c.mustHave} onChange={(e) => patchComp(i, { mustHave: e.target.checked })} />
+                  }
+                  label="must-have"
+                />
+              </Stack>
               </Box>
             ))}
           </Stack>
 
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
             <DotsButton variant="contained" loading={update.isPending} onClick={save} disabled={total === 0}>
               Save changes
             </DotsButton>

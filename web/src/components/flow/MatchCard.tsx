@@ -21,14 +21,14 @@ export function MatchCard({ match, rank }: { match: Match; rank: number }) {
     <Card variant="outlined">
       <CardContent>
         <Stack spacing={2}>
-          <Stack direction="row" sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <Stack direction="row" sx={{ alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
             <Stack spacing={0.5}>
               <Typography variant="overline" color="text.secondary">
                 #{rank} · candidate
               </Typography>
               <Typography sx={{ fontFamily: fonts.mono }}>{shortId(match.candidateId)}</Typography>
             </Stack>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
               {match.thinEvidence && (
                 <Tooltip title="Sparse evidence — recommend a screening interview">
                   <Chip

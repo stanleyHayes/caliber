@@ -12,7 +12,7 @@ export function RolesPage() {
 
   return (
     <Stack spacing={4} sx={{ maxWidth: 820, mx: 'auto' }}>
-      <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+      <Stack direction="row" spacing={2} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
         <Stack spacing={1} sx={{ flexGrow: 1 }}>
           <Typography variant="h3" component="h1">Your roles</Typography>
           <Typography color="text.secondary">Every role you have described, with its spec and rubric.</Typography>
@@ -35,7 +35,7 @@ export function RolesPage() {
           {(roles.data?.roles ?? []).map((r) => (
             <Card key={r.id} variant="outlined">
               <CardContent>
-                <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+                <Stack direction="row" spacing={2} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                   <Stack spacing={0.5} sx={{ flexGrow: 1 }}>
                     <Typography variant="h6">{r.title || r.spec.title}</Typography>
                     <Stack direction="row" spacing={1}>

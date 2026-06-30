@@ -92,7 +92,7 @@ export function EmployerFlowPage() {
             />
           ) : (
             <>
-              <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+              <Stack direction="row" spacing={1} useFlexGap sx={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                 <Button component={RouterLink} to={`/interview?roleId=${result.role.id}`} variant="text">
                   Run a screening interview
                 </Button>

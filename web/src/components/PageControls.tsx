@@ -22,6 +22,8 @@ export function PageControls({
         onChange={(_, p) => onChange(p)}
         color="primary"
         shape="rounded"
+        size="small"
+        sx={{ '& .MuiPagination-ul': { flexWrap: 'wrap', justifyContent: 'center', rowGap: 0.5 } }}
       />
     </Stack>
   );
