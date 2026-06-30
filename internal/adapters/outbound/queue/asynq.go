@@ -127,7 +127,9 @@ func taskOptions(opts *appqueue.Opts) []asynq.Option {
 	if opts.MaxRetry >= 0 {
 		asynqOpts = append(asynqOpts, asynq.MaxRetry(opts.MaxRetry))
 	}
-	if opts.ProcessIn > 0 {
+	if !opts.ProcessAt.IsZero() {
+		asynqOpts = append(asynqOpts, asynq.ProcessAt(opts.ProcessAt))
+	} else if opts.ProcessIn > 0 {
 		asynqOpts = append(asynqOpts, asynq.ProcessIn(opts.ProcessIn))
 	}
 	if opts.UniqueTTL > 0 {

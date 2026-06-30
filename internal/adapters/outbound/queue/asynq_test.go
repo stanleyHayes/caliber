@@ -67,3 +67,24 @@ func TestDispatcherEnqueuesWithOptions(t *testing.T) {
 	require.Len(t, info, 1)
 	assert.Equal(t, string(appqueue.TypeInterviewScoring), info[0].Type)
 }
+
+func TestDispatcherEnqueuesAtSpecificTime(t *testing.T) {
+	redis := miniredis.RunT(t)
+	d, err := queue.NewDispatcher("redis://" + redis.Addr() + "/0")
+	require.NoError(t, err)
+	defer func() { require.NoError(t, d.Close()) }()
+
+	at := time.Now().Add(5 * time.Minute)
+	_, err = d.DispatchBatchRematch(context.Background(), kernel.NewID(),
+		appqueue.ProcessAt(at),
+		appqueue.Queue(appqueue.QueueLow),
+	)
+	require.NoError(t, err)
+
+	inspector := asynq.NewInspector(asynq.RedisClientOpt{Addr: redis.Addr()})
+	info, err := inspector.ListScheduledTasks(appqueue.QueueLow, asynq.PageSize(10))
+	require.NoError(t, err)
+	require.Len(t, info, 1)
+	assert.Equal(t, string(appqueue.TypeBatchRematch), info[0].Type)
+	assert.WithinDuration(t, at, info[0].NextProcessAt, time.Second)
+}
