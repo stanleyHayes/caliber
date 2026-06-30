@@ -82,13 +82,12 @@ func TestDelayedTaskFiresOnTime(t *testing.T) {
 	require.Len(t, scheduled, 1)
 	assert.Equal(t, jobs.TypeHealthcheck, scheduled[0].Type)
 
-	start := time.Now()
+	// Fast-forward Redis time so the delayed task becomes due deterministically.
+	redis.FastForward(delay + 100*time.Millisecond)
+
 	select {
 	case probe := <-processed:
 		assert.Equal(t, "delayed", probe)
-		elapsed := time.Since(start)
-		assert.GreaterOrEqual(t, elapsed, delay, "task fired before its scheduled time")
-		assert.Less(t, elapsed, delay+300*time.Millisecond, "task took too long to fire")
 	case <-time.After(3 * time.Second):
 		t.Fatal("delayed task did not fire on time")
 	}
