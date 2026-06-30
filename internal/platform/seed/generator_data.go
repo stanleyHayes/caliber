@@ -31,6 +31,11 @@ type roleTemplate struct {
 // pipeline. Keeping them in a function avoids package-level mutable state and
 // keeps the generator reproducible without any global random source.
 //
+// All content is curated for Ghana / West-Africa plausibility: real Ghanaian
+// universities, employers with strong Ghana operations, Ghanaian cities, and
+// names common in Ghana. This keeps the demo pool locally credible while still
+// exercising the production parsers.
+//
 //nolint:funlen // a flat, readable seed-data table; not logic.
 func generatorTemplates() struct {
 	firstNames   []string
@@ -51,15 +56,20 @@ func generatorTemplates() struct {
 		roles        []roleTemplate
 	}{
 		firstNames: []string{
+			// Akan day names and other common Ghanaian given names.
 			"Ama", "Kofi", "Esi", "Yaw", "Abena", "Kwame", "Adwoa", "Kojo",
 			"Akua", "Kwesi", "Afia", "Kwabena", "Efua", "Yaa", "Kwaku",
+			"Akosua", "Ebenezer", "Mawuli", "Nana", "Naa",
 		},
 		lastNames: []string{
+			// Common Ghanaian surnames across Akan, Ewe, Ga and northern groups.
 			"Mensah", "Asante", "Owusu", "Boateng", "Sarpong", "Boadu", "Agyeman",
 			"Antwi", "Addo", "Osei", "Adu", "Tetteh", "Ankrah", "Darko", "Appiah",
+			"Adjei", "Lartey", "Quaye", "Doe", "Nkrumah",
 		},
 		locations: []string{
-			locAccra, locKumasi, "Takoradi", "Tamale", "Cape Coast", locRemote,
+			locAccra, locKumasi, locRemote,
+			"Takoradi", "Tamale", "Cape Coast", "Tema", "Ho", "Sunyani", "Koforidua", "Wa",
 		},
 		universities: []string{
 			"Ashesi University",
@@ -68,12 +78,21 @@ func generatorTemplates() struct {
 			"University of Cape Coast",
 			"Academic City College",
 			"Lancaster University Ghana",
+			"Ghana Communication Technology University",
+			"Valley View University",
+			"Central University",
+			"Ghana Institute of Management and Public Administration",
+			"Koforidua Technical University",
+			"University of Mines and Technology",
 		},
 		companies: []string{
+			// Ghanaian tech / fintech / telecom employers and multinationals with
+			// strong Ghana operations. All are real, locally recognised names.
 			"Hubtel", "mPharma", "MTN Ghana", "Andela Ghana", "Fidelity Bank Ghana",
 			"Tullow Oil Ghana", "Standard Chartered Bank Ghana", "GCB Bank",
-			"Ecobank Ghana", "Paystack", "Flutterwave Ghana", "Wave Ghana",
-			"Safaricom", "BCX Ghana", "Vodafone Ghana",
+			"Ecobank Ghana", "Paystack Ghana", "Flutterwave Ghana", "Wave Ghana",
+			"AirtelTigo", "BCX Ghana", "Vodafone Ghana", "Zeepay Ghana",
+			"Absa Bank Ghana", "CAL Bank", "Republic Bank Ghana", "Guaranty Trust Bank Ghana",
 		},
 		families: []familyTemplate{
 			{
