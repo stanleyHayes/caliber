@@ -13,7 +13,9 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/embeddings"
 	llmadapter "github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
+	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
+	agentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
@@ -245,6 +247,36 @@ func TestGenerator_PreRunsInterviewsForHeroes(t *testing.T) {
 	assertReportCardStored(ctx, t, h.interviews, ama.ID)
 	assertReportCardStored(ctx, t, h.interviews, kofi.ID)
 	assertNoInterview(ctx, t, h.interviews, esi.ID)
+}
+
+func TestGenerator_PreSeedsAgentStateForHeroes(t *testing.T) {
+	ctx := context.Background()
+	now := func() time.Time { return time.Unix(1700000000, 0) }
+	gen := seed.NewGenerator(authadapter.NewArgon2idHasher(), llmadapter.NewDev(), now)
+	repos, h := newRepos()
+
+	res, err := gen.Generate(ctx, repos)
+	require.NoError(t, err)
+	assert.Positive(t, res.Applications, "generated heroes produce pre-seeded applications")
+
+	ama := findUser(ctx, t, h.users, heroEmail("Ama", "Mensah"))
+	apps, total, err := h.applications.ByCandidate(ctx, ama.ID, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	assert.Positive(t, total, "Ama has a pre-seeded application")
+	for _, ap := range apps {
+		assert.Equal(t, agentdom.SourceAgent, ap.Source)
+		assert.Equal(t, agentdom.StatusSubmitted, ap.Status)
+		assert.NotEmpty(t, ap.TailoredSummary)
+	}
+
+	runner := candidateagentapp.NewAgentRunner(
+		h.cands, h.profs, h.roles, h.applications, llmadapter.NewDev(),
+		candidateagentapp.WithWakeUpInsights(h.interviews, nil),
+	)
+	view, err := runner.WakeUpView(ctx, ama.ID)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, view.ApplicationsSubmitted, 1, "wake-up view shows the pre-seeded application")
+	assert.GreaterOrEqual(t, view.ScreeningsCompleted, 1, "wake-up view shows the pre-run screening")
 }
 
 func findRoleID(ctx context.Context, t *testing.T, roles *memory.RoleRepo, title string) kernel.ID {

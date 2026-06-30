@@ -67,11 +67,17 @@ func (g *Generator) Generate(ctx context.Context, repos Repositories) (Result, e
 		return Result{}, fmt.Errorf("pre-run interviews: %w", err)
 	}
 
+	preSeed, err := preSeedAgentState(ctx, repos, g.llm, repos.Applications, generatedPreSeedTargets())
+	if err != nil {
+		return Result{}, fmt.Errorf("pre-seed agent state: %w", err)
+	}
+
 	return Result{
-		Employers:  len(employers),
-		Roles:      len(roleList),
-		Candidates: candCount,
-		Interviews: preRun.InterviewCount,
+		Employers:    len(employers),
+		Roles:        len(roleList),
+		Candidates:   candCount,
+		Interviews:   preRun.InterviewCount,
+		Applications: preSeed.ApplicationCount,
 	}, nil
 }
 

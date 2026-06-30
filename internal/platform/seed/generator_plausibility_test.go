@@ -174,7 +174,8 @@ func TestGenerator_GeneratedCandidates_AreGhanaPlausible(t *testing.T) {
 	profs := memory.NewTalentProfileRepo()
 	roles := memory.NewRoleRepo()
 	interviews := memory.NewInterviewRepo()
-	repos := Repositories{Users: users, Candidates: cands, Profiles: profs, Roles: roles, Interviews: interviews}
+	apps := memory.NewApplicationRepo()
+	repos := Repositories{Users: users, Candidates: cands, Profiles: profs, Roles: roles, Interviews: interviews, Applications: apps}
 
 	_, err := gen.Generate(ctx, repos)
 	require.NoError(t, err)

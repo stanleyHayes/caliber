@@ -91,7 +91,8 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 		return
 	}
 	seedRepos := seed.Repositories{
-		Users: repos.Users, Candidates: repos.Candidates, Profiles: repos.Profiles, Roles: repos.Roles, Interviews: repos.Interviews,
+		Users: repos.Users, Candidates: repos.Candidates, Profiles: repos.Profiles, Roles: repos.Roles,
+		Interviews: repos.Interviews, Applications: repos.Apps,
 	}
 	// Use the raw provider (dev/Claude) rather than the guarded/audited facade
 	// for seeding: we are generating fixtures, not serving user traffic, and
@@ -110,13 +111,17 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 		return
 	}
 
-	res, err := seed.Load(ctx, seedRepos, authadapter.NewArgon2idHasher(), time.Now(), seed.WithPreRunInterviews(seedLLM))
+	res, err := seed.Load(ctx, seedRepos, authadapter.NewArgon2idHasher(), time.Now(),
+		seed.WithPreRunInterviews(seedLLM),
+		seed.WithPreSeededAgentState(seedLLM, repos.Apps),
+	)
 	if err != nil {
 		log.Warn("demo seed skipped", "err", err)
 		return
 	}
 	log.Info("loaded demo dataset",
 		"employers", res.Employers, "roles", res.Roles, "candidates", res.Candidates,
+		"interviews", res.Interviews, "applications", res.Applications,
 		"demo_login_password", seed.DefaultPassword)
 }
 

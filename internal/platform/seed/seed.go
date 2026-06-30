@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xcreativs/caliber/internal/app"
+	agentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -35,32 +36,46 @@ type Hasher interface {
 
 // Repositories is the set of repositories a demo dataset is loaded into.
 type Repositories struct {
-	Users      identity.UserRepository
-	Candidates talent.CandidateRepository
-	Profiles   talent.TalentProfileRepository
-	Roles      role.RoleRepository
-	Interviews interviewdom.InterviewRepository
+	Users        identity.UserRepository
+	Candidates   talent.CandidateRepository
+	Profiles     talent.TalentProfileRepository
+	Roles        role.RoleRepository
+	Interviews   interviewdom.InterviewRepository
+	Applications agentdom.ApplicationRepository
 }
 
 // Result summarises what was loaded.
 type Result struct {
-	Employers  int
-	Roles      int
-	Candidates int
-	Interviews int // pre-run screening interviews completed (CAL-101)
+	Employers    int
+	Roles        int
+	Candidates   int
+	Interviews   int // pre-run screening interviews completed (CAL-101)
+	Applications int // pre-seeded agent applications submitted (CAL-102)
 }
 
 // LoadOption customises the hand-curated seed load.
 type LoadOption func(*loadConfig)
 
 type loadConfig struct {
-	preRunLLM app.LLMClient
+	preRunLLM   app.LLMClient
+	preSeedLLM  app.LLMClient
+	preSeedApps agentdom.ApplicationRepository
 }
 
 // WithPreRunInterviews runs screening interviews for a curated subset of seeded
 // candidates during load, producing stored report cards (CAL-101).
 func WithPreRunInterviews(llm app.LLMClient) LoadOption {
 	return func(c *loadConfig) { c.preRunLLM = llm }
+}
+
+// WithPreSeededAgentState runs the candidate agent for a curated subset of seeded
+// candidates during load, producing submitted agent applications so the Flow C
+// wake-up view is populated out of the box (CAL-102).
+func WithPreSeededAgentState(llm app.LLMClient, apps agentdom.ApplicationRepository) LoadOption {
+	return func(c *loadConfig) {
+		c.preSeedLLM = llm
+		c.preSeedApps = apps
+	}
 }
 
 // Load materialises the demo dataset into repos. All demo users share
@@ -94,6 +109,12 @@ func Load(ctx context.Context, repos Repositories, hasher Hasher, now time.Time,
 		return Result{}, err
 	}
 	res.Interviews = preRunCount
+
+	preSeedCount, err := maybePreSeedAgentState(ctx, repos, cfg)
+	if err != nil {
+		return Result{}, err
+	}
+	res.Applications = preSeedCount
 	return res, nil
 }
 

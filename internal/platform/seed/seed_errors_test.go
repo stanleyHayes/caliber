@@ -34,11 +34,12 @@ func TestLoad_PropagatesRepositoryError(t *testing.T) {
 	users.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db down")).AnyTimes()
 
 	repos := seed.Repositories{
-		Users:      users,
-		Candidates: memory.NewCandidateRepo(),
-		Profiles:   memory.NewTalentProfileRepo(),
-		Roles:      memory.NewRoleRepo(),
-		Interviews: memory.NewInterviewRepo(),
+		Users:        users,
+		Candidates:   memory.NewCandidateRepo(),
+		Profiles:     memory.NewTalentProfileRepo(),
+		Roles:        memory.NewRoleRepo(),
+		Interviews:   memory.NewInterviewRepo(),
+		Applications: memory.NewApplicationRepo(),
 	}
 	_, err := seed.Load(context.Background(), repos, staticHasher{}, time.Unix(1, 0))
 	assert.Error(t, err, "a repository failure aborts the seed")

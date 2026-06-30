@@ -12,6 +12,8 @@ import (
 	llmadapter "github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
+	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
+	agentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -19,20 +21,22 @@ import (
 )
 
 type handles struct {
-	users      *memory.UserRepo
-	cands      *memory.CandidateRepo
-	profs      *memory.TalentProfileRepo
-	roles      *memory.RoleRepo
-	interviews *memory.InterviewRepo
+	users        *memory.UserRepo
+	cands        *memory.CandidateRepo
+	profs        *memory.TalentProfileRepo
+	roles        *memory.RoleRepo
+	interviews   *memory.InterviewRepo
+	applications *memory.ApplicationRepo
 }
 
 func newRepos() (seed.Repositories, handles) {
 	h := handles{
 		memory.NewUserRepo(), memory.NewCandidateRepo(), memory.NewTalentProfileRepo(),
-		memory.NewRoleRepo(), memory.NewInterviewRepo(),
+		memory.NewRoleRepo(), memory.NewInterviewRepo(), memory.NewApplicationRepo(),
 	}
 	return seed.Repositories{
-		Users: h.users, Candidates: h.cands, Profiles: h.profs, Roles: h.roles, Interviews: h.interviews,
+		Users: h.users, Candidates: h.cands, Profiles: h.profs, Roles: h.roles,
+		Interviews: h.interviews, Applications: h.applications,
 	}, h
 }
 
@@ -88,6 +92,37 @@ func TestLoad_PreRunsInterviewsWhenLLMProvided(t *testing.T) {
 	assertNoInterview(ctx, t, h.interviews, yaw.ID)
 }
 
+func TestLoad_PreSeedsAgentStateWhenLLMAndAppsProvided(t *testing.T) {
+	ctx := context.Background()
+	repos, h := newRepos()
+
+	res, err := seed.Load(ctx, repos, authadapter.NewArgon2idHasher(), time.Unix(1700000000, 0),
+		seed.WithPreRunInterviews(llmadapter.NewDev()),
+		seed.WithPreSeededAgentState(llmadapter.NewDev(), h.applications),
+	)
+	require.NoError(t, err)
+	assert.Positive(t, res.Applications, "hand-curated heroes produce pre-seeded applications")
+
+	ama := findUser(ctx, t, h.users, "ama.mensah@example.com")
+	apps, total, err := h.applications.ByCandidate(ctx, ama.ID, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	assert.Positive(t, total, "Ama has a pre-seeded application")
+	for _, ap := range apps {
+		assert.Equal(t, agentdom.SourceAgent, ap.Source)
+		assert.Equal(t, agentdom.StatusSubmitted, ap.Status)
+		assert.NotEmpty(t, ap.TailoredSummary)
+	}
+
+	runner := candidateagentapp.NewAgentRunner(
+		h.cands, h.profs, h.roles, h.applications, llmadapter.NewDev(),
+		candidateagentapp.WithWakeUpInsights(h.interviews, nil),
+	)
+	view, err := runner.WakeUpView(ctx, ama.ID)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, view.ApplicationsSubmitted, 1, "wake-up view shows the pre-seeded application")
+	assert.GreaterOrEqual(t, view.ScreeningsCompleted, 1, "wake-up view shows the pre-run screening")
+}
+
 func TestLoad_SkipsPreRunWithoutLLM(t *testing.T) {
 	ctx := context.Background()
 	repos, h := newRepos()
@@ -101,6 +136,21 @@ func TestLoad_SkipsPreRunWithoutLLM(t *testing.T) {
 	for _, c := range candidates {
 		assertNoInterview(ctx, t, h.interviews, c.ID)
 	}
+}
+
+func TestLoad_SkipsPreSeedWithoutLLMOrApps(t *testing.T) {
+	ctx := context.Background()
+	repos, h := newRepos()
+
+	// No LLM: pre-seed should be skipped even though an apps repo is available.
+	res, err := seed.Load(ctx, repos, authadapter.NewArgon2idHasher(), time.Unix(1700000000, 0))
+	require.NoError(t, err)
+	assert.Zero(t, res.Applications)
+
+	ama := findUser(ctx, t, h.users, "ama.mensah@example.com")
+	_, total, err := h.applications.ByCandidate(ctx, ama.ID, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	assert.Zero(t, total, "no applications without pre-seed")
 }
 
 func TestDefaultPassword_IsLoginable(t *testing.T) {
