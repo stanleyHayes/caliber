@@ -82,15 +82,34 @@ func OpenRepositories(
 }
 
 // SeedDemo loads the deterministic demo dataset into the in-memory dev stack so
-// the Radar, alerts, and pool are populated out of the box (CAL-016). It is a
-// no-op when seeding is disabled or any step fails (best-effort, never blocks boot).
+// the Radar, alerts, and pool are populated out of the box (CAL-016). When
+// CALIBER_SEED_GENERATED is true it uses the parser-driven generation pipeline
+// instead (CAL-098). It is a no-op when seeding is disabled or any step fails
+// (best-effort, never blocks boot).
 func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *slog.Logger) {
 	if !cfg.SeedDemo {
 		return
 	}
-	res, err := seed.Load(ctx, seed.Repositories{
+	seedRepos := seed.Repositories{
 		Users: repos.Users, Candidates: repos.Candidates, Profiles: repos.Profiles, Roles: repos.Roles,
-	}, authadapter.NewArgon2idHasher(), time.Now())
+	}
+	if cfg.SeedGenerated {
+		// Use the raw provider (dev/Claude) rather than the guarded/audited facade
+		// for seeding: we are generating fixtures, not serving user traffic, and
+		// the rate/concurrency guard would otherwise throttle a batch run.
+		gen := seed.NewGenerator(authadapter.NewArgon2idHasher(), newLLMProvider(cfg, log), time.Now)
+		res, err := gen.Generate(ctx, seedRepos)
+		if err != nil {
+			log.Warn("generated demo seed skipped", "err", err)
+			return
+		}
+		log.Info("generated demo dataset",
+			"employers", res.Employers, "roles", res.Roles, "candidates", res.Candidates,
+			"demo_login_password", seed.DefaultPassword)
+		return
+	}
+
+	res, err := seed.Load(ctx, seedRepos, authadapter.NewArgon2idHasher(), time.Now())
 	if err != nil {
 		log.Warn("demo seed skipped", "err", err)
 		return

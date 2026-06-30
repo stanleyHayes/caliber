@@ -41,7 +41,8 @@ type Config struct {
 	AccessTokenTTL       time.Duration
 	RefreshTokenTTL      time.Duration
 
-	SeedDemo bool // load the demo dataset into the in-memory dev stack
+	SeedDemo      bool // load the hand-curated demo dataset into the in-memory dev stack
+	SeedGenerated bool // generate a larger demo dataset through the real parsers
 
 	RateLimitRPS   float64 // per-principal sustained request rate (token-bucket refill/sec)
 	RateLimitBurst float64 // per-principal burst ceiling (max tokens)
@@ -80,6 +81,7 @@ func Load() (Config, error) {
 		AccessTokenTTL:       getdur("CALIBER_ACCESS_TOKEN_TTL", 15*time.Minute),
 		RefreshTokenTTL:      getdur("CALIBER_REFRESH_TOKEN_TTL", 7*24*time.Hour),
 		SeedDemo:             getbool("CALIBER_SEED_DEMO", true),
+		SeedGenerated:        getbool("CALIBER_SEED_GENERATED", false),
 		// Generous defaults: no human-driven session approaches these, but they
 		// cap floods and runaway clients on the expensive AI endpoints (CAL-112).
 		RateLimitRPS:      getfloat("CALIBER_RATE_LIMIT_RPS", 30),

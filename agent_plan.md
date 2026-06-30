@@ -444,7 +444,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 ## EPIC-14 · Seed Data & Demo Orchestration
 **Goal:** A believable, locally-plausible (Ghana/West Africa) pool the demo lives on. (Spec §10.)
 
-- **CAL-098** `[TODO]` · 5 pts — **Seed generation pipeline.** LLM-generate ~50–60 realistic CVs/profiles, 6–8 employers, 8–12 roles; run through the *real* parser. *AC:* data produced by the real pipeline. *Deps:* CAL-043, CAL-037
+- **CAL-098** `[DONE]` · 5 pts — **Seed generation pipeline.** Added a deterministic `seed.Generator` that produces 8 Ghana-context employers, 12 roles, and 55 CV/profiles by driving the real `ProfileBuilder` and `SpecGenerator` parsers. Wired behind `CALIBER_SEED_GENERATED` for startup generation; tests verify parser acceptance and the no-fabrication evidence invariant. *AC:* data produced by the real pipeline. *Deps:* CAL-043, CAL-037
 - **CAL-099** `[TODO]` · 5 pts — **Local plausibility curation.** Names, institutions, locations, roles read as locally credible (Ghana / West Africa). *AC:* review pass before demo. *Deps:* CAL-098
 - **CAL-100** `[TODO]` · 5 pts — **Hero candidate/role pairs.** Engineer pairs that produce excellent, legible matches so Flow A always lands; keep the rest varied. *AC:* hero pairs deterministic. *Deps:* CAL-098
 - **CAL-101** `[TODO]` · 3 pts — **Pre-run interviews.** Pre-generate report cards for several candidates; leave 1–2 to run live in Flow B. *AC:* shortlists show real assessments. *Deps:* CAL-064

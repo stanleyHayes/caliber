@@ -78,3 +78,20 @@ func TestBuildEmbedderOpenAIPath(t *testing.T) {
 	embedder := wiring.BuildEmbedder(cfg, slog.New(slog.DiscardHandler))
 	assert.NotNil(t, embedder)
 }
+
+func TestSeedGeneratedLoadsGeneratedDataset(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.Config{SeedDemo: true, SeedGenerated: true}
+	repos, cleanup, _, err := wiring.OpenRepositories(ctx, cfg, slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+	defer cleanup()
+
+	roles, _, err := repos.Roles.ListOpen(ctx, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(roles), 8)
+
+	candidates, total, err := repos.Candidates.List(ctx, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, total, int64(50))
+	assert.Len(t, candidates, len(candidates))
+}
