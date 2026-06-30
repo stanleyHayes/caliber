@@ -93,7 +93,7 @@ func TestRetryDelayFuncAppliesExponentialBackoffWithJitter(t *testing.T) {
 	task := asynq.NewTask(string(appqueue.TypeCandidateAgentRun), []byte("{}"))
 
 	base := policy.InitialDelay
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		delay := fn(0, nil, task)
 		spread := time.Duration(float64(base) * policy.Jitter)
 		assert.GreaterOrEqual(t, delay, base-spread/2)

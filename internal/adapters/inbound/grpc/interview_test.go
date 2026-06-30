@@ -161,7 +161,8 @@ func TestStartInterviewStreamCancellation(t *testing.T) {
 // on unblockCh until it is closed, simulating a slow consumer.
 type slowInterviewStream struct {
 	grpc.ServerStreamingServer[caliberv1.StartInterviewResponse]
-	ctx        context.Context
+
+	ctx        context.Context //nolint:containedctx // test double stores context for Context().
 	mu         sync.Mutex
 	sent       []*caliberv1.StartInterviewResponse
 	blockAfter int
@@ -221,7 +222,7 @@ func TestStartInterviewStreamBackpressureSlowConsumer(t *testing.T) {
 
 	const published = 20
 	accepted := 0
-	for i := 0; i < published; i++ {
+	for i := range published {
 		if srv.broker.publish(interviewID, statusEvent("status", strconv.Itoa(i))) {
 			accepted++
 		}
@@ -342,7 +343,7 @@ func TestInterviewBrokerConcurrentPublishUnsubscribe(t *testing.T) {
 	_ = b.subscribe("iv-1")
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -350,11 +351,7 @@ func TestInterviewBrokerConcurrentPublishUnsubscribe(t *testing.T) {
 		}(i)
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		b.unsubscribe("iv-1")
-	}()
+	wg.Go(func() { b.unsubscribe("iv-1") })
 
 	done := make(chan struct{})
 	go func() {

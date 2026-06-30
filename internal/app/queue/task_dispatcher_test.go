@@ -82,7 +82,7 @@ func TestComputeBackoffJitter(t *testing.T) {
 		Jitter:       0.5,
 	}
 
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		delay := ComputeBackoff(policy, 1)
 		assert.GreaterOrEqual(t, delay, 150*time.Millisecond, "jittered delay must be >= base - spread/2")
 		assert.LessOrEqual(t, delay, 250*time.Millisecond, "jittered delay must be <= base + spread/2")

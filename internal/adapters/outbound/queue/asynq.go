@@ -113,10 +113,8 @@ func (d *Dispatcher) dispatch(
 
 // RetryDelayFunc returns an Asynq RetryDelayFunc that applies Caliber's
 // per-task-type exponential backoff with jitter.
-//
-//nolint:ireturn // Asynq requires this function shape for its RetryDelayFunc config.
 func RetryDelayFunc() asynq.RetryDelayFunc {
-	return func(n int, e error, t *asynq.Task) time.Duration {
+	return func(n int, _ error, t *asynq.Task) time.Duration {
 		policy := appqueue.DefaultRetryPolicy(appqueue.TaskType(t.Type()))
 		return appqueue.ComputeBackoff(policy, n)
 	}

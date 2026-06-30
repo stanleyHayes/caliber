@@ -44,6 +44,7 @@ const (
 // the gateway mounted under /v1/. allowedOrigins is the CORS allowlist (empty =
 // same-origin only). When log is non-nil, every request is logged with its
 // correlation id (CAL-007).
+//nolint:ireturn // Returns the standard chi.Router interface for mounting.
 func NewRouter(
 	gateway http.Handler, hsts bool, allowedOrigins []string, log *slog.Logger, readiness ...ReadinessChecker,
 ) chi.Router {

@@ -114,11 +114,9 @@ func ComputeBackoff(policy RetryPolicy, n int) time.Duration {
 	if policy.Jitter > 0 {
 		spread := time.Duration(float64(delay) * policy.Jitter)
 		if spread > 0 {
-			offset := time.Duration(rand.Int63n(int64(spread) + 1))
+			offset := time.Duration(rand.Int63n(int64(spread) + 1)) //nolint:gosec // retry jitter is not security-sensitive.
 			delay = delay - spread/2 + offset
-			if delay < 0 {
-				delay = 0
-			}
+			delay = max(delay, 0)
 		}
 	}
 	return delay
