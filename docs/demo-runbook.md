@@ -195,16 +195,20 @@ Total target time: **8–12 minutes**.
 
 ## 7. Reset / reseed
 
-There is no single reset CLI command yet (tracked in **CAL-103**). Until then:
+A single reset command exists (CAL-103). Use it before a rehearsal to return to a
+known baseline:
+
+```bash
+# Reseed Postgres or in-memory stores and reload the deterministic demo dataset
+go run ./cmd/reseed
+```
 
 ### In-memory dev reset
 
 ```bash
-# Stop the API with Ctrl-C, then restart it
+# Stop the API with Ctrl-C, then restart it; state is rebuilt from seed on boot
 make run-api
 ```
-
-All in-memory state is rebuilt from the deterministic seed on boot.
 
 ### Docker Compose reset
 
@@ -220,7 +224,8 @@ docker compose up --build
 # 1. Drop and recreate the database
 # 2. Run migrations
 go run ./cmd/migrate
-# 3. Restart the API (seeding happens at boot)
+# 3. Reseed and restart the API
+go run ./cmd/reseed
 make run-api
 ```
 
@@ -318,6 +323,6 @@ open http://localhost:8080/readyz
 
 ## 12. Notes & known limitations
 
-- This runbook is written against the existing flows; **CAL-105** (run-of-show wiring) and **CAL-103** (one-shot reset command) are still TODO.
+- **CAL-105** run-of-show wiring is available via `make run-of-show` / `scripts/run-of-show.sh` — it drives the Frame → Flow A → Flow B → Flow C → Radar sequence through the REST gateway and prints links to the matching UI routes.
 - The Radar time-to-shortlist metric is a demo signal; real per-role timing computation is tracked separately.
 - Voice interview mode is post-win only (EPIC-22).

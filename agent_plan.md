@@ -227,7 +227,7 @@ caliber/
 | | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
 | | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | WIP | ~70% |
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | WIP | ~83% |
-| | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | WIP | ~20% |
+| | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | WIP | ~55% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | WIP | ~45% |
 | | EPIC-17 | SEO & Web Performance | 10 | 43 | TODO | 0% |
 | | EPIC-18 | Observability & Operations | 8 | 37 | TODO | 0% |
@@ -455,7 +455,7 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 **Goal:** Make the demo reliable, repeatable, venue-proof. (Spec §13 Phase 5, §14, §16.)
 
 - **CAL-104** `[DONE]` · 5 pts — **Latency tuning & session pre-warm.** Added `interview.Config` with `MaxQuestions`/`MaxDuration` caps (env-driven via `CALIBER_INTERVIEW_MAX_QUESTIONS`/`CALIBER_INTERVIEW_MAX_DURATION`), enforced in `Interviewer.Answer`; added `LLMClient.Warm` port method with implementations in dev/Claude/Audited/Guarded and pre-warm on `Start`; added `CachedEmbedder` so role embeddings are reused across `GenerateShortlist`/`CountAvailable`/re-rank. *AC:* interview + shortlist feel instant. *Deps:* CAL-065, CAL-068
-- **CAL-105** `[TODO]` · 3 pts — **Run-of-show wiring.** Sequence: Frame → Flow A → Flow B → Flow C → close on dashboard. *AC:* one path drives the whole narrative. *Deps:* CAL-090, CAL-091, CAL-092, CAL-093
+- **CAL-105** `[DONE]` · 3 pts — **Run-of-show wiring.** Added `scripts/run-of-show.sh` plus `make run-of-show` / `make run-of-show-keep-alive`. The script reseeds (CAL-103), boots the API, and drives the full narrative through the REST gateway: Frame (Radar) → Flow A (generate spec + shortlist) → Flow B (streamed adaptive interview + report card) → Flow C (time-advance wake-up view) → Close (Radar). It prints links to the corresponding UI routes at each step and works offline with the deterministic dev stack. *AC:* one path drives the whole narrative. *Deps:* CAL-090, CAL-091, CAL-092, CAL-093
 - **CAL-106** `[TODO]` · 5 pts — **Pre-recorded backup capture.** Clean live-style interview recording as insurance for venue network failure. *AC:* recording ready; live path primary. *Deps:* CAL-091
 - **CAL-107** `[TODO]` · 5 pts — **Offline/standby deployment fallback.** Local/standby deployment where feasible. *AC:* demo survives a network drop. *Deps:* CAL-006
 - **CAL-108** `[TODO]` · 3 pts — **Full dry run + acceptance sweep.** Verify all §15 acceptance criteria on seed data in one rehearsal. *AC:* every §15 item passes. *Deps:* CAL-059, CAL-068, CAL-075, CAL-093

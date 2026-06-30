@@ -1,7 +1,7 @@
 MODULE := github.com/xcreativs/caliber
 GOBIN  := $(shell go env GOPATH)/bin
 
-.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker tidy
+.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker run-of-show run-of-show-keep-alive tidy
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
@@ -69,6 +69,12 @@ run-api: ## run the API + REST gateway
 
 run-worker: ## run the background worker
 	go run ./cmd/worker
+
+run-of-show: ## drive the full demo narrative end-to-end (CAL-105)
+	scripts/run-of-show.sh
+
+run-of-show-keep-alive: ## drive the demo and keep the API running for UI exploration
+	scripts/run-of-show.sh --keep-alive
 
 tidy: ## sync go.mod/go.sum
 	go mod tidy
