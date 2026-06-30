@@ -193,7 +193,32 @@ Total target time: **8–12 minutes**.
 
 ---
 
-## 7. Reset / reseed
+## 7. Pre-recorded backup capture (CAL-106)
+
+A clean, live-style Flow B transcript and report card are captured offline and
+checked into the repo as `web/public/interview-backup.json`. This is the fallback
+if the venue network fails or the live streamed interview cannot be driven.
+
+### Regenerate the backup
+
+```bash
+make backup-capture
+```
+
+This runs `cmd/backup-capture` against the deterministic `dev` LLM provider and
+in-memory repositories, so it works without API keys or network.
+
+### Display the backup during the demo
+
+- The JSON is human-readable and shaped like the live interview payload
+  (`transcript` array + `reportCard`).
+- Open it in any editor, browser, or JSON viewer.
+- For the frontend fallback path, the React interview UI can load
+  `/interview-backup.json` from the Vite dev server (served out of `web/public`).
+
+---
+
+## 9. Reset / reseed
 
 A single reset command exists (CAL-103). Use it before a rehearsal to return to a
 known baseline:
@@ -236,7 +261,7 @@ make run-api
 
 ---
 
-## 8. Key talking points by flow
+## 10. Key talking points by flow
 
 | Flow | What to say | Proof point |
 |------|-------------|-------------|
@@ -250,7 +275,7 @@ make run-api
 
 ---
 
-## 9. Expected outputs / acceptance beats
+## 11. Expected outputs / acceptance beats
 
 | Step | Expected output | If you do not see this… |
 |------|-----------------|-------------------------|
@@ -265,7 +290,7 @@ make run-api
 
 ---
 
-## 10. Failure playbook
+## 12. Failure playbook
 
 | Failure mode | Trigger / symptom | Fallback |
 |--------------|-------------------|----------|
@@ -277,11 +302,11 @@ make run-api
 | **Seed data missing / wrong** | Radar empty, no demo accounts login, shortlist empty. | Verify `CALIBER_SEED_DEMO=true`. Check API boot logs for `loaded demo dataset` and `demo_login_password`. Restart the API (in-memory) or `docker compose down -v && up --build`. |
 | **401/403 during demo** | "Session expired" or permission denied. | Re-login with the correct role account. Employer/recruiter for Flow A and Radar; candidate for Flow B/C. |
 | **Unexpected / fabricated AI output** | A match or summary cites evidence not in the profile. | Pause and use it as a teaching moment: show the no-fabrication guardrail. If reproducible, switch to the deterministic `dev` provider for the rest of the demo. |
-| **Venue loses all connectivity** | Cannot reach localhost or Docker. | Use a pre-recorded backup capture (tracked in **CAL-106**) or an offline standalone build (tracked in **CAL-107**). |
+| **Venue loses all connectivity** | Cannot reach localhost or Docker. | Open the pre-recorded backup at `web/public/interview-backup.json` in the browser or an editor, or display the transcript + report card from that file. Regenerate with `make backup-capture` if the role or candidate narrative changes. |
 
 ---
 
-## 11. Quick reference
+## 13. Quick reference
 
 ```bash
 # Build
@@ -321,7 +346,7 @@ open http://localhost:8080/readyz
 
 ---
 
-## 12. Notes & known limitations
+## 14. Notes & known limitations
 
 - **CAL-105** run-of-show wiring is available via `make run-of-show` / `scripts/run-of-show.sh` — it drives the Frame → Flow A → Flow B → Flow C → Radar sequence through the REST gateway and prints links to the matching UI routes.
 - The Radar time-to-shortlist metric is a demo signal; real per-role timing computation is tracked separately.

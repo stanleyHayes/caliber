@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "generatedAt": "2026-06-30T23:51:38Z",
+    "roleTitle": "Senior Backend Engineer",
+    "candidate": "Ama Mensah",
+    "mode": "text",
+    "maxQuestions": 4
+  },
+  "transcript": [
+    {
+      "ordinal": 1,
+      "competencyTag": "Go",
+      "question": "Walk me through a concrete example of your Go work, with the trade-offs you made.",
+      "answer": "I led a team of four to rebuild the payments gateway in Go, cut p99 latency from 400ms to 80ms, and rolled it out to production over six weeks."
+    },
+    {
+      "ordinal": 2,
+      "competencyTag": "Postgres",
+      "question": "Walk me through a concrete example of your Postgres work, with the trade-offs you made.",
+      "answer": "I designed the Postgres schema and query paths for that service, added partial indexes on the settlement table, and reduced a slow report from minutes to under ten seconds."
+    },
+    {
+      "ordinal": 3,
+      "competencyTag": "gRPC",
+      "question": "Walk me through a concrete example of your gRPC work, with the trade-offs you made.",
+      "answer": "We used gRPC with protobuf for service-to-service calls and exposed a REST gateway for third-party integrations; I owned the proto design and error-status mapping."
+    },
+    {
+      "ordinal": 4,
+      "competencyTag": "Kubernetes",
+      "question": "Walk me through a concrete example of your Kubernetes work, with the trade-offs you made.",
+      "answer": "I containerised the service and wrote Kubernetes deployments with HPA and liveness/readiness probes; we ran it on a managed cluster in staging and production."
+    }
+  ],
+  "reportCard": {
+    "verdict": "advance",
+    "confidence": "medium",
+    "recommendedNextStep": "Proceed to a technical onsite.",
+    "scores": [
+      {
+        "competency": "Go",
+        "score": 3.5,
+        "evidence": "I led a team of four to rebuild the payments gateway in Go, cut p99 latency from 400ms to 80ms, and rolled it out to production over six weeks."
+      },
+      {
+        "competency": "Postgres",
+        "score": 3.5,
+        "evidence": "I led a team of four to rebuild the payments gateway in Go, cut p99 latency from 400ms to 80ms, and rolled it out to production over six weeks."
+      },
+      {
+        "competency": "gRPC",
+        "score": 3.5,
+        "evidence": "I led a team of four to rebuild the payments gateway in Go, cut p99 latency from 400ms to 80ms, and rolled it out to production over six weeks."
+      },
+      {
+        "competency": "Kubernetes",
+        "score": 3.5,
+        "evidence": "I led a team of four to rebuild the payments gateway in Go, cut p99 latency from 400ms to 80ms, and rolled it out to production over six weeks."
+      }
+    ]
+  }
+}
