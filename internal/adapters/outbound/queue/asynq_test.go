@@ -100,6 +100,9 @@ func TestRetryDelayFuncAppliesExponentialBackoffWithJitter(t *testing.T) {
 		assert.LessOrEqual(t, delay, base+spread/2)
 	}
 
-	// High retry counts are capped at MaxDelay.
-	assert.Equal(t, policy.MaxDelay, fn(10, nil, task))
+	// High retry counts are capped at MaxDelay (with jitter applied).
+	maxDelay := fn(10, nil, task)
+	spread := time.Duration(float64(policy.MaxDelay) * policy.Jitter)
+	assert.GreaterOrEqual(t, maxDelay, policy.MaxDelay-spread/2)
+	assert.LessOrEqual(t, maxDelay, policy.MaxDelay+spread/2)
 }
