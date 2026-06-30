@@ -6,8 +6,10 @@ package wiring
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"time"
 
+	"github.com/hibiken/asynqmon"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	authadapter "github.com/xcreativs/caliber/internal/adapters/outbound/auth"
@@ -15,6 +17,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
+	queueadapter "github.com/xcreativs/caliber/internal/adapters/outbound/queue"
 	"github.com/xcreativs/caliber/internal/app"
 	candidateagentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/identity"
@@ -152,4 +155,20 @@ func BuildEmbedder(cfg config.Config, log *slog.Logger) app.Embedder {
 	}
 	log.Warn("OPENAI_API_KEY not set; using deterministic dev embedder")
 	return embeddings.NewDev()
+}
+
+// NewAsynqmonHandler builds the Asynqmon monitoring UI handler for the given
+// Redis URL. It returns nil when the URL is empty so the dashboard can be left
+// unmounted in local dev stacks without Redis (CAL-028). The caller should call
+// the returned cleanup function on shutdown to close Redis connections.
+func NewAsynqmonHandler(redisURL string) (http.Handler, func(), error) {
+	if redisURL == "" {
+		return nil, func() {}, nil
+	}
+	opt, err := queueadapter.RedisOpt(redisURL)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	h := asynqmon.New(asynqmon.Options{RootPath: "/asynqmon", RedisConnOpt: opt})
+	return h, func() { _ = h.Close() }, nil
 }

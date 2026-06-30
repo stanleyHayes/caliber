@@ -6,10 +6,14 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/xcreativs/caliber/internal/app"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 )
 
 // ReadinessChecker reports whether the app can serve dependency-backed traffic.
@@ -28,6 +32,13 @@ const corsAllowedHeaders = "Authorization, Content-Type, Connect-Protocol-Versio
 // rejected downstream.
 const maxRequestBodyBytes = 16 << 20 // 16 MiB
 
+const (
+	bearerPrefix      = "bearer "
+	asynqmonCSPHeader = "default-src 'self'; script-src 'self' 'unsafe-inline'; " +
+		"style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+		"connect-src 'self'; frame-ancestors 'none'"
+)
+
 // NewRouter builds the chi router: request-id + strict CORS + structured
 // access-log + panic-recovery middleware, health and readiness endpoints, and
 // the gateway mounted under /v1/. allowedOrigins is the CORS allowlist (empty =
@@ -35,7 +46,7 @@ const maxRequestBodyBytes = 16 << 20 // 16 MiB
 // correlation id (CAL-007).
 func NewRouter(
 	gateway http.Handler, hsts bool, allowedOrigins []string, log *slog.Logger, readiness ...ReadinessChecker,
-) http.Handler {
+) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(cors(allowedOrigins))
@@ -49,6 +60,78 @@ func NewRouter(
 	r.Get("/readyz", ready(readiness...))
 	r.Handle("/v1/*", gateway)
 	return r
+}
+
+// MountAsynqmon attaches the Asynqmon monitoring UI under the given path,
+// protected by bearer-token RBAC so only employer and recruiter principals can
+// inspect queue state (CAL-028). The path is normalized to start with a slash
+// and requests to the bare path are redirected to the trailing-slash form so
+// the UI's relative asset links resolve correctly.
+func MountAsynqmon(r chi.Router, path string, handler http.Handler, verifier app.TokenService) {
+	path = normalizeMountPath(path)
+	guard := Authorize(verifier, identity.RoleEmployer, identity.RoleRecruiter)
+
+	// Redirect /asynqmon -> /asynqmon/ so the SPA's relative URLs work.
+	r.Get(path, func(w http.ResponseWriter, req *http.Request) {
+		http.Redirect(w, req, path+"/", http.StatusFound)
+	})
+	r.With(guard).Handle(path+"/*", withAsynqmonCSP(handler))
+}
+
+// Authorize returns a chi middleware that verifies a bearer access token and
+// enforces that the principal holds one of the allowed roles. It reuses the
+// same role model and 401/403 semantics as the gRPC auth guards.
+func Authorize(verifier app.TokenService, allowed ...identity.Role) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			raw, ok := bearerFromHeader(r)
+			if !ok {
+				http.Error(w, `{"error":"auth: authentication required"}`, http.StatusUnauthorized)
+				return
+			}
+			principal, err := verifier.VerifyAccess(raw)
+			if err != nil {
+				http.Error(w, `{"error":"auth: invalid or expired access token"}`, http.StatusUnauthorized)
+				return
+			}
+			for _, role := range allowed {
+				if principal.Role == role.String() {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			http.Error(w, `{"error":"auth: insufficient permissions"}`, http.StatusForbidden)
+		})
+	}
+}
+
+// withAsynqmonCSP relaxes the API's default deny-by-default CSP so the
+// Asynqmon SPA can serve its own JS/CSS/images, while keeping the rest of the
+// OWASP security headers intact.
+func withAsynqmonCSP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", asynqmonCSPHeader)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func normalizeMountPath(path string) string {
+	path = strings.TrimSpace(path)
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return strings.TrimSuffix(path, "/")
+}
+
+func bearerFromHeader(r *http.Request) (string, bool) {
+	auth := r.Header.Get("Authorization")
+	if len(auth) <= len(bearerPrefix) {
+		return "", false
+	}
+	if !strings.EqualFold(auth[:len(bearerPrefix)], bearerPrefix) {
+		return "", false
+	}
+	return strings.TrimSpace(auth[len(bearerPrefix):]), true
 }
 
 // requestLogger emits one structured log line per request, correlated by the chi
