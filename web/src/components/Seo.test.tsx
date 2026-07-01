@@ -47,4 +47,19 @@ describe('Seo', () => {
     const links = Array.from(document.head.querySelectorAll('link[rel="alternate"]'));
     expect(links).toHaveLength(0);
   });
+
+  it('emits a Google Search Console verification meta tag when provided', async () => {
+    render(
+      <Seo
+        title="Project Caliber"
+        description="Talent intelligence."
+        path="/"
+        searchConsoleVerification="abc123"
+      />,
+    );
+    await waitFor(() => {
+      const meta = document.head.querySelector('meta[name="google-site-verification"]');
+      expect(meta?.getAttribute('content')).toBe('abc123');
+    });
+  });
 });

@@ -1,5 +1,6 @@
 import { useLocation } from 'react-router-dom';
 
+import { getAnalyticsConfig } from '../analytics/config';
 import { Seo } from './Seo';
 
 const ORG_JSON_LD = {
@@ -45,6 +46,10 @@ const FALLBACK: Meta = {
 export function RouteSeo() {
   const { pathname } = useLocation();
   const meta = ROUTES[pathname] ?? FALLBACK;
+  const { searchConsoleVerification } = getAnalyticsConfig();
+  // Search Console verification belongs on public pages only; app routes are
+  // noindex and should not claim ownership of the crawlable surface.
+  const verification = !meta.noindex ? searchConsoleVerification : undefined;
   return (
     <Seo
       title={meta.title}
@@ -52,6 +57,7 @@ export function RouteSeo() {
       path={pathname}
       noindex={meta.noindex}
       jsonLd={pathname === '/' ? ORG_JSON_LD : undefined}
+      searchConsoleVerification={verification}
     />
   );
 }

@@ -16,6 +16,8 @@ export type SeoProps = {
   jsonLd?: Record<string, unknown>;
   /** Supported locales for hreflang alternate links. Defaults to all supported locales. */
   locales?: readonly string[];
+  /** Optional Google Search Console verification token (meta tag content). */
+  searchConsoleVerification?: string;
 };
 
 function localeUrl(base: string, locale: string) {
@@ -38,6 +40,7 @@ export function Seo({
   noindex = false,
   jsonLd,
   locales = SUPPORTED_LOCALES,
+  searchConsoleVerification,
 }: SeoProps) {
   const fullTitle = title === SITE_NAME ? title : `${title} · ${SITE_NAME}`;
   const url = `${SITE_URL}${path}`;
@@ -46,6 +49,9 @@ export function Seo({
       <title>{fullTitle}</title>
       <meta name="description" content={description} />
       <link rel="canonical" href={url} />
+      {searchConsoleVerification ? (
+        <meta name="google-site-verification" content={searchConsoleVerification} />
+      ) : null}
       {noindex ? <meta name="robots" content="noindex, nofollow" /> : null}
       {!noindex && (
         <>

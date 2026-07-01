@@ -1,6 +1,6 @@
 import { render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RouteSeo } from './RouteSeo';
 
@@ -13,11 +13,20 @@ function renderAt(path: string) {
 }
 
 const robots = () => document.head.querySelector('meta[name="robots"]')?.getAttribute('content') ?? '';
+const verification = () =>
+  document.head.querySelector('meta[name="google-site-verification"]')?.getAttribute('content') ?? '';
 // The JSON-LD <script> is not a head-hoisted tag (React 19 hoists title/meta/link),
 // so it renders in the component tree — query the whole document for it.
 const jsonLd = () => document.querySelector('script[type="application/ld+json"]')?.textContent ?? '';
 
 describe('RouteSeo', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('makes the public landing page indexable with Organization JSON-LD', async () => {
     renderAt('/');
     await waitFor(() => expect(document.title).toBe('Project Caliber'));
@@ -42,5 +51,18 @@ describe('RouteSeo', () => {
     renderAt('/some/unmapped/path');
     await waitFor(() => expect(document.title).toBe('Project Caliber'));
     expect(robots()).toContain('noindex');
+  });
+
+  it('emits the Search Console verification token on public routes', async () => {
+    vi.stubEnv('VITE_SEARCH_CONSOLE_VERIFICATION', 'route-token-123');
+    renderAt('/');
+    await waitFor(() => expect(verification()).toBe('route-token-123'));
+  });
+
+  it('omits the Search Console verification token on authenticated routes', async () => {
+    vi.stubEnv('VITE_SEARCH_CONSOLE_VERIFICATION', 'route-token-123');
+    renderAt('/agent');
+    await waitFor(() => expect(robots()).toContain('noindex'));
+    expect(verification()).toBe('');
   });
 });

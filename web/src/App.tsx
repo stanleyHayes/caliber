@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Suspense, lazy } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
+import { AnalyticsProvider } from './analytics/provider';
 import { AppShell } from './components/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { RouteSeo } from './components/RouteSeo';
@@ -44,29 +45,31 @@ function RouteFallback() {
  */
 export function AppRoutes() {
   return (
-    <SessionBootstrap>
-      <RouteSeo />
-      <Suspense fallback={<RouteFallback />}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route path="/" element={<LandingPage />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="/app" element={<DashboardPage />} />
-              <Route path="/roles" element={<RolesPage />} />
-              <Route path="/roles/new" element={<EmployerFlowPage />} />
-              <Route path="/interview" element={<InterviewPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/agent" element={<AgentPage />} />
-              <Route path="/radar" element={<RadarPage />} />
+    <AnalyticsProvider>
+      <SessionBootstrap>
+        <RouteSeo />
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route path="/" element={<LandingPage />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/app" element={<DashboardPage />} />
+                <Route path="/roles" element={<RolesPage />} />
+                <Route path="/roles/new" element={<EmployerFlowPage />} />
+                <Route path="/interview" element={<InterviewPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/agent" element={<AgentPage />} />
+                <Route path="/radar" element={<RadarPage />} />
+              </Route>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/404" element={<NotFoundPage />} />
+              <Route path="*" element={<Navigate to="/404" replace />} />
             </Route>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/404" element={<NotFoundPage />} />
-            <Route path="*" element={<Navigate to="/404" replace />} />
-          </Route>
-        </Routes>
-      </Suspense>
-    </SessionBootstrap>
+          </Routes>
+        </Suspense>
+      </SessionBootstrap>
+    </AnalyticsProvider>
   );
 }
 

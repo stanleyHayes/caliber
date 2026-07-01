@@ -229,7 +229,7 @@ caliber/
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | WIP | ~83% |
 | | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | WIP | ~83% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | WIP | ~45% |
-| | EPIC-17 | SEO & Web Performance | 10 | 43 | WIP | ~50% |
+| | EPIC-17 | SEO & Web Performance | 10 | 43 | WIP | ~60% |
 | | EPIC-18 | Observability & Operations | 8 | 37 | TODO | 0% |
 | | EPIC-19 | Quality, Testing & Performance Engineering | 8 | 39 | TODO | 0% |
 | | EPIC-20 | CI/CD, Environments & Release Management | 7 | 32 | TODO | 0% |
@@ -492,7 +492,7 @@ Beyond the win: harden security, SEO, observability, quality, deployment, and sc
 - **CAL-125** `[DONE]` · 5 pts — **Core Web Vitals optimization.** Lazy-loaded authenticated routes, preloaded critical latin variable fonts (Fraunces/Outfit), deep MUI icon imports to drop the full icons barrel, vendor code-splitting for long-term caching, and `vercel.json` cache headers. Added `lighthouse-budget.json` + `lighthouserc.js` for the CI gate in CAL-129. *AC:* Lighthouse ≥ 90 perf on key pages; budget file enforces resource/timing budgets. *Deps:* CAL-088
 - **CAL-126** `[DONE]` · 5 pts — **Semantic HTML & a11y for SEO.** Heading hierarchy, landmarks, alt text (reinforces CAL-096). *AC:* no critical Lighthouse SEO/a11y issues. *Deps:* CAL-096
 - **CAL-127** `[DONE]` · 3 pts — **Internationalization & localization readiness.** Installed `react-i18next` + `i18next-browser-languagedetector`; configured `src/i18n` with English default and Twi/French scaffolding; wrapped client and SSR entry points; extracted public-page strings (landing, auth, 404, shell) into locale files; added hreflang alternate links via `Seo`/`RouteSeo`; verified with unit tests and `npm run build && npm run lint && npm run test:run`. *AC:* i18n structure in place. *Deps:* CAL-121
-- **CAL-128** `[TODO]` · 4 pts — **Analytics & Search Console.** Privacy-respecting analytics, Web Vitals reporting, Search Console verification. *AC:* traffic + vitals visible. *Deps:* CAL-121
+- **CAL-128** `[DONE]` · 4 pts — **Analytics & Search Console.** Added privacy-respecting Plausible analytics (`VITE_PLAUSIBLE_DOMAIN`/`VITE_PLAUSIBLE_SCRIPT_URL`, disabled by default), Web Vitals reporting via `web-vitals` (posts to `VITE_WEB_VITALS_ENDPOINT` and/or Plausible custom events), and Search Console verification via meta tag (`VITE_SEARCH_CONSOLE_VERIFICATION`) or build-time HTML file (`VITE_SEARCH_CONSOLE_HTML_FILE_TOKEN`). Wrapped the app in `AnalyticsProvider` and extended `Seo`/`RouteSeo`. Covered by 18 new tests across `src/analytics` plus Seo/RouteSeo verification. *AC:* traffic + vitals visible. *Deps:* CAL-121
 - **CAL-129** `[TODO]` · 5 pts — **Performance budgets in CI.** Lighthouse CI gate on PRs for public pages. *AC:* regressions block merge. *Deps:* CAL-125, CAL-003
 - **CAL-170** `[WIP]` · 5 pts — **Marketing-site animation kit.** Parallax sections, 3D reveal-on-scroll, and the circular-reveal theme toggle on public/marketing pages — built with Motion, lazy/IntersectionObserver-driven, within the Core Web Vitals budget (CAL-125) and gated behind `prefers-reduced-motion`. *AC:* effects render; Lighthouse perf budget still met; reduced-motion disables them. *Deps:* CAL-121, CAL-125, CAL-168
 
