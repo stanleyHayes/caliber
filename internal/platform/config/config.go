@@ -4,6 +4,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"strconv"
@@ -60,6 +61,13 @@ type Config struct {
 	OTelExporter   string // "noop" | "stdout"
 	ServiceName    string // service name for traces and metrics
 	ServiceVersion string // service version for traces and metrics
+
+	// Loki centralized logging configuration (CAL-132).
+	LokiURL           string        // Loki push URL, e.g. http://localhost:3100
+	LokiBatchSize     int           // max entries per push payload
+	LokiFlushInterval time.Duration // max time before flushing a partial batch
+	LokiTimeout       time.Duration // HTTP push timeout
+	LokiTenantID      string        // optional X-Scope-OrgID tenant header
 }
 
 // Load reads configuration from the environment, applying sane defaults.
@@ -104,9 +112,21 @@ func Load() (Config, error) {
 		OTelExporter:   getenv("CALIBER_OTEL_EXPORTER", "noop"),
 		ServiceName:    getenv("CALIBER_SERVICE_NAME", "caliber-api"),
 		ServiceVersion: getenv("CALIBER_SERVICE_VERSION", "dev"),
+
+		LokiURL:           os.Getenv("CALIBER_LOKI_URL"),
+		LokiBatchSize:     getint("CALIBER_LOKI_BATCH_SIZE", 100),
+		LokiFlushInterval: getdur("CALIBER_LOKI_FLUSH_INTERVAL", 5*time.Second),
+		LokiTimeout:       getdur("CALIBER_LOKI_TIMEOUT", 10*time.Second),
+		LokiTenantID:      os.Getenv("CALIBER_LOKI_TENANT_ID"),
 	}
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
 		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")
+	}
+	if c.LokiURL != "" {
+		parsed, err := url.Parse(c.LokiURL)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return Config{}, fmt.Errorf("config: invalid CALIBER_LOKI_URL %q", c.LokiURL)
+		}
 	}
 	return c, nil
 }

@@ -36,6 +36,10 @@ companion to [fairness.md](fairness.md).
   blanked, and PII-shaped substrings (email addresses, `Bearer` credentials, JWTs)
   are masked wherever they appear, even inside an otherwise neutral field. This is
   a backstop, not a licence to log PII; call sites still avoid it deliberately.
+- **Loki shipping is redacted by default (CAL-132).** When `CALIBER_LOKI_URL` is
+  configured, the same redacted JSON stream that is written to stdout is batched
+  and pushed to Loki. The redacting handler sits *before* the Loki writer, so
+  credentials and PII never leave the process unredacted.
 - **Untrusted-by-default.** All candidate/role text is sanitised and fenced
   before it reaches a model (CAL-119), and treated as data, never instructions.
 - **No protected attributes in scoring inputs** (CAL-085) — they are not even

@@ -145,6 +145,74 @@ func TestValidateRequiresCORSOriginsInProd(t *testing.T) {
 	}
 }
 
+func TestLoadAppliesLokiDefaults(t *testing.T) {
+	t.Setenv("CALIBER_ENV", "")
+	clearCORSOriginsEnv(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.LokiURL != "" {
+		t.Errorf("LokiURL = %q, want empty", cfg.LokiURL)
+	}
+	if cfg.LokiBatchSize != 100 {
+		t.Errorf("LokiBatchSize = %d, want 100", cfg.LokiBatchSize)
+	}
+	if cfg.LokiFlushInterval != 5*time.Second {
+		t.Errorf("LokiFlushInterval = %v, want 5s", cfg.LokiFlushInterval)
+	}
+	if cfg.LokiTimeout != 10*time.Second {
+		t.Errorf("LokiTimeout = %v, want 10s", cfg.LokiTimeout)
+	}
+	if cfg.LokiTenantID != "" {
+		t.Errorf("LokiTenantID = %q, want empty", cfg.LokiTenantID)
+	}
+}
+
+func TestLoadParsesLokiOverrides(t *testing.T) {
+	t.Setenv("CALIBER_ENV", "")
+	clearCORSOriginsEnv(t)
+	t.Setenv("CALIBER_LOKI_URL", "http://loki.example.com:3100")
+	t.Setenv("CALIBER_LOKI_BATCH_SIZE", "250")
+	t.Setenv("CALIBER_LOKI_FLUSH_INTERVAL", "15s")
+	t.Setenv("CALIBER_LOKI_TIMEOUT", "30s")
+	t.Setenv("CALIBER_LOKI_TENANT_ID", "tenant-42")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.LokiURL != "http://loki.example.com:3100" {
+		t.Errorf("LokiURL = %q, want http://loki.example.com:3100", cfg.LokiURL)
+	}
+	if cfg.LokiBatchSize != 250 {
+		t.Errorf("LokiBatchSize = %d, want 250", cfg.LokiBatchSize)
+	}
+	if cfg.LokiFlushInterval != 15*time.Second {
+		t.Errorf("LokiFlushInterval = %v, want 15s", cfg.LokiFlushInterval)
+	}
+	if cfg.LokiTimeout != 30*time.Second {
+		t.Errorf("LokiTimeout = %v, want 30s", cfg.LokiTimeout)
+	}
+	if cfg.LokiTenantID != "tenant-42" {
+		t.Errorf("LokiTenantID = %q, want tenant-42", cfg.LokiTenantID)
+	}
+}
+
+func TestLoadRejectsInvalidLokiURL(t *testing.T) {
+	for _, raw := range []string{"ftp://loki.example.com", "://bad", " "} {
+		t.Run(raw, func(t *testing.T) {
+			t.Setenv("CALIBER_ENV", "")
+			clearCORSOriginsEnv(t)
+			t.Setenv("CALIBER_LOKI_URL", raw)
+			if _, err := Load(); err == nil {
+				t.Fatal("Load() error = nil, want invalid Loki URL error")
+			}
+		})
+	}
+}
+
 func TestIsProd(t *testing.T) {
 	if !(Config{Env: "prod"}).IsProd() {
 		t.Error("IsProd() = false for env=prod, want true")

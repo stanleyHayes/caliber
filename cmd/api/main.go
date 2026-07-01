@@ -55,13 +55,21 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	log := logging.New(cfg.LogLevel)
+	log, logShutdown, err := logging.NewWithConfig(cfg)
+	if err != nil {
+		return err
+	}
 	if missing := cfg.Validate(); len(missing) > 0 {
 		log.Warn("missing configuration", "missing", missing, "env", cfg.Env)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = logShutdown(shutdownCtx)
+	}()
 
 	tele, err := telemetry.New(cfg)
 	if err != nil {
