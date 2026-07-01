@@ -21,4 +21,30 @@ describe('Seo', () => {
       expect(robots?.getAttribute('content')).toContain('noindex');
     });
   });
+
+  it('emits hreflang alternate links for every supported locale on public pages', async () => {
+    render(<Seo title="Sign in" description="Access your Caliber account." path="/login" />);
+    await waitFor(() => {
+      const links = Array.from(document.head.querySelectorAll('link[rel="alternate"]'));
+      const hreflangs = links.map((l) => l.getAttribute('hreflang'));
+      expect(hreflangs).toContain('en');
+      expect(hreflangs).toContain('tw');
+      expect(hreflangs).toContain('fr');
+      expect(hreflangs).toContain('x-default');
+      const enLink = links.find((l) => l.getAttribute('hreflang') === 'en');
+      expect(enLink?.getAttribute('href')).toBe('https://projectcaliber.app/login?lng=en');
+      const xDefault = links.find((l) => l.getAttribute('hreflang') === 'x-default');
+      expect(xDefault?.getAttribute('href')).toBe('https://projectcaliber.app/login');
+    });
+  });
+
+  it('does not emit hreflang links on noindex pages', async () => {
+    render(<Seo title="Dashboard" description="Your Talent Radar." path="/app" noindex />);
+    await waitFor(() => {
+      const robots = document.head.querySelector('meta[name="robots"]');
+      expect(robots?.getAttribute('content')).toContain('noindex');
+    });
+    const links = Array.from(document.head.querySelectorAll('link[rel="alternate"]'));
+    expect(links).toHaveLength(0);
+  });
 });

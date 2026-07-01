@@ -1,0 +1,50 @@
+{
+  "brand": {
+    "name": "Caliber",
+    "fullName": "Project Caliber"
+  },
+  "nav": {
+    "skipToMain": "Kɔ akontaabu mu",
+    "radar": "Radar",
+    "signIn": "Kɔ mu",
+    "signOut": "Fi mu",
+    "signOutAria": "Fi mu ({{name}})",
+    "getStarted": "Fie wo ho ase"
+  },
+  "landing": {
+    "headline": "Fa nokware si adwuma, mmɔ nhyehyɛe.",
+    "subheadline": "Caliber yɛ talent-intelligence platform: nkitaho a eda adi, AI screening a ɛyɛ adaptive, ne candidate agent a ɔyɛ nokwarefo — ɔden ne onipa a ɔwɔ mu.",
+    "ctaPrimary": "Fie wo ho ase",
+    "ctaSecondary": "Kɔ mu",
+    "feature1Title": "Nkitaho a eda adi",
+    "feature1Body": "Kyerɛ adwuma no Twi mu. Benya spec a etwa mu, rubric a ɛwɔ nkyerɛwee, ne nkitaho a wɔatete mu wɔ kwan so biara a emu nokware wɔ hɔ.",
+    "feature2Title": "AI screening interviews",
+    "feature2Body": "Ɔno a ɔbisa abisade bɔ no mu no sua wo nimdeɛ biara na ɔma report card a ɛkyerɛ nokware — box tumm no nni hɔ, nnuhuma nso nni hɔ.",
+    "feature3Title": "Candidate agent a ɔyɛ nokwarefo",
+    "feature3Body": "Ɔyɛ adwuma bere a woada hɔ, fa kɔɔ bea a wo profile a wɔasesedee no si wo yiye — ɔmfa nnuhuma biara mma."
+  },
+  "auth": {
+    "welcomeBack": "Akwaaba bio",
+    "signInPrompt": "Kɔ Caliber mu.",
+    "createAccount": "Bɔ wo account",
+    "passwordHint": "Passwords ɛsɛ sɛ wɔn atwerɛ 12 anaa nea ɛboro saa.",
+    "email": "Email",
+    "password": "Password",
+    "fullName": "Din a edi mu",
+    "role": "Me yɛ…",
+    "roleEmployer": "Wɔn a wɔbɔ adwuma",
+    "roleRecruiter": "Recruiter",
+    "roleCandidate": "Ɔhɔho",
+    "submitSignIn": "Kɔ mu",
+    "submitCreate": "Bɔ account",
+    "noAccount": "Account nni hɔ?",
+    "hasAccount": "Woatwerɛ ansa?",
+    "createOne": "Bɔ bio",
+    "signInLink": "Kɔ mu"
+  },
+  "notFound": {
+    "heading": "Ennhu",
+    "message": "Nkrataa no nni hɔ.",
+    "backHome": "San kɔ fie"
+  }
+}

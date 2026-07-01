@@ -1,11 +1,13 @@
 import { Alert, Box, Link as MuiLink, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { DotsButton } from '../components/DotsButton';
 import { useLogin } from '../query/auth';
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const login = useLogin();
   const [email, setEmail] = useState('');
@@ -21,12 +23,12 @@ export function LoginPage() {
       <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 } }}>
         <Stack spacing={3} component="form" onSubmit={onSubmit}>
           <Stack spacing={0.5}>
-            <Typography variant="h4" component="h1">Welcome back</Typography>
-            <Typography color="text.secondary">Sign in to Caliber.</Typography>
+            <Typography variant="h4" component="h1">{t('auth.welcomeBack')}</Typography>
+            <Typography color="text.secondary">{t('auth.signInPrompt')}</Typography>
           </Stack>
           {login.isError && <Alert severity="error">{login.error.message}</Alert>}
           <TextField
-            label="Email"
+            label={t('auth.email')}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -35,7 +37,7 @@ export function LoginPage() {
             fullWidth
           />
           <TextField
-            label="Password"
+            label={t('auth.password')}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -44,12 +46,12 @@ export function LoginPage() {
             fullWidth
           />
           <DotsButton type="submit" variant="contained" size="large" loading={login.isPending}>
-            Sign in
+            {t('auth.submitSignIn')}
           </DotsButton>
           <Typography variant="body2" color="text.secondary">
-            No account?{' '}
+            {t('auth.noAccount')}{' '}
             <MuiLink component={Link} to="/register">
-              Create one
+              {t('auth.createOne')}
             </MuiLink>
           </Typography>
         </Stack>

@@ -4,6 +4,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { App } from './App';
+import { I18nProvider } from './i18n/I18nProvider';
 import './theme/fonts';
 import { theme } from './theme/theme';
 
@@ -30,9 +31,11 @@ createRoot(container).render(
     <ThemeProvider theme={theme} defaultMode="system">
       <CssBaseline />
       {viewTransitionStyles}
-      <MotionConfig reducedMotion="user">
-        <App />
-      </MotionConfig>
+      <I18nProvider>
+        <MotionConfig reducedMotion="user">
+          <App />
+        </MotionConfig>
+      </I18nProvider>
     </ThemeProvider>
   </StrictMode>,
 );

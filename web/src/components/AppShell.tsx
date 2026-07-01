@@ -1,5 +1,6 @@
 import { AppBar, Box, Button, Container, Toolbar, Typography } from '@mui/material';
 import { AnimatePresence, motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { useLogout } from '../query/auth';
@@ -7,6 +8,7 @@ import { useAuthStore } from '../stores/auth';
 import { ModeToggle } from './ModeToggle';
 
 export function AppShell() {
+  const { t } = useTranslation();
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -32,7 +34,7 @@ export function AppShell() {
           '&:focus-visible': { top: 8 },
         }}
       >
-        Skip to main content
+        {t('nav.skipToMain')}
       </Box>
       <AppBar component="header" position="sticky" color="default" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Toolbar>
@@ -42,7 +44,7 @@ export function AppShell() {
             to={accessToken ? '/app' : '/'}
             sx={{ flexGrow: 1, textDecoration: 'none', color: 'text.primary', fontFamily: (t) => t.typography.h6.fontFamily }}
           >
-            Caliber
+            {t('brand.name')}
           </Typography>
           <Box
             component="nav"
@@ -58,7 +60,7 @@ export function AppShell() {
           >
             {accessToken && (
               <Button component={Link} to="/radar" color="inherit" size="small">
-                Radar
+                {t('nav.radar')}
               </Button>
             )}
             <ModeToggle />
@@ -67,9 +69,9 @@ export function AppShell() {
                 onClick={() => logout.mutate()}
                 size="small"
                 color="inherit"
-                aria-label={user ? `Sign out (${user.name})` : 'Sign out'}
+                aria-label={user ? t('nav.signOutAria', { name: user.name }) : t('nav.signOut')}
               >
-                Sign out
+                {t('nav.signOut')}
                 {user && (
                   <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, ml: 0.5 }}>
                     ({user.name})
@@ -79,10 +81,10 @@ export function AppShell() {
             ) : (
               <>
                 <Button component={Link} to="/login" color="inherit" size="small">
-                  Sign in
+                  {t('nav.signIn')}
                 </Button>
                 <Button component={Link} to="/register" variant="contained" size="small">
-                  Get started
+                  {t('nav.getStarted')}
                 </Button>
               </>
             )}

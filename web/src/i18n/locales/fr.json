@@ -1,0 +1,50 @@
+{
+  "brand": {
+    "name": "Caliber",
+    "fullName": "Project Caliber"
+  },
+  "nav": {
+    "skipToMain": "Passer au contenu principal",
+    "radar": "Radar",
+    "signIn": "Se connecter",
+    "signOut": "Se déconnecter",
+    "signOutAria": "Se déconnecter ({{name}})",
+    "getStarted": "Commencer"
+  },
+  "landing": {
+    "headline": "Recrutez sur des preuves, pas sur des suppositions.",
+    "subheadline": "Caliber est une plateforme d'intelligence des talents : présélection explicable, entretien d'IA adaptatif et candidat agent honnête — sans biais et avec supervision humaine.",
+    "ctaPrimary": "Commencer",
+    "ctaSecondary": "Se connecter",
+    "feature1Title": "Présélections explicables",
+    "feature1Body": "Décrivez un poste en langage simple. Obtenez une fiche structurée, une grille pondérée et une présélection classée où chaque score repose sur des preuves.",
+    "feature2Title": "Entretiens de sélection IA",
+    "feature2Body": "Un entretien adaptif explore chaque compétence et produit une fiche de rapport fondée sur des preuves — pas de boîte noire, pas de fabrication.",
+    "feature3Title": "Un agent candidat honnête",
+    "feature3Body": "Il travaille pendant que vous dormez, en postulant uniquement là où votre profil vérifié vous qualifie déjà — sans jamais rien inventer."
+  },
+  "auth": {
+    "welcomeBack": "Bon retour",
+    "signInPrompt": "Connectez-vous à Caliber.",
+    "createAccount": "Créer votre compte",
+    "passwordHint": "Le mot de passe doit contenir au moins 12 caractères.",
+    "email": "Email",
+    "password": "Mot de passe",
+    "fullName": "Nom complet",
+    "role": "Je suis…",
+    "roleEmployer": "Employeur",
+    "roleRecruiter": "Recruteur",
+    "roleCandidate": "Candidat",
+    "submitSignIn": "Se connecter",
+    "submitCreate": "Créer le compte",
+    "noAccount": "Pas de compte ?",
+    "hasAccount": "Déjà inscrit ?",
+    "createOne": "Créer un compte",
+    "signInLink": "Se connecter"
+  },
+  "notFound": {
+    "heading": "Page non trouvée",
+    "message": "Cette page n'existe pas.",
+    "backHome": "Retour à l'accueil"
+  }
+}

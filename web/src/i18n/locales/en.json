@@ -1,0 +1,50 @@
+{
+  "brand": {
+    "name": "Caliber",
+    "fullName": "Project Caliber"
+  },
+  "nav": {
+    "skipToMain": "Skip to main content",
+    "radar": "Radar",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "signOutAria": "Sign out ({{name}})",
+    "getStarted": "Get started"
+  },
+  "landing": {
+    "headline": "Hire on evidence, not guesswork.",
+    "subheadline": "Caliber is a talent-intelligence platform: explainable shortlisting, adaptive AI screening, and an honest candidate agent — bias-safe and human-in-the-loop.",
+    "ctaPrimary": "Get started",
+    "ctaSecondary": "Sign in",
+    "feature1Title": "Explainable shortlists",
+    "feature1Body": "Describe a role in plain language. Get a structured spec, a weighted rubric, and a ranked shortlist where every score traces back to evidence.",
+    "feature2Title": "AI screening interviews",
+    "feature2Body": "An adaptive interviewer probes each competency and produces an evidence-tagged report card — no black box, no fabrication.",
+    "feature3Title": "An honest candidate agent",
+    "feature3Body": "It works while you sleep, applying only where your verified profile already qualifies you — never inventing a thing."
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "signInPrompt": "Sign in to Caliber.",
+    "createAccount": "Create your account",
+    "passwordHint": "Passwords must be at least 12 characters.",
+    "email": "Email",
+    "password": "Password",
+    "fullName": "Full name",
+    "role": "I am a…",
+    "roleEmployer": "Employer",
+    "roleRecruiter": "Recruiter",
+    "roleCandidate": "Candidate",
+    "submitSignIn": "Sign in",
+    "submitCreate": "Create account",
+    "noAccount": "No account?",
+    "hasAccount": "Already registered?",
+    "createOne": "Create one",
+    "signInLink": "Sign in"
+  },
+  "notFound": {
+    "heading": "Not found",
+    "message": "That page does not exist.",
+    "backHome": "Back home"
+  }
+}

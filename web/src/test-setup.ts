@@ -3,6 +3,10 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
+// Initialize the i18n instance for tests so components can call useTranslation
+// without every test wrapping an I18nextProvider.
+import './i18n';
+
 const makeStorage = (): Storage => {
   const items = new Map<string, string>();
   return {

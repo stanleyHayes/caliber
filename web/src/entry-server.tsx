@@ -7,6 +7,7 @@ import { renderToString } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom';
 
 import { AppRoutes } from './App';
+import { I18nProvider } from './i18n/I18nProvider';
 import { queryClient } from './query/client';
 import { theme } from './theme/theme';
 
@@ -27,11 +28,13 @@ export function render(url: string) {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme} defaultMode="light">
           <CssBaseline />
-          <MotionConfig reducedMotion="user">
-            <StaticRouter location={url}>
-              <AppRoutes />
-            </StaticRouter>
-          </MotionConfig>
+          <I18nProvider>
+            <MotionConfig reducedMotion="user">
+              <StaticRouter location={url}>
+                <AppRoutes />
+              </StaticRouter>
+            </MotionConfig>
+          </I18nProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </CacheProvider>,
