@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/xcreativs/caliber/internal/adapters/inbound/httpserver"
+	"github.com/xcreativs/caliber/internal/app"
 )
 
 func TestSecureHeadersAndHealth(t *testing.T) {
@@ -140,6 +141,25 @@ func TestRequestLoggerEmitsCorrelatedStructuredLog(t *testing.T) {
 	assert.NotEmpty(t, entry["request_id"], "every request is correlated by its chi request id (CAL-007)")
 	assert.Contains(t, entry, "duration_ms")
 }
+
+func TestAIQualityMetricsServesJSONStats(t *testing.T) {
+	provider := &staticStatsProvider{}
+	handler := httpserver.AIQualityMetrics(provider)
+
+	rec := httptest.NewRecorder()
+	handler(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.InDelta(t, 0.0, body["total_calls"], 1e-9)
+	assert.Contains(t, body, "by_operation")
+}
+
+type staticStatsProvider struct{}
+
+func (s *staticStatsProvider) Stats() app.AIQualityStats { return app.AIQualityStats{} }
 
 type failingReadiness struct{}
 

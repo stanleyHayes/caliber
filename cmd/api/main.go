@@ -15,7 +15,9 @@ import (
 	"time"
 
 	grpcadapter "github.com/xcreativs/caliber/internal/adapters/inbound/grpc"
+	"github.com/xcreativs/caliber/internal/adapters/inbound/httpserver"
 	authadapter "github.com/xcreativs/caliber/internal/adapters/outbound/auth"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
 	queueadapter "github.com/xcreativs/caliber/internal/adapters/outbound/queue"
@@ -25,7 +27,6 @@ import (
 	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
 	identityapp "github.com/xcreativs/caliber/internal/app/identity"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
-	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
 	privacyapp "github.com/xcreativs/caliber/internal/app/privacy"
 	profilesapp "github.com/xcreativs/caliber/internal/app/profiles"
@@ -33,6 +34,7 @@ import (
 	appqueue "github.com/xcreativs/caliber/internal/app/queue"
 	"github.com/xcreativs/caliber/internal/app/roles"
 	"github.com/xcreativs/caliber/internal/domain/audit"
+	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
 	"github.com/xcreativs/caliber/internal/platform/readiness"
@@ -60,34 +62,37 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	svc, cleanup, ready, err := buildServices(ctx, cfg, log)
+	svc, cleanup, ready, aiRecorder, err := buildServices(ctx, cfg, log)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
-	return server.Run(ctx, cfg, log, svc, ready)
+	return server.RunWithOptions(ctx, cfg, log, svc, []httpserver.ReadinessChecker{ready},
+		[]server.Option{server.WithMetrics(httpserver.AIQualityMetrics(aiRecorder))})
 }
 
-func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (grpcadapter.Services, func(), *readiness.Aggregate, error) {
-	model := wiring.BuildLLM(cfg, log)
+func buildServices(
+	ctx context.Context, cfg config.Config, log *slog.Logger,
+) (grpcadapter.Services, func(), *readiness.Aggregate, *llm.MemoryRecorder, error) {
+	model, aiRecorder := wiring.BuildLLM(cfg, log)
 	embedder := wiring.BuildEmbedder(cfg, log)
 	cleanup := func() {}
 	svc := grpcadapter.Services{}
 	ready := readiness.New()
 	if cfg.IsProd() && cfg.DatabaseURL == "" {
-		return svc, cleanup, ready, errors.New("CALIBER_DATABASE_URL is required in production")
+		return svc, cleanup, ready, aiRecorder, errors.New("CALIBER_DATABASE_URL is required in production")
 	}
 
 	auditRepo := memory.NewAuditRepo()
 	repos, repoCleanup, checks, err := wiring.OpenRepositories(ctx, cfg, log)
 	if err != nil {
-		return svc, cleanup, ready, err
+		return svc, cleanup, ready, aiRecorder, err
 	}
 	cleanup = repoCleanup
 	dispatcher, checks, closeDispatcher, err := openTaskDispatcher(cfg, checks)
 	if err != nil {
-		return svc, cleanup, ready, err
+		return svc, cleanup, ready, aiRecorder, err
 	}
 	cleanup = func() {
 		repoCleanup()
@@ -105,10 +110,10 @@ func buildServices(ctx context.Context, cfg config.Config, log *slog.Logger) (gr
 
 	tokens, terr := buildTokenService(cfg, log)
 	if terr != nil {
-		return svc, cleanup, ready, terr
+		return svc, cleanup, ready, aiRecorder, terr
 	}
 	wireApplicationServices(&svc, cfg, repos, model, auditRepo, dispatcher, matchServer, tokens)
-	return svc, cleanup, ready, nil
+	return svc, cleanup, ready, aiRecorder, nil
 }
 
 func wireApplicationServices(

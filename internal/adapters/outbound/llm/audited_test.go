@@ -95,6 +95,69 @@ func TestAudited_UnknownSourceIsRecordedAsUnknown(t *testing.T) {
 	assert.Empty(t, snap[0].PromptVersion)
 }
 
+func TestAudited_FlagsJSONFailureForStructuredOutput(t *testing.T) {
+	rec := llm.NewMemoryRecorder(4)
+	a := llm.NewAudited(stubLLM{resp: app.LLMResponse{Text: "not json"}}, rec, "dev", nil)
+
+	_, err := a.Complete(context.Background(), app.LLMRequest{
+		Source:     app.PromptRef{ID: "cv_extract", Version: "v1"},
+		Prompt:     "x",
+		ExpectJSON: true,
+	})
+	require.NoError(t, err)
+
+	snap := rec.Snapshot()
+	require.Len(t, snap, 1)
+	assert.True(t, snap[0].JSONFailure)
+	assert.False(t, snap[0].Refusal)
+}
+
+func TestAudited_NoJSONFailureForValidJSON(t *testing.T) {
+	rec := llm.NewMemoryRecorder(4)
+	a := llm.NewAudited(stubLLM{resp: app.LLMResponse{Text: `{"name":"Ama"}`}}, rec, "dev", nil)
+
+	_, err := a.Complete(context.Background(), app.LLMRequest{
+		Source:     app.PromptRef{ID: "cv_extract", Version: "v1"},
+		Prompt:     "x",
+		ExpectJSON: true,
+	})
+	require.NoError(t, err)
+
+	snap := rec.Snapshot()
+	require.Len(t, snap, 1)
+	assert.False(t, snap[0].JSONFailure)
+}
+
+func TestAudited_NoJSONFailureWhenNotExpected(t *testing.T) {
+	rec := llm.NewMemoryRecorder(4)
+	a := llm.NewAudited(stubLLM{resp: app.LLMResponse{Text: "plain prose"}}, rec, "dev", nil)
+
+	_, err := a.Complete(context.Background(), app.LLMRequest{
+		Source: app.PromptRef{ID: "chat", Version: "v1"},
+		Prompt: "x",
+	})
+	require.NoError(t, err)
+
+	snap := rec.Snapshot()
+	require.Len(t, snap, 1)
+	assert.False(t, snap[0].JSONFailure)
+}
+
+func TestAudited_FlagsRefusal(t *testing.T) {
+	rec := llm.NewMemoryRecorder(4)
+	a := llm.NewAudited(stubLLM{resp: app.LLMResponse{Text: "I'm sorry, I can't assist with that."}}, rec, "dev", nil)
+
+	_, err := a.Complete(context.Background(), app.LLMRequest{
+		Source: app.PromptRef{ID: "interview_question", Version: "v1"},
+		Prompt: "x",
+	})
+	require.NoError(t, err)
+
+	snap := rec.Snapshot()
+	require.Len(t, snap, 1)
+	assert.True(t, snap[0].Refusal)
+}
+
 func TestMemoryRecorder_RingBufferEvictsOldest(t *testing.T) {
 	rec := llm.NewMemoryRecorder(2)
 	rec.Record(app.AICallRecord{Operation: "a"})
@@ -132,4 +195,21 @@ func TestMemoryRecorderStats(t *testing.T) {
 	assert.Equal(t, 1, stats.FailedCalls)
 	assert.InDelta(t, 0.5, stats.FailureRate, 1e-9)
 	assert.Equal(t, 2, stats.ByOperation["score"].Calls)
+}
+
+func TestMultiRecorder_BroadcastsToAllChildren(t *testing.T) {
+	r1 := llm.NewMemoryRecorder(4)
+	r2 := llm.NewMemoryRecorder(4)
+	multi := llm.NewMultiRecorder(r1, r2)
+
+	multi.Record(app.AICallRecord{Operation: "x"})
+	assert.Len(t, r1.Snapshot(), 1)
+	assert.Len(t, r2.Snapshot(), 1)
+}
+
+func TestMultiRecorder_SkipsNilChildren(t *testing.T) {
+	r1 := llm.NewMemoryRecorder(4)
+	multi := llm.NewMultiRecorder(nil, r1, nil)
+	assert.NotPanics(t, func() { multi.Record(app.AICallRecord{Operation: "x"}) })
+	assert.Len(t, r1.Snapshot(), 1)
 }

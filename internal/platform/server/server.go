@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	grpcadapter "github.com/xcreativs/caliber/internal/adapters/inbound/grpc"
 	"github.com/xcreativs/caliber/internal/adapters/inbound/httpserver"
 	"github.com/xcreativs/caliber/internal/app"
@@ -28,6 +30,7 @@ type runConfig struct {
 	asynqmonPath string
 	asynqmon     http.Handler
 	verifier     app.TokenService
+	metrics      http.Handler
 }
 
 // WithAsynqmon mounts the Asynqmon monitoring UI at the given path, protected by
@@ -41,6 +44,12 @@ func WithAsynqmon(path string, handler http.Handler, verifier app.TokenService) 
 	}
 }
 
+// WithMetrics mounts the AI quality metrics handler at /metrics (CAL-137). The
+// handler is expected to serve PII-free JSON.
+func WithMetrics(handler http.Handler) Option {
+	return func(c *runConfig) { c.metrics = handler }
+}
+
 // Run starts the gRPC server and REST gateway, blocks until ctx is cancelled,
 // then shuts both down gracefully.
 func Run(
@@ -51,6 +60,24 @@ func Run(
 	readiness ...httpserver.ReadinessChecker,
 ) error {
 	return RunWithOptions(ctx, cfg, log, svc, readiness, nil)
+}
+
+//nolint:ireturn // Returns the standard chi.Router interface for mounting.
+func buildRouter(
+	mux *runtime.ServeMux,
+	cfg config.Config,
+	log *slog.Logger,
+	readiness []httpserver.ReadinessChecker,
+	runCfg runConfig,
+) chi.Router {
+	r := httpserver.NewRouter(mux, cfg.IsProd(), cfg.AllowedOrigins, log, readiness...)
+	if runCfg.metrics != nil {
+		r.Get("/metrics", runCfg.metrics.ServeHTTP)
+	}
+	if runCfg.asynqmon != nil && runCfg.verifier != nil {
+		httpserver.MountAsynqmon(r, runCfg.asynqmonPath, runCfg.asynqmon, runCfg.verifier)
+	}
+	return r
 }
 
 // RunWithOptions starts the server with the supplied optional configuration.
@@ -90,10 +117,7 @@ func RunWithOptions(
 		opt(&runCfg)
 	}
 
-	r := httpserver.NewRouter(mux, cfg.IsProd(), cfg.AllowedOrigins, log, readiness...)
-	if runCfg.asynqmon != nil && runCfg.verifier != nil {
-		httpserver.MountAsynqmon(r, runCfg.asynqmonPath, runCfg.asynqmon, runCfg.verifier)
-	}
+	r := buildRouter(mux, cfg, log, readiness, runCfg)
 
 	httpSrv := &http.Server{
 		Addr:              cfg.HTTPAddr,

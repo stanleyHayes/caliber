@@ -57,7 +57,7 @@ func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return errors.New("CALIBER_REDIS_URL is required to run the worker")
 	}
 
-	model := wiring.BuildLLM(cfg, log)
+	model, _ := wiring.BuildLLM(cfg, log)
 	auditRepo := memory.NewAuditRepo()
 	repos, cleanup, _, err := wiring.OpenRepositories(ctx, cfg, log)
 	if err != nil {

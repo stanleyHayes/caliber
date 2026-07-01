@@ -57,14 +57,16 @@ func TestSeedDemoLoadsDemoDataset(t *testing.T) {
 
 func TestBuildLLMDevPath(t *testing.T) {
 	cfg := config.Config{}
-	llm := wiring.BuildLLM(cfg, slog.New(slog.DiscardHandler))
-	assert.NotNil(t, llm)
+	llmClient, recorder := wiring.BuildLLM(cfg, slog.New(slog.DiscardHandler))
+	assert.NotNil(t, llmClient)
+	assert.NotNil(t, recorder)
 }
 
 func TestBuildLLMClaudePath(t *testing.T) {
 	cfg := config.Config{AnthropicAPIKey: "sk-test", AnthropicModel: "claude-3-5-sonnet"}
-	llm := wiring.BuildLLM(cfg, slog.New(slog.DiscardHandler))
-	assert.NotNil(t, llm)
+	llmClient, recorder := wiring.BuildLLM(cfg, slog.New(slog.DiscardHandler))
+	assert.NotNil(t, llmClient)
+	assert.NotNil(t, recorder)
 }
 
 func TestBuildEmbedderDevPath(t *testing.T) {

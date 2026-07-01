@@ -29,7 +29,9 @@ func NewAudited(inner app.LLMClient, recorder app.AICallRecorder, model string, 
 }
 
 // Complete delegates to the inner client and records a redacted trace (sizes and
-// latency only — never content) regardless of success or failure.
+// latency only — never content) regardless of success or failure. It also flags
+// structured-output JSON failures and refusal language for AI-quality monitoring
+// (CAL-137).
 func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResponse, error) {
 	start := a.now()
 	resp, err := a.inner.Complete(ctx, req)
@@ -38,7 +40,7 @@ func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 		if operation == "" {
 			operation = "unknown"
 		}
-		a.recorder.Record(app.AICallRecord{
+		rec := app.AICallRecord{
 			Operation:     operation,
 			PromptID:      req.Source.ID,
 			PromptVersion: req.Source.Version,
@@ -48,7 +50,14 @@ func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 			ResponseChars: len(resp.Text),
 			Failed:        err != nil,
 			At:            start,
-		})
+		}
+		if err == nil && req.ExpectJSON && !app.IsValidJSON(resp.Text) {
+			rec.JSONFailure = true
+		}
+		if err == nil && app.LooksLikeRefusal(resp.Text) {
+			rec.Refusal = true
+		}
+		a.recorder.Record(rec)
 	}
 	return resp, err
 }
@@ -85,7 +94,7 @@ func NewSlogRecorder(log *slog.Logger) *SlogRecorder { return &SlogRecorder{log:
 
 // Record emits a redacted structured log line for the call.
 func (r *SlogRecorder) Record(rec app.AICallRecord) {
-	r.log.Info("ai call",
+	log := r.log.With(
 		"operation", rec.Operation,
 		"prompt_id", rec.PromptID,
 		"prompt_version", rec.PromptVersion,
@@ -94,7 +103,13 @@ func (r *SlogRecorder) Record(rec app.AICallRecord) {
 		"prompt_chars", rec.PromptChars,
 		"response_chars", rec.ResponseChars,
 		"failed", rec.Failed,
+		"json_failure", rec.JSONFailure,
+		"refusal", rec.Refusal,
 	)
+	if len(rec.GuardrailTrips) > 0 {
+		log = log.With("guardrail_trips", rec.GuardrailTrips)
+	}
+	log.Info("ai call")
 }
 
 // MemoryRecorder keeps the most recent AI-call traces in a bounded ring buffer,
@@ -135,8 +150,29 @@ func (m *MemoryRecorder) Snapshot() []app.AICallRecord {
 }
 
 // Stats summarizes the retained traces for AI-quality monitoring (CAL-137):
-// call volume, failure rate, latency percentiles, and a token-proxy cost signal,
-// per operation. Computed over the redacted traces, so it carries no PII.
+// call volume, failure rate, latency percentiles, token-proxy cost signal,
+// structured-output failure rate, refusal rate, and guardrail trips, per
+// operation. Computed over the redacted traces, so it carries no PII.
 func (m *MemoryRecorder) Stats() app.AIQualityStats {
 	return app.SummarizeAIQuality(m.Snapshot())
+}
+
+// MultiRecorder forwards each record to every child recorder. It is safe for
+// concurrent use when its children are.
+type MultiRecorder struct {
+	recorders []app.AICallRecorder
+}
+
+// NewMultiRecorder builds a recorder that broadcasts to all supplied recorders.
+func NewMultiRecorder(recorders ...app.AICallRecorder) *MultiRecorder {
+	return &MultiRecorder{recorders: recorders}
+}
+
+// Record forwards rec to every child recorder. Nil children are skipped.
+func (m *MultiRecorder) Record(rec app.AICallRecord) {
+	for _, r := range m.recorders {
+		if r != nil {
+			r.Record(rec)
+		}
+	}
 }

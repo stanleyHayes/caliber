@@ -200,10 +200,15 @@ const (
 	llmRateBurst      = 40
 )
 
-// BuildLLM constructs the audited+guarded LLM facade from config.
+// BuildLLM constructs the audited+guarded LLM facade from config. It returns the
+// client plus a queryable memory recorder that powers the AI-quality metrics
+// endpoint (CAL-137). The recorder retains the last 256 redacted call traces.
 //
 //nolint:ireturn // returns the audited+guarded LLM facade as the app.LLMClient port; interface return is intentional.
-func BuildLLM(cfg config.Config, log *slog.Logger) app.LLMClient {
+func BuildLLM(cfg config.Config, log *slog.Logger) (app.LLMClient, *llm.MemoryRecorder) {
+	mem := llm.NewMemoryRecorder(0)
+	// Broadcast every trace to both structured logs and the in-memory snapshot.
+	rec := llm.NewMultiRecorder(mem, llm.NewSlogRecorder(log))
 	guarded := llm.NewGuarded(newLLMProvider(cfg, log),
 		llm.WithMaxTokens(llmMaxTokensCap),
 		llm.WithConcurrency(llmMaxConcurrency),
@@ -212,10 +217,11 @@ func BuildLLM(cfg config.Config, log *slog.Logger) app.LLMClient {
 			// Category labels only — never prompt content — so logs stay PII-safe.
 			log.Warn("llm prompt-injection signal detected", "categories", categories)
 		}),
+		llm.WithRecorder(mem),
 	)
 	// Outermost: trace every call (redacted: sizes + latency, no content) for
 	// cost and explainability observability (CAL-036).
-	return llm.NewAudited(guarded, llm.NewSlogRecorder(log), modelLabel(cfg), nil)
+	return llm.NewAudited(guarded, rec, modelLabel(cfg), nil), mem
 }
 
 func modelLabel(cfg config.Config) string {

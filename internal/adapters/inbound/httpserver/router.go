@@ -4,6 +4,7 @@ package httpserver
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -44,6 +45,7 @@ const (
 // the gateway mounted under /v1/. allowedOrigins is the CORS allowlist (empty =
 // same-origin only). When log is non-nil, every request is logged with its
 // correlation id (CAL-007).
+//
 //nolint:ireturn // Returns the standard chi.Router interface for mounting.
 func NewRouter(
 	gateway http.Handler, hsts bool, allowedOrigins []string, log *slog.Logger, readiness ...ReadinessChecker,
@@ -61,6 +63,97 @@ func NewRouter(
 	r.Get("/readyz", ready(readiness...))
 	r.Handle("/v1/*", gateway)
 	return r
+}
+
+// AIQualityStatsProvider returns a snapshot of AI call quality metrics. It is
+// implemented by the LLM memory recorder (CAL-137).
+type AIQualityStatsProvider interface {
+	Stats() app.AIQualityStats
+}
+
+// AIQualityMetrics returns an http.HandlerFunc that serves PII-free AI quality
+// metrics (call volume, failure/JSON/refusal rates, guardrail trips, latency)
+// as JSON. It is the lightweight surfacing for CAL-137 until CAL-131 wires
+// Prometheus exposition format.
+func AIQualityMetrics(provider AIQualityStatsProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		stats := provider.Stats()
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(aiQualityResponseFrom(stats)); err != nil {
+			// Encoding our own PII-free stats struct should never fail; log and
+			// return a minimal error body so the request still terminates.
+			http.Error(w, `{"error":"metrics encoding failed"}`, http.StatusInternalServerError)
+		}
+	}
+}
+
+// aiQualityResponse is the JSON shape returned by /metrics. Latencies are in
+// milliseconds for human readability.
+type aiQualityResponse struct {
+	TotalCalls               int                                   `json:"total_calls"`
+	FailedCalls              int                                   `json:"failed_calls"`
+	FailureRate              float64                               `json:"failure_rate"`
+	JSONFailures             int                                   `json:"json_failures"`
+	JSONFailureRate          float64                               `json:"json_failure_rate"`
+	Refusals                 int                                   `json:"refusals"`
+	RefusalRate              float64                               `json:"refusal_rate"`
+	GuardrailTrips           int                                   `json:"guardrail_trips"`
+	GuardrailTripsByCategory map[string]int                        `json:"guardrail_trips_by_category"`
+	P50LatencyMs             int64                                 `json:"p50_latency_ms"`
+	P95LatencyMs             int64                                 `json:"p95_latency_ms"`
+	InputChars               int                                   `json:"input_chars"`
+	OutputChars              int                                   `json:"output_chars"`
+	ByOperation              map[string]aiQualityOperationResponse `json:"by_operation"`
+}
+
+type aiQualityOperationResponse struct {
+	Calls                    int            `json:"calls"`
+	Failed                   int            `json:"failed"`
+	FailureRate              float64        `json:"failure_rate"`
+	JSONFailures             int            `json:"json_failures"`
+	JSONFailureRate          float64        `json:"json_failure_rate"`
+	Refusals                 int            `json:"refusals"`
+	RefusalRate              float64        `json:"refusal_rate"`
+	GuardrailTrips           int            `json:"guardrail_trips"`
+	GuardrailTripsByCategory map[string]int `json:"guardrail_trips_by_category"`
+	P95LatencyMs             int64          `json:"p95_latency_ms"`
+}
+
+func aiQualityResponseFrom(s app.AIQualityStats) aiQualityResponse {
+	resp := aiQualityResponse{
+		TotalCalls:               s.TotalCalls,
+		FailedCalls:              s.FailedCalls,
+		FailureRate:              s.FailureRate,
+		JSONFailures:             s.JSONFailures,
+		JSONFailureRate:          s.JSONFailureRate,
+		Refusals:                 s.Refusals,
+		RefusalRate:              s.RefusalRate,
+		GuardrailTrips:           s.GuardrailTrips,
+		GuardrailTripsByCategory: s.GuardrailTripsByCategory,
+		P50LatencyMs:             s.P50Latency.Milliseconds(),
+		P95LatencyMs:             s.P95Latency.Milliseconds(),
+		InputChars:               s.InputChars,
+		OutputChars:              s.OutputChars,
+		ByOperation:              make(map[string]aiQualityOperationResponse, len(s.ByOperation)),
+	}
+	if resp.GuardrailTripsByCategory == nil {
+		resp.GuardrailTripsByCategory = make(map[string]int)
+	}
+	for op, os := range s.ByOperation {
+		resp.ByOperation[op] = aiQualityOperationResponse{
+			Calls:                    os.Calls,
+			Failed:                   os.Failed,
+			FailureRate:              os.FailureRate,
+			JSONFailures:             os.JSONFailures,
+			JSONFailureRate:          os.JSONFailureRate,
+			Refusals:                 os.Refusals,
+			RefusalRate:              os.RefusalRate,
+			GuardrailTrips:           os.GuardrailTrips,
+			GuardrailTripsByCategory: os.GuardrailTripsByCategory,
+			P95LatencyMs:             os.P95Latency.Milliseconds(),
+		}
+	}
+	return resp
 }
 
 // MountAsynqmon attaches the Asynqmon monitoring UI under the given path,

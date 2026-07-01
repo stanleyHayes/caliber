@@ -23,12 +23,14 @@ type PromptRef struct {
 }
 
 // LLMRequest is a single completion request. Source is set when the request is
-// built through the prompt registry (prompts.Prompt.Request).
+// built through the prompt registry (prompts.Prompt.Request). ExpectJSON marks
+// structured-output calls so telemetry can track JSON failure rates (CAL-137).
 type LLMRequest struct {
-	System    string
-	Prompt    string
-	MaxTokens int
-	Source    PromptRef
+	System     string
+	Prompt     string
+	MaxTokens  int
+	Source     PromptRef
+	ExpectJSON bool
 }
 
 // LLMResponse is a completion result.

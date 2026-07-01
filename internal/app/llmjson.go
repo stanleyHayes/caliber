@@ -33,6 +33,7 @@ func DecodeJSON[T any](ctx context.Context, client LLMClient, req LLMRequest, at
 	if attempts < 1 {
 		attempts = 1
 	}
+	req.ExpectJSON = true
 	var lastErr error
 	for range attempts {
 		resp, err := client.Complete(ctx, req)

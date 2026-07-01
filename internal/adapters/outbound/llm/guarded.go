@@ -26,6 +26,7 @@ type Guarded struct {
 	sem         chan struct{}
 	limiter     RateLimiter
 	onInjection func(categories []string)
+	recorder    app.AICallRecorder
 }
 
 // GuardOption configures a Guarded client.
@@ -56,6 +57,13 @@ func WithInjectionHook(h func(categories []string)) GuardOption {
 	return func(g *Guarded) { g.onInjection = h }
 }
 
+// WithRecorder records guardrail trip events to the supplied AICallRecorder for
+// AI-quality monitoring (CAL-137). The recorder receives category labels only,
+// never prompt content.
+func WithRecorder(r app.AICallRecorder) GuardOption {
+	return func(g *Guarded) { g.recorder = r }
+}
+
 // NewGuarded wraps inner with the given controls.
 func NewGuarded(inner app.LLMClient, opts ...GuardOption) *Guarded {
 	g := &Guarded{inner: inner}
@@ -72,6 +80,7 @@ func (g *Guarded) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 		return app.LLMResponse{}, kernel.TooManyRequests("llm: request budget exceeded; retry later")
 	}
 	g.reportInjection(req.Prompt)
+	g.recordGuardrailTrips(req)
 	req.MaxTokens = g.cappedTokens(req.MaxTokens)
 
 	release, err := g.acquire(ctx)
@@ -105,6 +114,30 @@ func (g *Guarded) reportInjection(prompt string) {
 	if cats := guard.ScanInjection(prompt); len(cats) > 0 {
 		g.onInjection(cats)
 	}
+}
+
+// recordGuardrailTrips writes a telemetry record when the prompt triggers one or
+// more guardrail categories. The recorded categories are labels only — no prompt
+// content — so the trace stays PII-safe.
+func (g *Guarded) recordGuardrailTrips(req app.LLMRequest) {
+	if g.recorder == nil {
+		return
+	}
+	cats := guard.ScanInjection(req.Prompt)
+	if len(cats) == 0 {
+		return
+	}
+	operation := req.Source.ID
+	if operation == "" {
+		operation = "unknown"
+	}
+	g.recorder.Record(app.AICallRecord{
+		Operation:      operation,
+		PromptID:       req.Source.ID,
+		PromptVersion:  req.Source.Version,
+		GuardrailTrips: cats,
+		At:             time.Now(),
+	})
 }
 
 // cappedTokens clamps a requested token budget to the configured ceiling,
