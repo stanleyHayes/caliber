@@ -3,14 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Project Caliber \u2014 Talent Intelligence Platform frontend (React + Vite + MUI v9).",
+  "description": "Project Caliber — Talent Intelligence Platform frontend (React + Vite + MUI v9).",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/prerender.js && node scripts/verify-prerender.js",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "verify:prerender": "node scripts/verify-prerender.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -28,11 +29,12 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@emotion/cache": "^11.14.0",
     "@eslint/js": "^10.0.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "eslint": "^10.6.0",
     "eslint-plugin-react-hooks": "^7.1.1",
