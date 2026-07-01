@@ -1,4 +1,5 @@
-import { DarkModeOutlined, LightModeOutlined } from '@mui/icons-material';
+import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined';
+import LightModeOutlined from '@mui/icons-material/LightModeOutlined';
 import { IconButton, Tooltip, useColorScheme } from '@mui/material';
 import type { MouseEvent } from 'react';
 import { flushSync } from 'react-dom';

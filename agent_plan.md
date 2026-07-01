@@ -229,7 +229,7 @@ caliber/
 | | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | WIP | ~83% |
 | | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | WIP | ~83% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | WIP | ~45% |
-| | EPIC-17 | SEO & Web Performance | 10 | 43 | TODO | 0% |
+| | EPIC-17 | SEO & Web Performance | 10 | 43 | WIP | ~50% |
 | | EPIC-18 | Observability & Operations | 8 | 37 | TODO | 0% |
 | | EPIC-19 | Quality, Testing & Performance Engineering | 8 | 39 | TODO | 0% |
 | | EPIC-20 | CI/CD, Environments & Release Management | 7 | 32 | TODO | 0% |
@@ -489,7 +489,7 @@ Beyond the win: harden security, SEO, observability, quality, deployment, and sc
 - **CAL-122** `[DONE]` · 3 pts — **Metadata & Open Graph/Twitter cards.** React 19 native document metadata (no head-manager dep): a `Seo` component + a central `RouteSeo` route→metadata map render per-route `<title>`/description/canonical/OG/Twitter tags (auth routes noindex); `index.html` carries enriched defaults. *AC:* rich preview on share; unique titles per page. *Deps:* CAL-121
 - **CAL-123** `[DONE]` · 5 pts — **Structured data (JSON-LD).** `Organization` JSON-LD emitted on the landing page via the `Seo` component. (`JobPosting`/`Occupation` on public role pages awaits the prerendered public role surface, CAL-121.) *AC:* validates in Rich Results Test. *Deps:* CAL-121
 - **CAL-124** `[DONE]` · 3 pts — **Sitemap & robots.** `public/robots.txt` (public pages allowed, app/auth routes disallowed, sitemap referenced) + `public/sitemap.xml` (public URLs), shipped in the build output. *AC:* sitemap submitted; private routes disallowed. *Deps:* CAL-121
-- **CAL-125** `[TODO]` · 5 pts — **Core Web Vitals optimization.** LCP/INP/CLS budgets; image optimization, font loading, code splitting/lazy routes, caching, MUI bundle trimming. *AC:* Lighthouse ≥ 90 perf on key pages. *Deps:* CAL-088
+- **CAL-125** `[DONE]` · 5 pts — **Core Web Vitals optimization.** Lazy-loaded authenticated routes, preloaded critical latin variable fonts (Fraunces/Outfit), deep MUI icon imports to drop the full icons barrel, vendor code-splitting for long-term caching, and `vercel.json` cache headers. Added `lighthouse-budget.json` + `lighthouserc.js` for the CI gate in CAL-129. *AC:* Lighthouse ≥ 90 perf on key pages; budget file enforces resource/timing budgets. *Deps:* CAL-088
 - **CAL-126** `[TODO]` · 5 pts — **Semantic HTML & a11y for SEO.** Heading hierarchy, landmarks, alt text (reinforces CAL-096). *AC:* no critical Lighthouse SEO/a11y issues. *Deps:* CAL-096
 - **CAL-127** `[TODO]` · 3 pts — **Internationalization & localization readiness.** hreflang scaffolding, locale-aware routing (Ghana/West Africa first). *AC:* i18n structure in place. *Deps:* CAL-121
 - **CAL-128** `[TODO]` · 4 pts — **Analytics & Search Console.** Privacy-respecting analytics, Web Vitals reporting, Search Console verification. *AC:* traffic + vitals visible. *Deps:* CAL-121

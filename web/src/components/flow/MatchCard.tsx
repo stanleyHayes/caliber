@@ -1,4 +1,4 @@
-import { WarningAmberOutlined } from '@mui/icons-material';
+import WarningAmberOutlined from '@mui/icons-material/WarningAmberOutlined';
 import {
   Box,
   Card,
