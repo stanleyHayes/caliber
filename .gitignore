@@ -21,3 +21,4 @@
 .DS_Store
 .idea/
 *.swp
+coverage-report.json

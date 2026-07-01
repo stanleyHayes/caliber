@@ -1,5 +1,5 @@
 import { ThemeProvider } from '@mui/material';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { theme } from '../theme/theme';
@@ -57,5 +57,20 @@ describe('ModeToggle', () => {
     renderToggle();
     fireEvent.click(screen.getByLabelText('switch to dark mode'));
     expect(screen.getByLabelText('switch to light mode')).toBeInTheDocument();
+  });
+
+  it('uses view transition when the browser supports it', async () => {
+    const ready = Promise.resolve();
+    const startViewTransition = vi.fn((cb: () => void) => {
+      cb();
+      return { ready };
+    });
+    Object.assign(document, { startViewTransition });
+
+    renderToggle();
+    fireEvent.click(screen.getByLabelText('switch to dark mode'));
+
+    expect(startViewTransition).toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByLabelText('switch to light mode')).toBeInTheDocument());
   });
 });

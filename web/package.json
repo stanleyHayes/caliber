@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "verify:prerender": "node scripts/verify-prerender.js",
     "lighthouse": "lhci autorun",
     "lighthouse:ci": "lhci autorun"
@@ -44,6 +45,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^10.6.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",

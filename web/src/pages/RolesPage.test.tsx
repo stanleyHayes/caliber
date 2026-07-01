@@ -80,4 +80,17 @@ describe('RolesPage', () => {
     renderPage();
     expect(screen.getByText('Could not reach the server')).toBeInTheDocument();
   });
+
+  it('falls back to spec.title when role.title is empty', () => {
+    const noTitle = { ...role, title: '' };
+    rolesResult = { isPending: false, isError: false, error: null, data: { roles: [noTitle] } };
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Senior Go Engineer' })).toBeInTheDocument();
+  });
+
+  it('shows a generic message for a non-Error failure', () => {
+    rolesResult = { isPending: false, isError: true, error: 'timeout' as unknown as Error };
+    renderPage();
+    expect(screen.getByText('Could not load roles.')).toBeInTheDocument();
+  });
 });

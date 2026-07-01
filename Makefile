@@ -40,6 +40,14 @@ cover: test ## show app-code coverage (excludes generated/vendor packages)
 	grep -vE $(COVERAGE_EXCLUDES) coverage.out > coverage.app.out
 	go tool cover -func=coverage.app.out | tail -1
 
+cover-check: test ## enforce per-package Go coverage >= 80% (excludes integration/cmd/generated)
+	scripts/check-go-coverage.sh 80
+
+cover-report: test ## write a JSON coverage trend report (coverage-report.json)
+	grep -vE $(COVERAGE_EXCLUDES) coverage.out > coverage.app.out
+	@echo "{\"total_app_coverage\":\"$$(go tool cover -func=coverage.app.out | awk '/^total:/ {print $$3}')\",\"generated_at\":\"$$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > coverage-report.json
+	@echo "Coverage report written to coverage-report.json"
+
 build: ## compile everything
 	go build ./...
 

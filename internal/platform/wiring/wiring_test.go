@@ -97,3 +97,36 @@ func TestSeedGeneratedLoadsGeneratedDataset(t *testing.T) {
 	assert.GreaterOrEqual(t, total, int64(50))
 	assert.Len(t, candidates, len(candidates))
 }
+
+func TestResetRepositoriesWipesInMemoryData(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.Config{SeedDemo: true}
+	repos, cleanup, _, err := wiring.OpenRepositories(ctx, cfg, slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+	defer cleanup()
+
+	require.NoError(t, wiring.ResetRepositories(ctx, repos))
+
+	roles, _, err := repos.Roles.ListOpen(ctx, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	assert.Empty(t, roles)
+}
+
+func TestReseedReloadsDemoDataset(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.Config{SeedDemo: true}
+	require.NoError(t, wiring.Reseed(ctx, cfg, slog.New(slog.DiscardHandler)))
+}
+
+func TestNewAsynqmonHandlerReturnsNilForEmptyRedisURL(t *testing.T) {
+	h, cleanup, err := wiring.NewAsynqmonHandler("")
+	require.NoError(t, err)
+	assert.Nil(t, h)
+	cleanup()
+}
+
+func TestNewAsynqmonHandlerReturnsErrorForInvalidRedisURL(t *testing.T) {
+	_, cleanup, err := wiring.NewAsynqmonHandler("://not-a-url")
+	require.Error(t, err)
+	cleanup()
+}

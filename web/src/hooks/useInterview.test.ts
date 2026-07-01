@@ -174,4 +174,31 @@ describe('useInterview', () => {
     expect(result.current.question).toBeNull();
     expect(result.current.turns).toEqual([]);
   });
+
+  it('surfaces an error when the stream throws', async () => {
+    const errorStream: AsyncIterable<InterviewEvent> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next() {
+            return Promise.reject(new Error('stream reset'));
+          },
+        };
+      },
+    };
+    streamMock.mockReturnValue(errorStream);
+    const { result } = renderHook(() => useInterview());
+
+    act(() => result.current.start('r1', 'c1'));
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(result.current.error).toMatch(/stream reset/i);
+  });
+
+  it('ignores answers when there is no active interview', () => {
+    streamMock.mockReturnValue(makeStream().iterable);
+    const { result } = renderHook(() => useInterview());
+
+    act(() => result.current.answer('ignored'));
+    expect(result.current.status).toBe('idle');
+    expect(submitMock).not.toHaveBeenCalled();
+  });
 });

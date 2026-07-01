@@ -87,6 +87,20 @@ jobs:
           awk -v t="$total" 'BEGIN { exit (t+0 >= 80) ? 0 : 1 }' \
             || { echo "::error::coverage ${total}% is below the 80% gate"; exit 1; }
 
+      - name: Enforce per-package coverage >= 80%
+        run: scripts/check-go-coverage.sh 80
+
+      - name: Write coverage trend report
+        run: |
+          grep -vE 'node_modules|internal/gen/|internal/mocks/|internal/platform/migrate/|internal/adapters/outbound/postgres/|/cmd/|/web/' coverage.out > coverage.app.out
+          echo "{\"total_app_coverage\":\"$(go tool cover -func=coverage.app.out | awk '/^total:/ {print $3}')\",\"generated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > coverage-report.json
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage-report
+          path: coverage-report.json
+
       - name: SonarQube scan
         if: ${{ env.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@v8
@@ -120,6 +134,9 @@ jobs:
 
       - name: Test
         run: npm run test:run # vitest run (jsdom)
+
+      - name: Enforce frontend coverage floor
+        run: npm run test:coverage # vitest run --coverage
 
   lighthouse:
     name: Lighthouse CI (performance budgets)

@@ -58,4 +58,34 @@ describe('DeleteAccount', () => {
     expect(useAuthStore.getState().accessToken).toBeNull(); // session cleared
     expect(navigateMock).toHaveBeenCalledWith('/', { replace: true });
   });
+
+  it('closes the dialog and resets the confirmation when cancelled', () => {
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }));
+    fireEvent.change(screen.getByLabelText(/Type DELETE/i), { target: { value: 'DELETE' } });
+    expect(screen.getByRole('button', { name: 'Delete everything' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    // Re-opening should show a fresh confirmation field.
+    fireEvent.click(screen.getByText('Delete my account'));
+    expect(screen.getByRole('button', { name: 'Delete everything' })).toBeDisabled();
+  });
+
+  it('does nothing if the confirmation word is wrong', () => {
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }));
+    fireEvent.change(screen.getByLabelText(/Type DELETE/i), { target: { value: 'REMOVE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete everything' }));
+
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('shows a server error message when deletion fails', () => {
+    delState.isError = true;
+    delState.error = new Error('service unavailable');
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }));
+    expect(screen.getByText('service unavailable')).toBeInTheDocument();
+  });
 });

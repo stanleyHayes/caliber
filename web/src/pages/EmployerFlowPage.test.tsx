@@ -97,4 +97,30 @@ describe('EmployerFlowPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Refine spec/ }));
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
   });
+
+  it('does not generate when the user is missing or the brief is empty', () => {
+    useAuthStore.getState().clear();
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText(/senior Go backend engineer/i), { target: { value: 'a brief' } });
+    fireEvent.click(screen.getByRole('button', { name: /Generate spec/ }));
+    expect(generateMutate).not.toHaveBeenCalled();
+  });
+
+  it('shows a server error when generation fails', () => {
+    generateResult.isError = true;
+    generateResult.error = new Error('generation failed');
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText(/senior Go backend engineer/i), { target: { value: 'a brief' } });
+    expect(screen.getByText('generation failed')).toBeInTheDocument();
+  });
+
+  it('welcomes a freshly generated spec even when the pool is empty', () => {
+    generateMutate.mockImplementation((_vars, opts?: { onSuccess?: (d: GenerateRoleResponse) => void }) =>
+      opts?.onSuccess?.({ role, availableMatches: 0 }),
+    );
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText(/senior Go backend engineer/i), { target: { value: 'a brief' } });
+    fireEvent.click(screen.getByRole('button', { name: /Generate spec/ }));
+    expect(screen.getByText('Spec and rubric ready.')).toBeInTheDocument();
+  });
 });
