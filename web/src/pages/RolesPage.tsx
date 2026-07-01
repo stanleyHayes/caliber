@@ -37,7 +37,7 @@ export function RolesPage() {
               <CardContent>
                 <Stack direction="row" spacing={2} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                   <Stack spacing={0.5} sx={{ flexGrow: 1 }}>
-                    <Typography variant="h6">{r.title || r.spec.title}</Typography>
+                    <Typography variant="h6" component="h2">{r.title || r.spec.title}</Typography>
                     <Stack direction="row" spacing={1}>
                       <Chip size="small" label={seniorityLabel[r.spec.seniority]} />
                       {r.spec.location && <Chip size="small" variant="outlined" label={r.spec.location} />}

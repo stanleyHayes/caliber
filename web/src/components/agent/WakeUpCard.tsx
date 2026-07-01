@@ -5,7 +5,7 @@ import type { WakeUpView } from '../../api/types';
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <Box sx={{ minWidth: 120 }}>
-      <Typography variant="h4">{value}</Typography>
+      <Typography variant="h4" component="span">{value}</Typography>
       <Typography variant="caption" color="text.secondary">
         {label}
       </Typography>
@@ -18,7 +18,7 @@ export function WakeUpCard({ wakeUp }: { wakeUp: WakeUpView }) {
     <Card variant="outlined">
       <CardContent>
         <Stack spacing={2.5}>
-          <Typography variant="h5">While you were away</Typography>
+          <Typography variant="h5" component="h2">While you were away</Typography>
           <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 3 }}>
             <Stat label="New matches" value={wakeUp.newMatches} />
             <Stat label="Applications submitted" value={wakeUp.applicationsSubmitted} />

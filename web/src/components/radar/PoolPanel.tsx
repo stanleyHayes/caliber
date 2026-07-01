@@ -8,7 +8,7 @@ export function PoolPanel({ candidates }: { candidates: PoolCandidate[] }) {
     <Card variant="outlined">
       <CardContent>
         <Stack spacing={1.5}>
-          <Typography variant="h6">Live talent pool</Typography>
+          <Typography variant="h6" component="h2">Live talent pool</Typography>
           {candidates.length === 0 && (
             <Typography variant="body2" color="text.secondary">
               No candidates in the pool yet.

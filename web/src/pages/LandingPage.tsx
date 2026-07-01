@@ -46,14 +46,14 @@ export function LandingPage() {
       />
 
       <Container maxWidth="md" sx={{ position: 'relative', py: { xs: 8, md: 14 } }}>
-        <Stack spacing={4} sx={{ alignItems: 'flex-start' }}>
+        <Stack component="section" spacing={4} sx={{ alignItems: 'flex-start' }}>
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <Typography component="h1" sx={{ fontFamily: fonts.title, fontWeight: 700, fontSize: { xs: 44, md: 72 }, lineHeight: 1.05 }}>
               Hire on evidence, not guesswork.
             </Typography>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-            <Typography variant="h6" color="text.secondary" sx={{ maxWidth: 620, fontWeight: 400 }}>
+            <Typography component="p" variant="h6" color="text.secondary" sx={{ maxWidth: 620, fontWeight: 400 }}>
               Caliber is a talent-intelligence platform: explainable shortlisting, adaptive AI screening,
               and an honest candidate agent — bias-safe and human-in-the-loop.
             </Typography>
@@ -68,7 +68,7 @@ export function LandingPage() {
           </Stack>
         </Stack>
 
-        <Box sx={{ mt: { xs: 8, md: 14 }, display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' } }}>
+        <Box component="section" sx={{ mt: { xs: 8, md: 14 }, display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' } }}>
           {FEATURES.map((f, i) => (
             <motion.div
               key={f.title}

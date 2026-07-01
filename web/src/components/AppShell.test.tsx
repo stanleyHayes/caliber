@@ -76,4 +76,12 @@ describe('AppShell', () => {
     renderShell();
     expect(screen.getByText('Skip to main content').closest('a')).toHaveAttribute('href', '#main-content');
   });
+
+  it('uses semantic landmarks: banner, primary navigation, and main content', () => {
+    renderShell();
+    expect(screen.getByRole('banner')).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
+    const main = screen.getByRole('main');
+    expect(main).toHaveAttribute('id', 'main-content');
+  });
 });

@@ -56,7 +56,7 @@ export function RoleEditor({
     <Card variant="outlined">
       <CardContent>
         <Stack spacing={3}>
-          <Typography variant="h6">Refine spec &amp; rubric</Typography>
+          <Typography variant="h6" component="h2">Refine spec &amp; rubric</Typography>
 
           <Stack spacing={2}>
             <TextField
@@ -114,7 +114,7 @@ export function RoleEditor({
 
           <Stack spacing={2}>
             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <Typography variant="subtitle2">Rubric weights</Typography>
+              <Typography variant="subtitle2" component="h3">Rubric weights</Typography>
               <Typography variant="caption" color="text.secondary">
                 weights are re-normalized on save (now {pct(total)})
               </Typography>

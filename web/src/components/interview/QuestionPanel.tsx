@@ -25,7 +25,7 @@ export function QuestionPanel({
         <Stack spacing={2}>
           <Stack spacing={0.5} role="status" aria-live="polite">
             <Chip size="small" color="primary" label={question.competencyTag} sx={{ alignSelf: 'flex-start' }} />
-            <Typography variant="h6">{question.text}</Typography>
+            <Typography variant="h6" component="h2">{question.text}</Typography>
           </Stack>
           <TextField
             value={text}

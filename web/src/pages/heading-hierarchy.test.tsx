@@ -104,4 +104,28 @@ describe('heading hierarchy (CAL-126)', () => {
     expect(h1s).toHaveLength(1);
     expect(h1s[0]).toHaveTextContent(/\S/);
   });
+
+  it.each(PAGES)('%s does not skip heading levels', (_name, Page) => {
+    render(
+      <MemoryRouter>
+        <Page />
+      </MemoryRouter>,
+    );
+    const headings = screen.getAllByRole('heading');
+    expect(headings.length).toBeGreaterThan(0);
+    const levels = headings.map((h) => Number(h.tagName.replace(/^H/, '')));
+    expect(levels[0]).toBe(1);
+    // Headings must appear in non-decreasing order and must not skip a level
+    // (e.g. h1 -> h3) anywhere in the document.
+    for (let i = 1; i < levels.length; i++) {
+      expect(levels[i]).toBeLessThanOrEqual(levels[i - 1] + 1);
+      expect(levels[i]).toBeGreaterThanOrEqual(1);
+    }
+    const max = Math.max(...levels);
+    if (max > 1) {
+      for (let l = 2; l <= max; l++) {
+        expect(levels).toContain(l);
+      }
+    }
+  });
 });

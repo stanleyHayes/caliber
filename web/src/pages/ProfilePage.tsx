@@ -54,7 +54,7 @@ export function ProfilePage() {
         <Card variant="outlined">
           <CardContent>
             <Stack spacing={2}>
-              <Typography variant="h6">{existing ? 'Update from a new CV' : 'Create your profile'}</Typography>
+              <Typography variant="h6" component="h2">{existing ? 'Update from a new CV' : 'Create your profile'}</Typography>
               {create.isError && (
                 <Alert severity="error">{create.error instanceof Error ? create.error.message : 'Failed.'}</Alert>
               )}
@@ -79,13 +79,13 @@ export function ProfilePage() {
 
       {(contests.data?.contests.length ?? 0) > 0 && (
         <Stack spacing={2}>
-          <Typography variant="h6">Your disputes</Typography>
+          <Typography variant="h6" component="h2">Your disputes</Typography>
           <MyContestsList contests={contests.data?.contests ?? []} />
         </Stack>
       )}
 
       <Stack spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-        <Typography variant="h6">Your data</Typography>
+        <Typography variant="h6" component="h2">Your data</Typography>
         <Typography variant="body2" color="text.secondary">
           Download a complete copy of everything Caliber holds about you — your profile, applications,
           screenings, and disputes (Ghana Data Protection Act, right of access).

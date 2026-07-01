@@ -8,7 +8,7 @@ export function RubricCard({ rubric }: { rubric: Rubric }) {
     <Card variant="outlined">
       <CardContent>
         <Stack spacing={2}>
-          <Typography variant="h6">Scoring rubric</Typography>
+          <Typography variant="h6" component="h2">Scoring rubric</Typography>
           {rubric.competencies.map((c, i) => (
             <Box key={i}>
               <Stack direction="row" sx={{ mb: 0.5, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 0.5 }}>

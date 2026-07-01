@@ -9,7 +9,7 @@ export function ProfileView({ profile }: { profile: TalentProfile }) {
       <CardContent>
         <Stack spacing={2.5}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}>
-            <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            <Typography variant="h6" component="h2" sx={{ flexGrow: 1 }}>
               Your Talent Passport
             </Typography>
             <Chip color={passportColor[profile.passportStatus]} label={passportLabel[profile.passportStatus]} />

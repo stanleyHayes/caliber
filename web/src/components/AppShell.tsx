@@ -34,7 +34,7 @@ export function AppShell() {
       >
         Skip to main content
       </Box>
-      <AppBar position="sticky" color="default" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <AppBar component="header" position="sticky" color="default" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Toolbar>
           <Typography
             variant="h6"

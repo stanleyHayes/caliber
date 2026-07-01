@@ -8,7 +8,7 @@ export function SupplyDemandPanel({ items }: { items: SupplyDemandItem[] }) {
     <Card variant="outlined">
       <CardContent>
         <Stack spacing={2}>
-          <Typography variant="h6">Supply &amp; demand</Typography>
+          <Typography variant="h6" component="h2">Supply &amp; demand</Typography>
           {items.length === 0 && (
             <Typography variant="body2" color="text.secondary">
               No open roles yet.

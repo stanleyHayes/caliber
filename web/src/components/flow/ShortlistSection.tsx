@@ -27,7 +27,7 @@ export function ShortlistSection({ roleId, version }: { roleId: string; version:
   if (!run) {
     return (
       <Stack spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-        <Typography variant="h6">Explainable shortlist</Typography>
+        <Typography variant="h6" component="h2">Explainable shortlist</Typography>
         <Typography variant="body2" color="text.secondary">
           Rank candidates in your pool against this rubric — every score traces back to evidence.
         </Typography>
@@ -41,7 +41,7 @@ export function ShortlistSection({ roleId, version }: { roleId: string; version:
   if (query.isPending) {
     return (
       <Stack spacing={2}>
-        <Typography variant="h6">Ranking candidates…</Typography>
+        <Typography variant="h6" component="h2">Ranking candidates…</Typography>
         <CardListSkeleton count={3} />
       </Stack>
     );
@@ -57,7 +57,7 @@ export function ShortlistSection({ roleId, version }: { roleId: string; version:
           : 'Could not generate the shortlist.';
     return (
       <Stack spacing={2}>
-        <Typography variant="h6">Explainable shortlist</Typography>
+        <Typography variant="h6" component="h2">Explainable shortlist</Typography>
         <Alert severity="info" action={<DotsButton onClick={() => query.refetch()}>Retry</DotsButton>}>
           {message}
         </Alert>
@@ -69,7 +69,7 @@ export function ShortlistSection({ roleId, version }: { roleId: string; version:
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'baseline', flexWrap: 'wrap', rowGap: 0.5 }}>
-        <Typography variant="h6">Explainable shortlist</Typography>
+        <Typography variant="h6" component="h2">Explainable shortlist</Typography>
         <Chip size="small" label={`${poolDepth} in pool`} />
       </Stack>
 
@@ -85,7 +85,7 @@ export function ShortlistSection({ roleId, version }: { roleId: string; version:
 
       {exclusions.length > 0 && (
         <Accordion variant="outlined" disableGutters>
-          <AccordionSummary expandIcon={<ExpandMoreOutlined />}>
+          <AccordionSummary expandIcon={<ExpandMoreOutlined aria-hidden="true" />}>
             <Typography variant="body2" color="text.secondary">
               {exclusions.length} candidate{exclusions.length > 1 ? 's' : ''} filtered out
             </Typography>

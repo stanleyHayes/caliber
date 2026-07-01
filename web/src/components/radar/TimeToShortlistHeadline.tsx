@@ -13,10 +13,10 @@ export function TimeToShortlistHeadline({ metric }: { metric: TimeToShortlistMet
             Time to shortlist
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-            <Typography sx={{ fontFamily: fonts.title, fontSize: { xs: 44, md: 64 }, fontWeight: 700, lineHeight: 1 }}>
+            <Typography component="p" sx={{ fontFamily: fonts.title, fontSize: { xs: 44, md: 64 }, fontWeight: 700, lineHeight: 1 }}>
               {Math.round(metric.improvementFactor)}×
             </Typography>
-            <Typography variant="h6" sx={{ opacity: 0.9 }}>
+            <Typography variant="h6" component="span" sx={{ opacity: 0.9 }}>
               faster
             </Typography>
           </Box>

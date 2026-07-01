@@ -42,7 +42,7 @@ export function AgentPage() {
       <Divider />
 
       <Stack spacing={2}>
-        <Typography variant="h6">Applications</Typography>
+        <Typography variant="h6" component="h2">Applications</Typography>
         {applications.isPending && candidateId ? (
           <CardListSkeleton count={2} />
         ) : applications.isError ? (

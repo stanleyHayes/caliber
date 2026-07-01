@@ -46,7 +46,7 @@ export function DashboardPage() {
               <Typography variant="overline" color="text.secondary">
                 Next step
               </Typography>
-              <Typography variant="h6" sx={{ mt: 0.5 }}>
+              <Typography variant="h6" component="h2" sx={{ mt: 0.5 }}>
                 {NEXT_BY_ROLE[role]}
               </Typography>
             </Box>

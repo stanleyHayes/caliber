@@ -37,7 +37,7 @@ export function ModeToggle() {
   return (
     <Tooltip title={`Switch to ${next} mode`}>
       <IconButton onClick={toggle} color="inherit" aria-label={`switch to ${next} mode`}>
-        {resolved === 'dark' ? <LightModeOutlined /> : <DarkModeOutlined />}
+        {resolved === 'dark' ? <LightModeOutlined aria-hidden="true" /> : <DarkModeOutlined aria-hidden="true" />}
       </IconButton>
     </Tooltip>
   );

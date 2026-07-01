@@ -9,7 +9,7 @@ export function ReportCardView({ report }: { report: InterviewReportCard }) {
       <CardContent>
         <Stack spacing={2.5}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}>
-            <Typography variant="h5" sx={{ flexGrow: 1 }}>
+            <Typography variant="h5" component="h2" sx={{ flexGrow: 1 }}>
               Report card
             </Typography>
             <Chip color={verdictColor[report.verdict]} label={verdictLabel[report.verdict]} />

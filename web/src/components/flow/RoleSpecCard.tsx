@@ -31,7 +31,7 @@ export function RoleSpecCard({ spec }: { spec: RoleSpec }) {
       <CardContent>
         <Stack spacing={2}>
           <Stack spacing={0.5}>
-            <Typography variant="h5">{spec.title}</Typography>
+            <Typography variant="h5" component="h2">{spec.title}</Typography>
             <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: 'wrap' }}>
               <Chip size="small" label={seniorityLabel[spec.seniority]} />
               {spec.location && <Chip size="small" variant="outlined" label={spec.location} />}

@@ -35,14 +35,14 @@ export function MatchCard({ match, rank }: { match: Match; rank: number }) {
                     size="small"
                     color="warning"
                     variant="outlined"
-                    icon={<WarningAmberOutlined />}
+                    icon={<WarningAmberOutlined aria-hidden="true" />}
                     label="thin evidence"
                   />
                 </Tooltip>
               )}
               <Chip size="small" color={confidenceColor[match.confidence]} label={confidenceLabel[match.confidence]} />
               <Box sx={{ textAlign: 'right' }}>
-                <Typography variant="h5" sx={{ lineHeight: 1 }}>
+                <Typography variant="h5" component="span" sx={{ lineHeight: 1 }}>
                   {pct(match.overallScore)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
