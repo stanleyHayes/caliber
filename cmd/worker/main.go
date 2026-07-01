@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -115,6 +116,9 @@ func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger, tele *t
 		ErrorHandler:    jobs.NewArchiveAlertHandler(log),
 	})
 
+	shutdownMetrics := startMetricsServer(ctx, cfg, log, tele)
+	defer shutdownMetrics()
+
 	log.Info("worker started", "redis_url", redactedURL(cfg.RedisURL), "concurrency", cfg.WorkerConcurrency)
 	if err := server.Start(mux); err != nil {
 		return fmt.Errorf("worker: start server: %w", err)
@@ -125,6 +129,36 @@ func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger, tele *t
 	server.Stop()
 	server.Shutdown()
 	return nil
+}
+
+// startMetricsServer starts a Prometheus exposition HTTP server for the worker
+// when telemetry is configured. It returns a shutdown func that must be deferred
+// by the caller.
+func startMetricsServer(
+	ctx context.Context,
+	cfg config.Config,
+	log *slog.Logger,
+	tele *telemetry.Provider,
+) func() {
+	if tele == nil || cfg.MetricsAddr == "" {
+		return func() {}
+	}
+	metricsSrv := &http.Server{
+		Addr:              cfg.MetricsAddr,
+		Handler:           tele.PrometheusHandler(),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	go func() {
+		log.Info("worker metrics listening", "addr", cfg.MetricsAddr)
+		if serveErr := metricsSrv.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			log.Error("worker metrics server failed", "err", serveErr)
+		}
+	}()
+	return func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = metricsSrv.Shutdown(shutdownCtx)
+	}
 }
 
 func redactedURL(u string) string {

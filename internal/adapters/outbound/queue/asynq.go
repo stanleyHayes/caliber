@@ -16,6 +16,7 @@ import (
 
 	appqueue "github.com/xcreativs/caliber/internal/app/queue"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	"github.com/xcreativs/caliber/internal/platform/telemetry/queuemetrics"
 )
 
 // Priorities returns the weighted queue priorities used by all workers.
@@ -127,6 +128,7 @@ func (d *Dispatcher) dispatch(
 		span.RecordError(err)
 		return "", fmt.Errorf("queue: enqueue %s: %w", taskType, err)
 	}
+	queuemetrics.RecordEnqueue(ctx, string(taskType))
 	span.SetAttributes(attribute.String("messaging.message.id", info.ID))
 	return info.ID, nil
 }

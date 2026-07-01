@@ -168,6 +168,9 @@ func TestLoadAppliesLokiDefaults(t *testing.T) {
 	if cfg.LokiTenantID != "" {
 		t.Errorf("LokiTenantID = %q, want empty", cfg.LokiTenantID)
 	}
+	if cfg.MetricsAddr != ":8081" {
+		t.Errorf("MetricsAddr = %q, want :8081", cfg.MetricsAddr)
+	}
 }
 
 func TestLoadParsesLokiOverrides(t *testing.T) {

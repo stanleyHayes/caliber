@@ -68,6 +68,9 @@ type Config struct {
 	LokiFlushInterval time.Duration // max time before flushing a partial batch
 	LokiTimeout       time.Duration // HTTP push timeout
 	LokiTenantID      string        // optional X-Scope-OrgID tenant header
+
+	// Metrics server address for the worker process (CAL-133).
+	MetricsAddr string // e.g. :8081
 }
 
 // Load reads configuration from the environment, applying sane defaults.
@@ -118,6 +121,8 @@ func Load() (Config, error) {
 		LokiFlushInterval: getdur("CALIBER_LOKI_FLUSH_INTERVAL", 5*time.Second),
 		LokiTimeout:       getdur("CALIBER_LOKI_TIMEOUT", 10*time.Second),
 		LokiTenantID:      os.Getenv("CALIBER_LOKI_TENANT_ID"),
+
+		MetricsAddr: getenv("CALIBER_WORKER_METRICS_ADDR", ":8081"),
 	}
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
 		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")

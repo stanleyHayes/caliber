@@ -17,6 +17,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/xcreativs/caliber/internal/platform/telemetry/queuemetrics"
 )
 
 // HeaderIdempotencyKey lets an enqueueing adapter provide a business-level
@@ -169,8 +171,10 @@ func (j jobFramework) runClaimed(
 		completed = true
 		_ = j.store.Release(context.WithoutCancel(ctx), meta.key)
 		j.errorJob("job failed", err, meta, time.Since(start))
+		queuemetrics.RecordJob(ctx, meta.typ, time.Since(start), err)
 		return err
 	}
+	queuemetrics.RecordJob(ctx, meta.typ, time.Since(start), nil)
 	if err := j.store.Complete(ctx, meta.key); err != nil {
 		recordJobError(span, err)
 		return fmt.Errorf("jobs: complete idempotency key: %w", err)
