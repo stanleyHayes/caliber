@@ -39,6 +39,7 @@ import (
 	"github.com/xcreativs/caliber/internal/platform/logging"
 	"github.com/xcreativs/caliber/internal/platform/readiness"
 	"github.com/xcreativs/caliber/internal/platform/server"
+	"github.com/xcreativs/caliber/internal/platform/telemetry"
 	"github.com/xcreativs/caliber/internal/platform/wiring"
 )
 
@@ -62,20 +63,33 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	svc, cleanup, ready, aiRecorder, err := buildServices(ctx, cfg, log)
+	tele, err := telemetry.New(cfg)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = tele.Shutdown(shutdownCtx)
+	}()
+
+	svc, cleanup, ready, aiRecorder, err := buildServices(ctx, cfg, log, tele)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
 	return server.RunWithOptions(ctx, cfg, log, svc, []httpserver.ReadinessChecker{ready},
-		[]server.Option{server.WithMetrics(httpserver.AIQualityMetrics(aiRecorder))})
+		[]server.Option{
+			server.WithMetrics(tele.PrometheusHandler()),
+			server.WithAIQualityMetrics(httpserver.AIQualityMetrics(aiRecorder)),
+		})
 }
 
 func buildServices(
-	ctx context.Context, cfg config.Config, log *slog.Logger,
+	ctx context.Context, cfg config.Config, log *slog.Logger, tele *telemetry.Provider,
 ) (grpcadapter.Services, func(), *readiness.Aggregate, *llm.MemoryRecorder, error) {
-	model, aiRecorder := wiring.BuildLLM(cfg, log)
+	model, aiRecorder := wiring.BuildLLM(cfg, log, tele)
 	embedder := wiring.BuildEmbedder(cfg, log)
 	cleanup := func() {}
 	svc := grpcadapter.Services{}

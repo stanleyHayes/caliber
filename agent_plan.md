@@ -8,7 +8,7 @@
 > from the *AI Development Workflow Training Manual* and *AI-Native Software Engineering Operations Manual*.
 
 - **Document version:** 0.3 (draft for technical team)
-- **Last updated:** 2026-06-24
+- **Last updated:** 2026-06-30
 - **Source spec:** `Caliber_POC_Build_Spec.pdf` (v0.1, Office of the CTO, XCreativs Technologies)
 - **Owner:** Engineering Lead · **Prepared with:** Claude (planning), per AI Governance policy
 - **Classification:** Confidential — Caliber build team only
@@ -230,7 +230,7 @@ caliber/
 | | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | WIP | ~83% |
 | **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | WIP | ~45% |
 | | EPIC-17 | SEO & Web Performance | 10 | 43 | WIP | ~90% |
-| | EPIC-18 | Observability & Operations | 8 | 37 | TODO | 0% |
+| | EPIC-18 | Observability & Operations | 8 | 37 | WIP | ~40% |
 | | EPIC-19 | Quality, Testing & Performance Engineering | 8 | 39 | TODO | 0% |
 | | EPIC-20 | CI/CD, Environments & Release Management | 7 | 32 | TODO | 0% |
 | | EPIC-21 | Scale, Multi-Tenancy & Data Lifecycle | 7 | 35 | TODO | 0% |
@@ -499,14 +499,14 @@ Beyond the win: harden security, SEO, observability, quality, deployment, and sc
 ## EPIC-18 · Observability & Operations
 **Goal:** See everything in production. OpenTelemetry + Prometheus/Grafana/Loki.
 
-- **CAL-130** `[TODO]` · 5 pts — **OpenTelemetry tracing.** Instrument gRPC/HTTP, DB, queue, and LLM calls with spans + context propagation. *AC:* end-to-end trace for a request. *Deps:* CAL-007
-- **CAL-131** `[TODO]` · 5 pts — **Metrics (Prometheus).** RED/USE metrics, AI cost/latency/token metrics, queue depth, business KPIs (time-to-shortlist). *AC:* dashboards populate. *Deps:* CAL-130
+- **CAL-130** `[DONE]` · 5 pts — **OpenTelemetry tracing.** Instrument gRPC/HTTP, queue, and LLM calls with W3C-propagated spans; installs `otelgrpc`, `otelhttp`, and Asynq `traceparent` header injection/extraction. *AC:* end-to-end trace for a request. *Deps:* CAL-007 **Done:** shared `internal/platform/telemetry.Provider` builds tracer/meter providers; W3C trace-context propagator installed globally; gRPC server/gateway client, REST gateway, LLM `Complete`/`Warm`, Asynq enqueue, and job handlers all create spans; `trace_id` added to request logs. Tests cover provider build, shutdown, and span propagation.
+- **CAL-131** `[DONE]` · 5 pts — **Metrics (Prometheus).** RED/USE-style metrics, AI call/latency/character metrics, and queue enqueue counters via OTel instruments exposed in Prometheus format at `/metrics`. *AC:* dashboards populate. *Deps:* CAL-130 **Done:** OTel `MeterProvider` backed by an isolated Prometheus registry; `telemetry.AIMetricsRecorder` implements `app.AICallRecorder` with counters/histograms for calls, failures, JSON failures, refusals, guardrail trips, input/output chars, and latency; `/metrics` mounted via `server.WithMetrics`. The pre-existing JSON AI-quality snapshot is preserved at `/debug/ai-quality` via `server.WithAIQualityMetrics` (CAL-137). Tests verify metrics appear in `/metrics` exposition.
 - **CAL-132** `[TODO]` · 5 pts — **Centralized logging (Loki).** Ship structured logs; correlate via trace id; PII-safe (ties CAL-117). *AC:* logs searchable by request/trace id. *Deps:* CAL-007
 - **CAL-133** `[TODO]` · 5 pts — **Grafana dashboards.** Service health, AI usage/cost, queue health, SLO dashboards. *AC:* on-call can triage from dashboards. *Deps:* CAL-131
 - **CAL-134** `[TODO]` · 5 pts — **Alerting & SLOs.** Define SLOs (availability, latency, error rate, AI failure rate); alert routing. *AC:* alerts fire on breach. *Deps:* CAL-133
 - **CAL-135** `[TODO]` · 3 pts — **Error tracking & on-call runbooks.** Error grouping; incident runbooks. *AC:* known failure modes documented. *Deps:* CAL-132
 - **CAL-136** `[TODO]` · 4 pts — **Audit & compliance reporting.** Reportable audit-log views (approvals/overrides/agent actions). *AC:* exportable audit reports. *Deps:* CAL-084
-- **CAL-137** `[DONE]` · 5 pts — **AI quality monitoring.** Track structured-output failure rate, refusal/latency, guardrail trips; eval harness. *AC:* AI regressions visible. *Deps:* CAL-036 **Done:** extended `AICallRecord` with `JSONFailure`, `Refusal`, and `GuardrailTrips`; `app.SummarizeAIQuality` now aggregates structured-output failure rate, refusal rate, and per-category guardrail trip counters (PII-free). `llm.Audited` flags malformed JSON on structured-output calls and detects refusal language; `llm.Guarded` records guardrail trips to the same recorder. `wiring.BuildLLM` returns a shared `MemoryRecorder` used for both logging and snapshots, and `cmd/api` mounts it at `/metrics` via `server.WithMetrics`. Tests cover aggregation, refusal/JSON detection, guardrail-trip recording, and the metrics endpoint.
+- **CAL-137** `[DONE]` · 5 pts — **AI quality monitoring.** Track structured-output failure rate, refusal/latency, guardrail trips; eval harness. *AC:* AI regressions visible. *Deps:* CAL-036 **Done:** extended `AICallRecord` with `JSONFailure`, `Refusal`, and `GuardrailTrips`; `app.SummarizeAIQuality` now aggregates structured-output failure rate, refusal rate, and per-category guardrail trip counters (PII-free). `llm.Audited` flags malformed JSON on structured-output calls and detects refusal language; `llm.Guarded` records guardrail trips to the same recorder. `wiring.BuildLLM` returns a shared `MemoryRecorder` used for both logging and snapshots, and `cmd/api` mounts the JSON snapshot at `/debug/ai-quality` via `server.WithAIQualityMetrics`, while `/metrics` serves Prometheus exposition format (CAL-130/131). Tests cover aggregation, refusal/JSON detection, guardrail-trip recording, and both endpoints.
 
 ## EPIC-19 · Quality, Testing & Performance Engineering
 **Goal:** The ≥80% gate is the floor; build the full pyramid and prove it scales.

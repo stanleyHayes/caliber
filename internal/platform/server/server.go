@@ -27,10 +27,11 @@ const shutdownTimeout = 10 * time.Second
 type Option func(*runConfig)
 
 type runConfig struct {
-	asynqmonPath string
-	asynqmon     http.Handler
-	verifier     app.TokenService
-	metrics      http.Handler
+	asynqmonPath     string
+	asynqmon         http.Handler
+	verifier         app.TokenService
+	metrics          http.Handler
+	aiQualityMetrics http.Handler
 }
 
 // WithAsynqmon mounts the Asynqmon monitoring UI at the given path, protected by
@@ -44,10 +45,17 @@ func WithAsynqmon(path string, handler http.Handler, verifier app.TokenService) 
 	}
 }
 
-// WithMetrics mounts the AI quality metrics handler at /metrics (CAL-137). The
-// handler is expected to serve PII-free JSON.
+// WithMetrics mounts the supplied handler at /metrics. For CAL-131 this should
+// be the Prometheus exposition handler.
 func WithMetrics(handler http.Handler) Option {
 	return func(c *runConfig) { c.metrics = handler }
+}
+
+// WithAIQualityMetrics mounts the PII-free AI quality JSON handler at
+// /debug/ai-quality (CAL-137), preserving the human-readable surface while
+// /metrics serves Prometheus exposition format.
+func WithAIQualityMetrics(handler http.Handler) Option {
+	return func(c *runConfig) { c.aiQualityMetrics = handler }
 }
 
 // Run starts the gRPC server and REST gateway, blocks until ctx is cancelled,
@@ -62,7 +70,7 @@ func Run(
 	return RunWithOptions(ctx, cfg, log, svc, readiness, nil)
 }
 
-//nolint:ireturn // Returns the standard chi.Router interface for mounting.
+//nolint:ireturn
 func buildRouter(
 	mux *runtime.ServeMux,
 	cfg config.Config,
@@ -73,6 +81,9 @@ func buildRouter(
 	r := httpserver.NewRouter(mux, cfg.IsProd(), cfg.AllowedOrigins, log, readiness...)
 	if runCfg.metrics != nil {
 		r.Get("/metrics", runCfg.metrics.ServeHTTP)
+	}
+	if runCfg.aiQualityMetrics != nil {
+		r.Get("/debug/ai-quality", runCfg.aiQualityMetrics.ServeHTTP)
 	}
 	if runCfg.asynqmon != nil && runCfg.verifier != nil {
 		httpserver.MountAsynqmon(r, runCfg.asynqmonPath, runCfg.asynqmon, runCfg.verifier)

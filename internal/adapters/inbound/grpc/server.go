@@ -4,13 +4,14 @@ import (
 	"context"
 	"strings"
 
-	"github.com/xcreativs/caliber/internal/app"
-	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
-
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/xcreativs/caliber/internal/app"
+	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
 
 // Services holds the concrete gRPC service implementations to register; any
@@ -62,7 +63,12 @@ func NewGRPCServer(svc Services) *grpc.Server {
 	if svc.RateLimiter != nil {
 		unary = append(unary, NewRateLimitInterceptor(svc.RateLimiter))
 	}
-	opts := []grpc.ServerOption{grpc.MaxRecvMsgSize(maxRecvMsgBytes)}
+	// OpenTelemetry instrumentation runs before auth/rate-limit so spans cover
+	// the whole RPC and context propagation works even for unauthenticated paths.
+	opts := []grpc.ServerOption{
+		grpc.MaxRecvMsgSize(maxRecvMsgBytes),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+	}
 	if len(unary) > 0 {
 		opts = append(opts, grpc.ChainUnaryInterceptor(unary...))
 	}
@@ -133,7 +139,10 @@ type gatewayRegistrar func(context.Context, *runtime.ServeMux, string, []grpc.Di
 
 // RegisterGateway wires every REST/JSON gateway handler to the gRPC endpoint.
 func RegisterGateway(ctx context.Context, mux *runtime.ServeMux, endpoint string) error {
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	}
 	for _, reg := range []gatewayRegistrar{
 		caliberv1.RegisterIdentityServiceHandlerFromEndpoint,
 		caliberv1.RegisterRoleServiceHandlerFromEndpoint,

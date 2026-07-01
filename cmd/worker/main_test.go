@@ -15,7 +15,7 @@ import (
 
 func TestRunRequiresRedisURL(t *testing.T) {
 	cfg := config.Config{RedisURL: ""}
-	err := runWorker(context.Background(), cfg, slog.New(slog.DiscardHandler))
+	err := runWorker(context.Background(), cfg, slog.New(slog.DiscardHandler), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "CALIBER_REDIS_URL")
 }
@@ -35,6 +35,6 @@ func TestRunWorkerStartsAndStops(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	err := runWorker(ctx, cfg, slog.New(slog.DiscardHandler))
+	err := runWorker(ctx, cfg, slog.New(slog.DiscardHandler), nil)
 	require.NoError(t, err)
 }

@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -122,6 +123,9 @@ func (j jobFramework) wrap(name string, fn jobFunc) func(context.Context, *asynq
 		if task == nil {
 			return errors.New("jobs: nil task")
 		}
+
+		// Continue a trace started by the enqueueing API if one was propagated.
+		ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(task.Headers()))
 
 		tracer := otel.Tracer(jobsTracerName)
 		ctx, span := tracer.Start(ctx, "jobs."+task.Type())

@@ -6,6 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/xcreativs/caliber/internal/app"
 )
 
@@ -33,13 +37,33 @@ func NewAudited(inner app.LLMClient, recorder app.AICallRecorder, model string, 
 // structured-output JSON failures and refusal language for AI-quality monitoring
 // (CAL-137).
 func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResponse, error) {
+	tracer := trace.SpanFromContext(ctx).TracerProvider().Tracer("github.com/xcreativs/caliber/internal/adapters/outbound/llm")
+	ctx, span := tracer.Start(ctx, "llm.complete")
+	defer span.End()
+
+	operation := req.Source.ID
+	if operation == "" {
+		operation = "unknown"
+	}
+	span.SetAttributes(
+		attribute.String("llm.operation", operation),
+		attribute.String("llm.model", a.model),
+		attribute.Bool("llm.expect_json", req.ExpectJSON),
+	)
+
 	start := a.now()
 	resp, err := a.inner.Complete(ctx, req)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	span.SetAttributes(
+		attribute.Int("llm.prompt_chars", len(req.Prompt)),
+		attribute.Int("llm.response_chars", len(resp.Text)),
+		attribute.Bool("llm.failed", err != nil),
+	)
+
 	if a.recorder != nil {
-		operation := req.Source.ID
-		if operation == "" {
-			operation = "unknown"
-		}
 		rec := app.AICallRecord{
 			Operation:     operation,
 			PromptID:      req.Source.ID,
@@ -65,8 +89,18 @@ func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 // Warm delegates to the inner client and records a redacted warm-up trace
 // (CAL-104).
 func (a *Audited) Warm(ctx context.Context) error {
+	tracer := trace.SpanFromContext(ctx).TracerProvider().Tracer("github.com/xcreativs/caliber/internal/adapters/outbound/llm")
+	ctx, span := tracer.Start(ctx, "llm.warm")
+	defer span.End()
+	span.SetAttributes(attribute.String("llm.model", a.model))
+
 	start := a.now()
 	err := a.inner.Warm(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	span.SetAttributes(attribute.Bool("llm.failed", err != nil))
 	if a.recorder != nil {
 		a.recorder.Record(app.AICallRecord{
 			Operation:     "warm",

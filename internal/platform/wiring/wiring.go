@@ -29,6 +29,7 @@ import (
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/readiness"
 	"github.com/xcreativs/caliber/internal/platform/seed"
+	"github.com/xcreativs/caliber/internal/platform/telemetry"
 )
 
 // Repositories bundles the persistence ports the services share.
@@ -201,14 +202,23 @@ const (
 )
 
 // BuildLLM constructs the audited+guarded LLM facade from config. It returns the
-// client plus a queryable memory recorder that powers the AI-quality metrics
+// client plus a queryable memory recorder that powers the AI-quality debug
 // endpoint (CAL-137). The recorder retains the last 256 redacted call traces.
+// When tele is non-nil, AI call records are also converted to Prometheus metrics
+// (CAL-131).
 //
 //nolint:ireturn // returns the audited+guarded LLM facade as the app.LLMClient port; interface return is intentional.
-func BuildLLM(cfg config.Config, log *slog.Logger) (app.LLMClient, *llm.MemoryRecorder) {
+func BuildLLM(cfg config.Config, log *slog.Logger, tele *telemetry.Provider) (app.LLMClient, *llm.MemoryRecorder) {
 	mem := llm.NewMemoryRecorder(0)
-	// Broadcast every trace to both structured logs and the in-memory snapshot.
-	rec := llm.NewMultiRecorder(mem, llm.NewSlogRecorder(log))
+	recorders := []app.AICallRecorder{mem, llm.NewSlogRecorder(log)}
+	if tele != nil {
+		if aiMetrics, err := telemetry.NewAIMetricsRecorder(tele); err == nil {
+			recorders = append(recorders, aiMetrics)
+		} else {
+			log.Warn("telemetry: ai metrics recorder unavailable", "err", err)
+		}
+	}
+	rec := llm.NewMultiRecorder(recorders...)
 	guarded := llm.NewGuarded(newLLMProvider(cfg, log),
 		llm.WithMaxTokens(llmMaxTokensCap),
 		llm.WithConcurrency(llmMaxConcurrency),

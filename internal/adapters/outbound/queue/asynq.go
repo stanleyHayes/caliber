@@ -9,6 +9,10 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	appqueue "github.com/xcreativs/caliber/internal/app/queue"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -99,16 +103,41 @@ func (d *Dispatcher) dispatch(
 	if d == nil || d.client == nil {
 		return "", errors.New("queue: nil dispatcher")
 	}
+	tracer := trace.SpanFromContext(ctx).TracerProvider().Tracer("github.com/xcreativs/caliber/internal/adapters/outbound/queue")
+	ctx, span := tracer.Start(ctx, "queue.enqueue")
+	defer span.End()
+	span.SetAttributes(attribute.String("messaging.system", "asynq"))
+
 	body, err := json.Marshal(payload)
 	if err != nil {
+		span.RecordError(err)
 		return "", fmt.Errorf("queue: marshal %s: %w", taskType, err)
 	}
 	resolved := appqueue.ApplyOpts(opts...)
-	info, err := d.client.EnqueueContext(ctx, asynq.NewTask(string(taskType), body), taskOptions(taskType, resolved)...)
+	queueName := queueFor(taskType, resolved)
+	span.SetAttributes(attribute.String("messaging.destination.name", queueName))
+
+	// Propagate the current trace context so workers can continue the span.
+	headers := make(map[string]string)
+	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(headers))
+	task := asynq.NewTaskWithHeaders(string(taskType), body, headers)
+
+	info, err := d.client.EnqueueContext(ctx, task, taskOptions(taskType, resolved)...)
 	if err != nil {
+		span.RecordError(err)
 		return "", fmt.Errorf("queue: enqueue %s: %w", taskType, err)
 	}
+	span.SetAttributes(attribute.String("messaging.message.id", info.ID))
 	return info.ID, nil
+}
+
+func queueFor(taskType appqueue.TaskType, opts *appqueue.Opts) string {
+	queue := appqueue.QueueDefault
+	if opts != nil && opts.Queue != "" {
+		queue = opts.Queue
+	}
+	_ = taskType
+	return queue
 }
 
 // RetryDelayFunc returns an Asynq RetryDelayFunc that applies Caliber's

@@ -55,6 +55,11 @@ type Config struct {
 	WorkerConcurrency int           // Asynq worker concurrency
 	TaskMaxRetry      int           // Asynq max retries per task
 	TaskRetention     time.Duration // how long completed tasks remain inspectable
+
+	// Observability configuration (CAL-130/131).
+	OTelExporter   string // "noop" | "stdout"
+	ServiceName    string // service name for traces and metrics
+	ServiceVersion string // service version for traces and metrics
 }
 
 // Load reads configuration from the environment, applying sane defaults.
@@ -95,6 +100,10 @@ func Load() (Config, error) {
 		WorkerConcurrency: getint("CALIBER_WORKER_CONCURRENCY", 4),
 		TaskMaxRetry:      getint("CALIBER_TASK_MAX_RETRY", 3),
 		TaskRetention:     getdur("CALIBER_TASK_RETENTION", 24*time.Hour),
+
+		OTelExporter:   getenv("CALIBER_OTEL_EXPORTER", "noop"),
+		ServiceName:    getenv("CALIBER_SERVICE_NAME", "caliber-api"),
+		ServiceVersion: getenv("CALIBER_SERVICE_VERSION", "dev"),
 	}
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
 		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")

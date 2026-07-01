@@ -21,7 +21,7 @@ func TestBuildServicesWiresEveryServiceInMemory(t *testing.T) {
 	// the deterministic dev provider.
 	cfg := config.Config{Env: "dev"}
 
-	svc, cleanup, ready, aiRecorder, err := buildServices(context.Background(), cfg, log)
+	svc, cleanup, ready, aiRecorder, err := buildServices(context.Background(), cfg, log, nil)
 	if err != nil {
 		t.Fatalf("buildServices returned error: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestBuildServicesWiresEveryServiceInMemory(t *testing.T) {
 // a database URL must fail fast rather than silently boot on in-memory storage.
 func TestBuildServicesRequiresDatabaseInProd(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
-	svc, cleanup, ready, aiRecorder, err := buildServices(context.Background(), config.Config{Env: "prod"}, log)
+	svc, cleanup, ready, aiRecorder, err := buildServices(context.Background(), config.Config{Env: "prod"}, log, nil)
 	_ = svc
 	_ = cleanup
 	_ = ready

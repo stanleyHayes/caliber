@@ -23,6 +23,7 @@ import (
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
+	"github.com/xcreativs/caliber/internal/platform/telemetry"
 	"github.com/xcreativs/caliber/internal/platform/wiring"
 )
 
@@ -49,15 +50,25 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	return runWorker(ctx, cfg, log)
+	tele, err := telemetry.New(cfg)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = tele.Shutdown(shutdownCtx)
+	}()
+
+	return runWorker(ctx, cfg, log, tele)
 }
 
-func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger) error {
+func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger, tele *telemetry.Provider) error {
 	if cfg.RedisURL == "" {
 		return errors.New("CALIBER_REDIS_URL is required to run the worker")
 	}
 
-	model, _ := wiring.BuildLLM(cfg, log)
+	model, _ := wiring.BuildLLM(cfg, log, tele)
 	auditRepo := memory.NewAuditRepo()
 	repos, cleanup, _, err := wiring.OpenRepositories(ctx, cfg, log)
 	if err != nil {

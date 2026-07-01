@@ -12,6 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/domain/identity"
@@ -61,7 +63,9 @@ func NewRouter(
 	r.Use(secureHeaders(hsts))
 	r.Get("/healthz", health("ok"))
 	r.Get("/readyz", ready(readiness...))
-	r.Handle("/v1/*", gateway)
+	// Instrument the gateway so every REST request becomes an OTel span and the
+	// trace context propagates to the downstream gRPC services.
+	r.Handle("/v1/*", otelhttp.NewHandler(gateway, "gateway"))
 	return r
 }
 
@@ -242,13 +246,17 @@ func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 			if status == 0 {
 				status = http.StatusOK
 			}
-			log.Info("http_request",
+			args := []any{
 				slog.String("request_id", middleware.GetReqID(r.Context())),
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.Int("status", status),
 				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
-			)
+			}
+			if span := trace.SpanFromContext(r.Context()); span.SpanContext().IsValid() {
+				args = append(args, slog.String("trace_id", span.SpanContext().TraceID().String()))
+			}
+			log.Info("http_request", args...)
 		})
 	}
 }
