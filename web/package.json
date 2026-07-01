@@ -11,7 +11,9 @@
     "lint": "eslint .",
     "test": "vitest",
     "test:run": "vitest run",
-    "verify:prerender": "node scripts/verify-prerender.js"
+    "verify:prerender": "node scripts/verify-prerender.js",
+    "lighthouse": "lhci autorun",
+    "lighthouse:ci": "lhci autorun"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -35,6 +37,7 @@
   "devDependencies": {
     "@emotion/cache": "^11.14.0",
     "@eslint/js": "^10.0.1",
+    "@lhci/cli": "^0.15.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/i18next": "^12.1.0",

@@ -121,6 +121,31 @@ jobs:
       - name: Test
         run: npm run test:run # vitest run (jsdom)
 
+  lighthouse:
+    name: Lighthouse CI (performance budgets)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Run Lighthouse CI
+        run: npm run lighthouse:ci
+
   supply-chain:
     name: Supply chain (govulncheck · npm audit · Trivy)
     runs-on: ubuntu-latest

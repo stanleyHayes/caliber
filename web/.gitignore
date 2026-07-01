@@ -3,4 +3,5 @@ dist
 dist-ssr
 *.local
 .vite
+.lighthouseci
 .DS_Store
