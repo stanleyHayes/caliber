@@ -249,14 +249,18 @@ func BuildLLM(cfg config.Config, log *slog.Logger, tele *telemetry.Provider) (ap
 	// spend, alerts as budget thresholds are crossed, and — when a budget is set —
 	// gates the guarded client so calls fail fast once the budget is exhausted.
 	cost := app.NewCostTracker(cfg.LLMBudgetUSD, func(a app.CostAlert) {
-		level := slog.LevelWarn
-		if a.Exceeded {
-			level = slog.LevelError
-		}
-		log.Log(context.Background(), level, "llm spend budget threshold crossed",
+		const msg = "llm spend budget threshold crossed"
+		attrs := []any{
 			"alert", "llm_budget",
 			"spent_usd", a.SpentUSD, "budget_usd", a.BudgetUSD,
-			"fraction", a.Fraction, "exceeded", a.Exceeded)
+			"fraction", a.Fraction, "exceeded", a.Exceeded,
+		}
+		// Warn as thresholds approach; escalate to error once the budget is spent.
+		if a.Exceeded {
+			log.Error(msg, attrs...)
+		} else {
+			log.Warn(msg, attrs...)
+		}
 	})
 	recorders = append(recorders, cost)
 	rec := llm.NewMultiRecorder(recorders...)
