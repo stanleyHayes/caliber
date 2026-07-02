@@ -37,7 +37,7 @@ func TestRecordEnqueueAndJobProduceMetrics(t *testing.T) {
 	queuemetrics.RecordJob(ctx, "interview_scoring", 50*time.Millisecond, assert.AnError)
 
 	rec := httptest.NewRecorder()
-	p.PrometheusHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	p.PrometheusHandler().ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, "/metrics", nil))
 	body := rec.Body.String()
 
 	assert.Contains(t, body, "caliber_queue_enqueued_total")
