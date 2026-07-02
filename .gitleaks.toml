@@ -9,8 +9,15 @@ regexes = [
   '''ANTHROPIC_API_KEY=''',
   '''OPENAI_API_KEY=''',
   '''CALIBER_JWT_SECRET=''',
+  # Non-secret demo login used by the seeded dataset and the e2e/load test
+  # fixtures. It unlocks only throwaway demo accounts in an ephemeral stack.
+  '''Demo-Caliber-2026''',
 ]
 paths = [
   '''web/package-lock\.json''',
   '''go\.sum''',
+  # Test fixtures carry the demo login above, not real secrets.
+  '''web/e2e/.*''',
+  '''tests/load/.*''',
+  '''\.env\.example''',
 ]

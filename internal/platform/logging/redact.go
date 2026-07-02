@@ -54,7 +54,7 @@ func isSensitiveKey(key string) bool {
 		"ssn", "dob", "date_of_birth":
 		return true
 	}
-	for _, marker := range [...]string{"password", "secret", "email"} {
+	for _, marker := range [...]string{"password", "secret", "email", "api_key", "apikey"} {
 		if strings.Contains(k, marker) {
 			return true
 		}

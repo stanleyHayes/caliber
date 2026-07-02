@@ -25,10 +25,13 @@ func decode(t *testing.T, buf *bytes.Buffer) map[string]any {
 
 func TestRedacts_SensitiveKeys(t *testing.T) {
 	var buf bytes.Buffer
-	newCapture(&buf).Info("login", "email", "ama@example.com", "password", "hunter2", "user_email", "kofi@x.io")
+	newCapture(&buf).Info("login",
+		"email", "ama@example.com", "password", "hunter2", "user_email", "kofi@x.io",
+		// Compound provider-secret key names must be redacted too (CAL-113).
+		"anthropic_api_key", "sk-ant-xyz", "db_password", "s3cr3t", "openai_apikey", "sk-oai-abc")
 	m := decode(t, &buf)
 
-	for _, key := range []string{"email", "password", "user_email"} {
+	for _, key := range []string{"email", "password", "user_email", "anthropic_api_key", "db_password", "openai_apikey"} {
 		if m[key] != redactedPlaceholder {
 			t.Errorf("key %q = %v, want redacted", key, m[key])
 		}
