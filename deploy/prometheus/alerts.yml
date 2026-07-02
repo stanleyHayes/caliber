@@ -1,0 +1,75 @@
+groups:
+  - name: caliber-availability
+    rules:
+      - alert: CaliberAPIDown
+        expr: up{job="caliber-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "Caliber API is down"
+          description: "The API metrics target has been down for more than 1 minute."
+
+      - alert: CaliberWorkerDown
+        expr: up{job="caliber-worker"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: worker
+        annotations:
+          summary: "Caliber worker is down"
+          description: "The worker metrics target has been down for more than 1 minute."
+
+  - name: caliber-latency
+    rules:
+      - alert: CaliberHighHTTPLatency
+        expr: histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "Caliber HTTP p95 latency is high"
+          description: "HTTP p95 latency has been above 2s for more than 5 minutes."
+
+  - name: caliber-errors
+    rules:
+      - alert: CaliberHighHTTPErrorRate
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{http_status_code=~"5.."}[2m]))
+          /
+          sum(rate(http_server_request_duration_seconds_count[2m])) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "Caliber HTTP error rate is high"
+          description: "HTTP 5xx rate has been above 1% for more than 2 minutes."
+
+      - alert: CaliberHighAIFailureRate
+        expr: |
+          sum(rate(caliber_ai_calls_failed_total[5m]))
+          /
+          sum(rate(caliber_ai_calls_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: ai
+        annotations:
+          summary: "Caliber AI failure rate is high"
+          description: "AI call failure rate has been above 5% for more than 5 minutes."
+
+      - alert: CaliberHighQueueJobErrorRate
+        expr: |
+          sum(rate(caliber_queue_jobs_processed_total{status="error"}[5m]))
+          /
+          sum(rate(caliber_queue_jobs_processed_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: queue
+        annotations:
+          summary: "Caliber queue job error rate is high"
+          description: "Queue job error rate has been above 5% for more than 5 minutes."

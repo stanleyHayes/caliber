@@ -11,13 +11,15 @@ Run the full stack with Docker Compose:
 docker compose up --build
 ```
 
-| Service     | URL                     | Purpose                                  |
-|-------------|-------------------------|------------------------------------------|
-| API         | http://localhost:8080   | gRPC + REST gateway                      |
-| Worker      | http://localhost:8081   | Prometheus metrics scrape endpoint       |
-| Prometheus  | http://localhost:9090   | Metric scraper for API + worker          |
-| Loki        | http://localhost:3100   | Log backend                              |
-| Grafana     | http://localhost:3000   | Dashboards (login `admin` / `admin`)     |
+| Service         | URL                     | Purpose                                  |
+|-----------------|-------------------------|------------------------------------------|
+| API             | http://localhost:8080   | gRPC + REST gateway                      |
+| Worker          | http://localhost:8081   | Prometheus metrics scrape endpoint       |
+| Prometheus      | http://localhost:9090   | Metric scraper for API + worker          |
+| Alertmanager    | http://localhost:9093   | Alert routing                            |
+| Alert receiver  | http://localhost:8082   | Webhook echo receiver (logs alerts)      |
+| Loki            | http://localhost:3100   | Log backend                              |
+| Grafana         | http://localhost:3000   | Dashboards (login `admin` / `admin`)     |
 
 ## Metrics
 
@@ -56,3 +58,33 @@ Grafana is provisioned with three dashboards under `deploy/grafana/dashboards/`:
 
 Dashboard JSON is stored in version control, so changes follow the normal PR
 workflow.
+
+## SLOs and alerts (CAL-134)
+
+| SLO | Threshold | Alert |
+|---|---|---|
+| Availability | 99.9% over 5 minutes | `CaliberAPIDown`, `CaliberWorkerDown` |
+| HTTP error rate | <1% | `CaliberHighHTTPErrorRate` |
+| HTTP latency | p95 <2s | `CaliberHighHTTPLatency` |
+| AI failure rate | <5% | `CaliberHighAIFailureRate` |
+| Queue job error rate | <5% | `CaliberHighQueueJobErrorRate` |
+
+Alert rules live in `deploy/prometheus/alerts.yml` and route through Alertmanager
+to the local webhook echo receiver. In Docker Compose you can watch received
+alerts with:
+
+```bash
+docker compose logs -f alertreceiver
+```
+
+Trigger an alert manually by stopping the API service:
+
+```bash
+docker compose stop api
+```
+
+Alertmanager itself is available at http://localhost:9093.
+
+> **Note:** The webhook receiver is a local demonstration target. Production
+> deployments should replace it with a real receiver (Slack, PagerDuty, Opsgenie,
+> etc.) in `deploy/alertmanager/alertmanager.yml`.
