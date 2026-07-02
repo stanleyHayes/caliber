@@ -15,15 +15,16 @@ import (
 )
 
 type stubLLM struct {
-	resp app.LLMResponse
-	err  error
+	resp    app.LLMResponse
+	err     error
+	warmErr error
 }
 
 func (s stubLLM) Complete(_ context.Context, _ app.LLMRequest) (app.LLMResponse, error) {
 	return s.resp, s.err
 }
 
-func (s stubLLM) Warm(_ context.Context) error { return nil }
+func (s stubLLM) Warm(_ context.Context) error { return s.warmErr }
 
 func seqClock(times ...time.Time) func() time.Time {
 	i := 0
@@ -212,4 +213,13 @@ func TestMultiRecorder_SkipsNilChildren(t *testing.T) {
 	multi := llm.NewMultiRecorder(nil, r1, nil)
 	assert.NotPanics(t, func() { multi.Record(app.AICallRecord{Operation: "x"}) })
 	assert.Len(t, r1.Snapshot(), 1)
+}
+
+func TestAudited_WarmRecordsFailureAndPropagates(t *testing.T) {
+	boom := errors.New("warm failed")
+	a := llm.NewAudited(stubLLM{warmErr: boom}, nil, "dev", nil)
+
+	err := a.Warm(context.Background())
+
+	require.ErrorIs(t, err, boom, "the inner warm error is propagated unchanged")
 }

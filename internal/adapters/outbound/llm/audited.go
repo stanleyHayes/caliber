@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/xcreativs/caliber/internal/app"
+	"github.com/xcreativs/caliber/internal/platform/telemetry/errortracking"
 )
 
 // Audited wraps an app.LLMClient and records a redacted trace of every call to
@@ -56,6 +57,7 @@ func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		errortracking.Record(ctx, err, operation, "llm")
 	}
 	span.SetAttributes(
 		attribute.Int("llm.prompt_chars", len(req.Prompt)),
@@ -99,6 +101,7 @@ func (a *Audited) Warm(ctx context.Context) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		errortracking.Record(ctx, err, "warm", "llm")
 	}
 	span.SetAttributes(attribute.Bool("llm.failed", err != nil))
 	if a.recorder != nil {

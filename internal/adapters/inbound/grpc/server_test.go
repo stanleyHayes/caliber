@@ -1,10 +1,13 @@
 package grpcadapter
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 func TestNewGRPCServer(t *testing.T) {
@@ -31,3 +34,28 @@ func TestDialTarget(t *testing.T) {
 	assert.Equal(t, "localhost:9090", DialTarget(":9090"))
 	assert.Equal(t, "host:9090", DialTarget("host:9090"))
 }
+
+func TestErrorRecordingUnaryInterceptor(t *testing.T) {
+	handlerErr := errors.New("handler failed")
+	handler := func(context.Context, any) (any, error) { return nil, handlerErr }
+
+	resp, err := errorRecordingUnaryInterceptor(context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/caliber.v1.Test/Fail"}, handler)
+
+	require.ErrorIs(t, err, handlerErr)
+	assert.Nil(t, resp)
+}
+
+func TestErrorRecordingStreamInterceptor(t *testing.T) {
+	handlerErr := errors.New("stream failed")
+	handler := func(any, grpc.ServerStream) error { return handlerErr }
+
+	err := errorRecordingStreamInterceptor(nil, stubServerStream{}, &grpc.StreamServerInfo{FullMethod: "/caliber.v1.Test/Stream"}, handler)
+
+	require.ErrorIs(t, err, handlerErr)
+}
+
+type stubServerStream struct {
+	grpc.ServerStream
+}
+
+func (stubServerStream) Context() context.Context { return context.Background() }

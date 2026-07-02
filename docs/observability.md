@@ -1,4 +1,4 @@
-# Observability stack (CAL-130 / CAL-131 / CAL-132 / CAL-133)
+# Observability stack (CAL-130 / CAL-131 / CAL-132 / CAL-133 / CAL-135)
 
 Project Caliber exposes OpenTelemetry traces and Prometheus metrics, ships logs
 to Loki, and provides Grafana dashboards out of the box.
@@ -32,6 +32,9 @@ same endpoint on `CALIBER_WORKER_METRICS_ADDR` (default `:8081`).
   trips, input/output character counts, and latency (CAL-131).
 - `caliber_queue_*` — task enqueue rate, job processing rate by status, and job
   processing duration (CAL-133).
+- `caliber_errors_total` — structured operational errors grouped by `operation`
+  and `class` (`grpc`, `llm`, etc.). Useful for triaging spikes and correlating
+  with logs via `trace_id` (CAL-135).
 
 ### Instrumentation metrics
 
@@ -84,6 +87,38 @@ docker compose stop api
 ```
 
 Alertmanager itself is available at http://localhost:9093.
+
+## Error tracking (CAL-135)
+
+Code paths record structured errors with `errortracking.Record(ctx, err,
+operation, class)`. Each record increments `caliber_errors_total` and emits a
+redacted log line containing the error message, operation, class, and `trace_id`.
+No payloads or PII are logged.
+
+Typical error classes:
+
+| Class | Source |
+|---|---|
+| `grpc` | gRPC unary and streaming handler errors |
+| `llm` | LLM completion / warm-up failures |
+
+Search recent errors in Loki:
+
+```logql
+{service="caliber-api"} | json | msg="operational_error"
+```
+
+Filter by class:
+
+```logql
+{service="caliber-api"} | json | msg="operational_error" | class="llm"
+```
+
+## Runbooks
+
+Operational runbooks for every alert live in `docs/runbooks/`. The runbooks
+include PromQL / Loki queries and `trace_id` correlation steps for the most
+common failure modes.
 
 > **Note:** The webhook receiver is a local demonstration target. Production
 > deployments should replace it with a real receiver (Slack, PagerDuty, Opsgenie,

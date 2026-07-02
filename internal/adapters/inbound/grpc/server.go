@@ -12,6 +12,7 @@ import (
 
 	"github.com/xcreativs/caliber/internal/app"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
+	"github.com/xcreativs/caliber/internal/platform/telemetry/errortracking"
 )
 
 // Services holds the concrete gRPC service implementations to register; any
@@ -63,17 +64,17 @@ func NewGRPCServer(svc Services) *grpc.Server {
 	if svc.RateLimiter != nil {
 		unary = append(unary, NewRateLimitInterceptor(svc.RateLimiter))
 	}
+	// Error tracking is installed innermost so it captures every handler error,
+	// including failures surfaced by auth/rate-limit interceptors.
+	unary = append(unary, errorRecordingUnaryInterceptor)
+	stream = append(stream, errorRecordingStreamInterceptor)
 	// OpenTelemetry instrumentation runs before auth/rate-limit so spans cover
 	// the whole RPC and context propagation works even for unauthenticated paths.
 	opts := []grpc.ServerOption{
 		grpc.MaxRecvMsgSize(maxRecvMsgBytes),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-	}
-	if len(unary) > 0 {
-		opts = append(opts, grpc.ChainUnaryInterceptor(unary...))
-	}
-	if len(stream) > 0 {
-		opts = append(opts, grpc.ChainStreamInterceptor(stream...))
+		grpc.ChainUnaryInterceptor(unary...),
+		grpc.ChainStreamInterceptor(stream...),
 	}
 	svc = withStubs(svc)
 	s := grpc.NewServer(opts...)
@@ -168,4 +169,23 @@ func DialTarget(addr string) string {
 		return "localhost" + addr
 	}
 	return addr
+}
+
+// errorRecordingUnaryInterceptor records handler errors to the structured error
+// counter without changing the RPC status or response.
+func errorRecordingUnaryInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	resp, err := handler(ctx, req)
+	if err != nil {
+		errortracking.Record(ctx, err, info.FullMethod, "grpc")
+	}
+	return resp, err
+}
+
+// errorRecordingStreamInterceptor records handler errors for streaming RPCs.
+func errorRecordingStreamInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	err := handler(srv, ss)
+	if err != nil {
+		errortracking.Record(ss.Context(), err, info.FullMethod, "grpc")
+	}
+	return err
 }
