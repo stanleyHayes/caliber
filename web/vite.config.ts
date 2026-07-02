@@ -81,6 +81,7 @@ export default defineConfig(({ isSsrBuild }) => ({
     setupFiles: ['./src/test-setup.ts'],
     css: false,
     testTimeout: 20_000,
+    exclude: ['node_modules', 'dist', 'e2e'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

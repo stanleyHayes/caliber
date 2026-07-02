@@ -54,6 +54,16 @@ build: ## compile everything
 ci: build vet lint test ## run the full local CI (build, vet, lint, race tests) — run this before pushing
 	@echo "local CI passed — safe to push"
 
+test-e2e: ## run Playwright e2e tests against an already-running local stack (see web/e2e/README.md)
+	cd web && npm run test:e2e
+
+test-e2e-ci: ## start a fresh Docker Compose stack, seed it, run e2e tests, then tear it down
+	docker compose up --build -d
+	@until curl -sf http://localhost:8080/healthz >/dev/null; do sleep 2; done
+	CALIBER_DATABASE_URL="postgres://caliber:caliber@localhost:5432/caliber?sslmode=disable" go run ./cmd/reseed
+	cd web && npm run test:e2e
+	docker compose down -v
+
 scan: scan-go scan-web scan-containers ## run dependency and container vulnerability scans
 	@echo "supply-chain scans passed"
 

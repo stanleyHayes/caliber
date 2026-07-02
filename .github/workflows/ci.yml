@@ -138,6 +138,68 @@ jobs:
       - name: Enforce frontend coverage floor
         run: npm run test:coverage # vitest run --coverage
 
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Start the full stack
+        run: docker compose up --build -d
+
+      - name: Wait for API health
+        run: |
+          for i in {1..60}; do
+            curl -sf http://localhost:8080/healthz && exit 0
+            sleep 2
+          done
+          echo "API did not become healthy" && exit 1
+
+      - name: Seed the database
+        run: CALIBER_DATABASE_URL="postgres://caliber:caliber@localhost:5432/caliber?sslmode=disable" go run ./cmd/reseed
+        env:
+          CALIBER_SEED_GENERATED: "false"
+
+      - name: Run Playwright tests
+        working-directory: web
+        env:
+          CI: "true"
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
+
   lighthouse:
     name: Lighthouse CI (performance budgets)
     runs-on: ubuntu-latest
