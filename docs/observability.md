@@ -15,7 +15,7 @@ docker compose up --build
 |-----------------|-------------------------|------------------------------------------|
 | API             | http://localhost:8080   | gRPC + REST gateway                      |
 | Worker          | http://localhost:8081   | Prometheus metrics scrape endpoint       |
-| Prometheus      | http://localhost:9090   | Metric scraper for API + worker          |
+| Prometheus      | http://localhost:9091   | Metric scraper for API + worker          |
 | Alertmanager    | http://localhost:9093   | Alert routing                            |
 | Alert receiver  | http://localhost:8082   | Webhook echo receiver (logs alerts)      |
 | Loki            | http://localhost:3100   | Log backend                              |
@@ -139,6 +139,31 @@ curl 'http://localhost:8080/v1/audit-log/export?\
 
 The endpoint is restricted to employer/recruiter roles, consistent with
 `ListAuditLog`.
+
+## Load testing with k6 (CAL-142)
+
+A k6 load-test harness lives in `tests/load/` and is orchestrated by
+`scripts/load-test.sh`:
+
+```bash
+make test-load-smoke   # quick smoke run
+make test-load         # full demo-traffic scenario
+make test-load-keep-alive  # stack stays up for inspection
+```
+
+The harness uses the dev LLM (no API keys) and raises rate limits/LLM
+concurrency via `docker-compose.load.yml` so the service limits can be found
+without changing production defaults. The default scenario exercises Flow A
+(role generation + shortlist), Talent Radar, Flow B (interview via gRPC
+streaming), and Flow C (agent time-advance).
+
+Client-side SLO thresholds are enforced by k6:
+
+- HTTP error rate < 1%.
+- HTTP p95 latency < 2 s.
+
+A scheduled nightly GitHub Actions workflow runs `make test-load` and uploads
+the summary as an artifact.
 
 ## Runbooks
 

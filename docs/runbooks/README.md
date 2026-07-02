@@ -15,7 +15,7 @@ structure:
 | Tool | URL | Use for |
 |---|---|---|
 | Grafana | http://localhost:3000 | dashboards, cross-reference metrics/logs |
-| Prometheus | http://localhost:9090 | raw metrics, alert state |
+| Prometheus | http://localhost:9091 | raw metrics, alert state |
 | Alertmanager | http://localhost:9093 | alert routing, silences |
 | Loki | http://localhost:3100 | log search via Grafana Explore |
 

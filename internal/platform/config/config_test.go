@@ -51,6 +51,18 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.InterviewMaxDuration != 10*time.Minute {
 		t.Errorf("InterviewMaxDuration = %v, want 10m", cfg.InterviewMaxDuration)
 	}
+	if cfg.LLMMaxConcurrency != 8 {
+		t.Errorf("LLMMaxConcurrency = %d, want 8", cfg.LLMMaxConcurrency)
+	}
+	if cfg.LLMRatePerSecond != 20 {
+		t.Errorf("LLMRatePerSecond = %v, want 20", cfg.LLMRatePerSecond)
+	}
+	if cfg.LLMRateBurst != 40 {
+		t.Errorf("LLMRateBurst = %d, want 40", cfg.LLMRateBurst)
+	}
+	if cfg.LLMMaxTokens != 2048 {
+		t.Errorf("LLMMaxTokens = %d, want 2048", cfg.LLMMaxTokens)
+	}
 }
 
 func TestLoadParsesStrictCORSOrigins(t *testing.T) {
@@ -142,6 +154,32 @@ func TestValidateRequiresCORSOriginsInProd(t *testing.T) {
 	missing := cfg.Validate()
 	if !slices.Contains(missing, "CALIBER_CORS_ORIGINS") {
 		t.Fatalf("Validate() missing = %v, want CALIBER_CORS_ORIGINS", missing)
+	}
+}
+
+func TestLoadParsesLLMGuardrailValues(t *testing.T) {
+	t.Setenv("CALIBER_ENV", "")
+	clearCORSOriginsEnv(t)
+	t.Setenv("CALIBER_LLM_MAX_CONCURRENCY", "64")
+	t.Setenv("CALIBER_LLM_RATE_PER_SECOND", "200")
+	t.Setenv("CALIBER_LLM_RATE_BURST", "400")
+	t.Setenv("CALIBER_LLM_MAX_TOKENS", "4096")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.LLMMaxConcurrency != 64 {
+		t.Errorf("LLMMaxConcurrency = %d, want 64", cfg.LLMMaxConcurrency)
+	}
+	if cfg.LLMRatePerSecond != 200 {
+		t.Errorf("LLMRatePerSecond = %v, want 200", cfg.LLMRatePerSecond)
+	}
+	if cfg.LLMRateBurst != 400 {
+		t.Errorf("LLMRateBurst = %d, want 400", cfg.LLMRateBurst)
+	}
+	if cfg.LLMMaxTokens != 4096 {
+		t.Errorf("LLMMaxTokens = %d, want 4096", cfg.LLMMaxTokens)
 	}
 }
 

@@ -1,0 +1,28 @@
+# Load-test overlay for docker-compose.yml.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.load.yml -p caliber-load up --build -d
+#   make test-load
+#
+# This overlay relaxes rate limits and LLM guardrails so the k6 harness can find
+# service limits without touching production defaults in the source code.
+services:
+  api:
+    environment:
+      CALIBER_RATE_LIMIT_RPS: "1000"
+      CALIBER_RATE_LIMIT_BURST: "2000"
+      CALIBER_LLM_MAX_CONCURRENCY: "64"
+      CALIBER_LLM_RATE_PER_SECOND: "200"
+      CALIBER_LLM_RATE_BURST: "400"
+      CALIBER_LLM_MAX_TOKENS: "2048"
+      CALIBER_INTERVIEW_MAX_QUESTIONS: "2"
+      CALIBER_LOKI_URL: ""
+
+  worker:
+    environment:
+      CALIBER_RATE_LIMIT_RPS: "1000"
+      CALIBER_RATE_LIMIT_BURST: "2000"
+      CALIBER_LOKI_URL: ""
+    # The worker metrics port is not needed for load testing; remove the host
+    # mapping so it cannot conflict with a local dev worker.
+    ports: []

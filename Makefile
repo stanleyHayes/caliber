@@ -1,7 +1,7 @@
 MODULE := github.com/xcreativs/caliber
 GOBIN  := $(shell go env GOPATH)/bin
 
-.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker run-of-show run-of-show-keep-alive backup-capture tidy offline-build offline-pull offline-demo offline-stop offline-check
+.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker run-of-show run-of-show-keep-alive backup-capture tidy offline-build offline-pull offline-demo offline-stop offline-check test-load test-load-smoke test-load-keep-alive
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
@@ -63,6 +63,15 @@ test-e2e-ci: ## start a fresh Docker Compose stack, seed it, run e2e tests, then
 	CALIBER_DATABASE_URL="postgres://caliber:caliber@localhost:5432/caliber?sslmode=disable" go run ./cmd/reseed
 	cd web && npm run test:e2e
 	docker compose down -v
+
+test-load: ## run the k6 load test against a fresh Docker Compose stack
+	scripts/load-test.sh
+
+test-load-smoke: ## run a quick k6 smoke test against a fresh stack
+	scripts/load-test.sh --smoke
+
+test-load-keep-alive: ## run the load-test stack and keep it up for inspection
+	scripts/load-test.sh --keep-alive
 
 scan: scan-go scan-web scan-containers ## run dependency and container vulnerability scans
 	@echo "supply-chain scans passed"

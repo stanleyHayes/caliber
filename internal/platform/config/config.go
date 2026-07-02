@@ -48,6 +48,14 @@ type Config struct {
 	RateLimitRPS   float64 // per-principal sustained request rate (token-bucket refill/sec)
 	RateLimitBurst float64 // per-principal burst ceiling (max tokens)
 
+	// LLM guardrail limits (CAL-035 / CAL-142). These defaults cap cost and
+	// concurrency for production workloads; load tests can raise them to find
+	// service limits without changing code.
+	LLMMaxConcurrency int
+	LLMRatePerSecond  float64
+	LLMRateBurst      int
+	LLMMaxTokens      int
+
 	DashboardCacheTTL time.Duration // Talent Radar snapshot TTL (CAL-080)
 
 	InterviewMaxQuestions int           // Flow B hard cap on question count (CAL-104)
@@ -105,6 +113,12 @@ func Load() (Config, error) {
 		// cap floods and runaway clients on the expensive AI endpoints (CAL-112).
 		RateLimitRPS:      getfloat("CALIBER_RATE_LIMIT_RPS", 30),
 		RateLimitBurst:    getfloat("CALIBER_RATE_LIMIT_BURST", 60),
+		// LLM guardrail defaults (CAL-035). Keep them conservative in production;
+		// raise via env vars for load/performance testing (CAL-142).
+		LLMMaxConcurrency: getint("CALIBER_LLM_MAX_CONCURRENCY", 8),
+		LLMRatePerSecond:  getfloat("CALIBER_LLM_RATE_PER_SECOND", 20),
+		LLMRateBurst:      getint("CALIBER_LLM_RATE_BURST", 40),
+		LLMMaxTokens:      getint("CALIBER_LLM_MAX_TOKENS", 2048),
 		DashboardCacheTTL: getdur("CALIBER_DASHBOARD_CACHE_TTL", 30*time.Second),
 		InterviewMaxQuestions: getint("CALIBER_INTERVIEW_MAX_QUESTIONS", 4),
 		InterviewMaxDuration:  getdur("CALIBER_INTERVIEW_MAX_DURATION", 10*time.Minute),
