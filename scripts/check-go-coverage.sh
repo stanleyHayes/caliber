@@ -13,7 +13,7 @@ while IFS=$'\t' read -r _ pkg _ cov_field; do
     continue
   fi
   cov=$(echo "$cov_field" | sed -E 's/.*coverage: ([0-9.]+)% of statements/\1/')
-  if [[ -z "$cov" ]]; then
+  if [[ -z "$cov" ]] || ! [[ "$cov" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
     continue
   fi
   printf "%s\t%s\n" "$cov%" "$pkg"

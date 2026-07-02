@@ -60,6 +60,8 @@ linters:
         linters: [depguard]
       - path: 'internal/adapters/outbound/postgres/'
         linters: [musttag, goconst]
+      - path: 'internal/platform/seed/'
+        linters: [goconst]
       - path: 'internal/adapters/outbound/memory/(candidate|talentprofile)\.go'
         linters: [dupl] # intentional parallel adapter wrappers; logic shared via keyedStore
       - path: '_test\.go'

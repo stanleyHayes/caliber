@@ -14,7 +14,7 @@ export function AppShell() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const logout = useLogout();
   return (
-    <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
+    <Box data-testid="app-shell" sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
       <Box
         component="a"
         href="#main-content"
