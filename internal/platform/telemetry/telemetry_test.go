@@ -65,7 +65,7 @@ func TestPrometheusHandlerExposesMetrics(t *testing.T) {
 	}()
 
 	rec := httptest.NewRecorder()
-	p.PrometheusHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	p.PrometheusHandler().ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/metrics", nil))
 
 	assert.Equal(t, 200, rec.Code)
 	assert.True(t, strings.HasPrefix(rec.Header().Get("Content-Type"), "text/plain"), "expected text/plain prometheus output")
@@ -123,7 +123,7 @@ func TestAIMetricsRecorderExposesAIQualityMetrics(t *testing.T) {
 	})
 
 	r := httptest.NewRecorder()
-	p.PrometheusHandler().ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	p.PrometheusHandler().ServeHTTP(r, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/metrics", nil))
 	body := r.Body.String()
 
 	assert.Contains(t, body, "caliber_ai_calls_total")

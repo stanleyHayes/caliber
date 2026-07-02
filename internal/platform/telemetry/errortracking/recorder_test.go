@@ -34,7 +34,7 @@ func TestRecordProducesMetricAndLog(t *testing.T) {
 	errortracking.Record(ctx, errors.New("boom"), "interview.complete", "llm")
 
 	rec := httptest.NewRecorder()
-	p.PrometheusHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	p.PrometheusHandler().ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, "/metrics", nil))
 	body := rec.Body.String()
 
 	assert.Contains(t, body, "caliber_errors_total")
