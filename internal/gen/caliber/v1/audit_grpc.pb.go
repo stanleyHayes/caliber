@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuditService_ListAuditLog_FullMethodName = "/caliber.v1.AuditService/ListAuditLog"
+	AuditService_ListAuditLog_FullMethodName      = "/caliber.v1.AuditService/ListAuditLog"
+	AuditService_ExportAuditReport_FullMethodName = "/caliber.v1.AuditService/ExportAuditReport"
 )
 
 // AuditServiceClient is the client API for AuditService service.
@@ -30,6 +31,7 @@ const (
 // Append-only; underpins the human-in-the-loop and explainability story.
 type AuditServiceClient interface {
 	ListAuditLog(ctx context.Context, in *ListAuditLogRequest, opts ...grpc.CallOption) (*ListAuditLogResponse, error)
+	ExportAuditReport(ctx context.Context, in *ExportAuditReportRequest, opts ...grpc.CallOption) (*ExportAuditReportResponse, error)
 }
 
 type auditServiceClient struct {
@@ -50,6 +52,16 @@ func (c *auditServiceClient) ListAuditLog(ctx context.Context, in *ListAuditLogR
 	return out, nil
 }
 
+func (c *auditServiceClient) ExportAuditReport(ctx context.Context, in *ExportAuditReportRequest, opts ...grpc.CallOption) (*ExportAuditReportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExportAuditReportResponse)
+	err := c.cc.Invoke(ctx, AuditService_ExportAuditReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuditServiceServer is the server API for AuditService service.
 // All implementations must embed UnimplementedAuditServiceServer
 // for forward compatibility.
@@ -58,6 +70,7 @@ func (c *auditServiceClient) ListAuditLog(ctx context.Context, in *ListAuditLogR
 // Append-only; underpins the human-in-the-loop and explainability story.
 type AuditServiceServer interface {
 	ListAuditLog(context.Context, *ListAuditLogRequest) (*ListAuditLogResponse, error)
+	ExportAuditReport(context.Context, *ExportAuditReportRequest) (*ExportAuditReportResponse, error)
 	mustEmbedUnimplementedAuditServiceServer()
 }
 
@@ -70,6 +83,9 @@ type UnimplementedAuditServiceServer struct{}
 
 func (UnimplementedAuditServiceServer) ListAuditLog(context.Context, *ListAuditLogRequest) (*ListAuditLogResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAuditLog not implemented")
+}
+func (UnimplementedAuditServiceServer) ExportAuditReport(context.Context, *ExportAuditReportRequest) (*ExportAuditReportResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExportAuditReport not implemented")
 }
 func (UnimplementedAuditServiceServer) mustEmbedUnimplementedAuditServiceServer() {}
 func (UnimplementedAuditServiceServer) testEmbeddedByValue()                      {}
@@ -110,6 +126,24 @@ func _AuditService_ListAuditLog_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuditService_ExportAuditReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportAuditReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuditServiceServer).ExportAuditReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuditService_ExportAuditReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuditServiceServer).ExportAuditReport(ctx, req.(*ExportAuditReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuditService_ServiceDesc is the grpc.ServiceDesc for AuditService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -120,6 +154,10 @@ var AuditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAuditLog",
 			Handler:    _AuditService_ListAuditLog_Handler,
+		},
+		{
+			MethodName: "ExportAuditReport",
+			Handler:    _AuditService_ExportAuditReport_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

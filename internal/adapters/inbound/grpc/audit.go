@@ -2,6 +2,11 @@ package grpcadapter
 
 import (
 	"context"
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/xcreativs/caliber/internal/domain/audit"
 	"github.com/xcreativs/caliber/internal/domain/identity"
@@ -46,6 +51,144 @@ func (s *AuditServer) ListAuditLog(
 		out = append(out, auditEntryToProto(e))
 	}
 	return &caliberv1.ListAuditLogResponse{Entries: out, Page: pageResponseToProto(page, total)}, nil
+}
+
+// ExportAuditReport returns a filtered audit-log report as a downloadable JSON
+// or CSV payload. The endpoint is reviewer-only and never includes raw payloads
+// beyond the redacted snapshots already stored in the audit trail.
+func (s *AuditServer) ExportAuditReport(
+	ctx context.Context, req *caliberv1.ExportAuditReportRequest,
+) (*caliberv1.ExportAuditReportResponse, error) {
+	if _, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter); err != nil {
+		return nil, errToStatus(err)
+	}
+	filter, err := exportFilterFromProto(req)
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	entries, err := collectReportEntries(ctx, s.audit, filter)
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	resp, err := renderReport(entries, req.GetFormat())
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	return resp, nil
+}
+
+func exportFilterFromProto(req *caliberv1.ExportAuditReportRequest) (audit.ReportFilter, error) {
+	startPb, endPb := req.GetStartTime(), req.GetEndTime()
+	if startPb == nil || endPb == nil {
+		return audit.ReportFilter{}, kernel.Invalid("audit: start_time and end_time are required")
+	}
+	start, end := startPb.AsTime(), endPb.AsTime()
+	if end.Before(start) {
+		return audit.ReportFilter{}, kernel.Invalid("audit: end_time must be after start_time")
+	}
+	return audit.ReportFilter{
+		Start:    start,
+		End:      end,
+		Actions:  req.GetActions(),
+		Entities: req.GetEntities(),
+	}, nil
+}
+
+func renderReport(entries []*audit.AuditEntry, format caliberv1.ExportFormat) (*caliberv1.ExportAuditReportResponse, error) {
+	switch format {
+	case caliberv1.ExportFormat_EXPORT_FORMAT_CSV:
+		payload, err := marshalAuditCSV(entries)
+		if err != nil {
+			return nil, err
+		}
+		return &caliberv1.ExportAuditReportResponse{
+			Payload:     payload,
+			Filename:    reportFilename("audit-report", "csv"),
+			ContentType: "text/csv",
+		}, nil
+	case caliberv1.ExportFormat_EXPORT_FORMAT_JSON:
+		payload, err := marshalAuditJSON(entries)
+		if err != nil {
+			return nil, err
+		}
+		return &caliberv1.ExportAuditReportResponse{
+			Payload:     payload,
+			Filename:    reportFilename("audit-report", "json"),
+			ContentType: "application/json",
+		}, nil
+	default:
+		return nil, kernel.Invalid("audit: format must be JSON or CSV")
+	}
+}
+
+const (
+	maxReportEntries = 10000
+	reportPageSize   = 100
+)
+
+func collectReportEntries(
+	ctx context.Context, repo audit.AuditRepository, filter audit.ReportFilter,
+) ([]*audit.AuditEntry, error) {
+	var all []*audit.AuditEntry
+	for pageNum := 1; ; pageNum++ {
+		page := kernel.NewPage(pageNum, reportPageSize)
+		batch, total, err := repo.Search(ctx, filter, page)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, batch...)
+		if int64(len(all)) > maxReportEntries {
+			return nil, kernel.Invalidf("audit: report exceeds %d rows; narrow the filter", maxReportEntries)
+		}
+		if len(batch) == 0 || int64(len(all)) >= total {
+			return all, nil
+		}
+	}
+}
+
+func marshalAuditJSON(entries []*audit.AuditEntry) ([]byte, error) {
+	rows := make([]map[string]any, 0, len(entries))
+	for _, e := range entries {
+		rows = append(rows, map[string]any{
+			"id":            e.ID.String(),
+			"actor_user_id": e.ActorUserID.String(),
+			"action":        e.Action,
+			"entity":        e.Entity,
+			"entity_id":     e.EntityID.String(),
+			"before_json":   e.BeforeJSON,
+			"after_json":    e.AfterJSON,
+			"timestamp":     e.Timestamp.Format(time.RFC3339),
+		})
+	}
+	return json.Marshal(rows)
+}
+
+func marshalAuditCSV(entries []*audit.AuditEntry) ([]byte, error) {
+	var b strings.Builder
+	w := csv.NewWriter(&b)
+	if err := w.Write([]string{"id", "actor_user_id", "action", "entity", "entity_id", "before_json", "after_json", "timestamp"}); err != nil {
+		return nil, err
+	}
+	for _, e := range entries {
+		if err := w.Write([]string{
+			e.ID.String(),
+			e.ActorUserID.String(),
+			e.Action,
+			e.Entity,
+			e.EntityID.String(),
+			e.BeforeJSON,
+			e.AfterJSON,
+			e.Timestamp.Format(time.RFC3339),
+		}); err != nil {
+			return nil, err
+		}
+	}
+	w.Flush()
+	return []byte(b.String()), w.Error()
+}
+
+func reportFilename(prefix, ext string) string {
+	return fmt.Sprintf("%s-%s.%s", prefix, time.Now().UTC().Format("20060102T150405Z"), ext)
 }
 
 func auditEntryToProto(e *audit.AuditEntry) *caliberv1.AuditEntry {

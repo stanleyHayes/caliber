@@ -93,14 +93,12 @@ func newTracerProvider(cfg config.Config, res *resource.Resource) (*sdktrace.Tra
 }
 
 // Tracer returns a named tracer from the provider's tracer provider.
-//nolint:ireturn // returns the standard OTel tracer interface by design.
-func (p *Provider) Tracer(name string) trace.Tracer {
+func (p *Provider) Tracer(name string) trace.Tracer { //nolint:ireturn // returns the standard OTel tracer interface by design.
 	return p.tracerProvider.Tracer(name)
 }
 
 // Meter returns a named meter from the provider's meter provider.
-//nolint:ireturn // returns the standard OTel meter interface by design.
-func (p *Provider) Meter(name string) metric.Meter {
+func (p *Provider) Meter(name string) metric.Meter { //nolint:ireturn // returns the standard OTel meter interface by design.
 	return p.meterProvider.Meter(name)
 }
 

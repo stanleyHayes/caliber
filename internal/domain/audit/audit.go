@@ -81,6 +81,14 @@ func NewAuditEntry(
 
 //go:generate mockgen -source=audit.go -destination=../../mocks/audit.go -package=mocks
 
+// ReportFilter scopes a broad audit-log search used for compliance reporting.
+type ReportFilter struct {
+	Start    time.Time
+	End      time.Time
+	Actions  []string
+	Entities []string
+}
+
 // AuditRepository is the persistence port for the append-only audit trail.
 type AuditRepository interface { //nolint:revive // domain name is fixed by the audit context spec
 	// Append durably stores a new audit entry.
@@ -88,4 +96,7 @@ type AuditRepository interface { //nolint:revive // domain name is fixed by the 
 	// List returns a page of audit entries for a given entity and entityID,
 	// along with the total count of matching entries.
 	List(ctx context.Context, entity string, entityID kernel.ID, page kernel.Page) ([]*AuditEntry, int64, error)
+	// Search returns a page of audit entries matching the report filter,
+	// newest first, along with the total count of matching entries.
+	Search(ctx context.Context, filter ReportFilter, page kernel.Page) ([]*AuditEntry, int64, error)
 }

@@ -46,10 +46,37 @@ func (r *AuditRepo) List(
 			matched = append(matched, &cp)
 		}
 	}
+	out, total := paginate(matched, page)
+	return out, total, nil
+}
+
+// Search returns audit entries matching the report filter, newest first.
+func (r *AuditRepo) Search(_ context.Context, filter audit.ReportFilter, page kernel.Page) ([]*audit.AuditEntry, int64, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var matched []*audit.AuditEntry
+	for _, e := range slices.Backward(r.entries) {
+		if !e.Timestamp.IsZero() && (e.Timestamp.Before(filter.Start) || e.Timestamp.After(filter.End)) {
+			continue
+		}
+		if len(filter.Actions) > 0 && !slices.Contains(filter.Actions, e.Action) {
+			continue
+		}
+		if len(filter.Entities) > 0 && !slices.Contains(filter.Entities, e.Entity) {
+			continue
+		}
+		cp := e
+		matched = append(matched, &cp)
+	}
+	out, total := paginate(matched, page)
+	return out, total, nil
+}
+
+func paginate(matched []*audit.AuditEntry, page kernel.Page) ([]*audit.AuditEntry, int64) {
 	total := int64(len(matched))
 	start := min(page.Offset(), len(matched))
 	end := min(start+page.Limit(), len(matched))
-	return matched[start:end], total, nil
+	return matched[start:end], total
 }
 
 // TombstoneActor replaces an erased subject's actor id with a tombstone across
