@@ -21,3 +21,12 @@ export async function logout(page: Page) {
   await page.getByRole('button', { name: /sign out/i }).click();
   await page.waitForURL('/login');
 }
+
+// createRole drives the shared employer role-creation flow: open the new-role
+// form, submit the plain-language brief, and trigger spec/rubric generation. The
+// caller (already signed in as an employer) continues with its own assertions.
+export async function createRole(page: Page, brief: string) {
+  await page.goto('/roles/new');
+  await page.getByPlaceholder(/senior Go backend engineer/i).fill(brief);
+  await page.getByRole('button', { name: 'Generate spec & rubric' }).click();
+}

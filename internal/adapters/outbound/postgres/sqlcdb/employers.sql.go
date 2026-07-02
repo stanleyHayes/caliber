@@ -33,21 +33,3 @@ func (q *Queries) CreateEmployer(ctx context.Context, arg CreateEmployerParams) 
 	)
 	return err
 }
-
-const getEmployerByContactUser = `-- name: GetEmployerByContactUser :one
-SELECT id, company_name, contact_user_id, created_at
-FROM employers
-WHERE contact_user_id = $1
-`
-
-func (q *Queries) GetEmployerByContactUser(ctx context.Context, contactUserID pgtype.Text) (Employer, error) {
-	row := q.db.QueryRow(ctx, getEmployerByContactUser, contactUserID)
-	var i Employer
-	err := row.Scan(
-		&i.ID,
-		&i.CompanyName,
-		&i.ContactUserID,
-		&i.CreatedAt,
-	)
-	return i, err
-}

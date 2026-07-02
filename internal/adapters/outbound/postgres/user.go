@@ -12,19 +12,68 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
 
-// UserRepo is a Postgres-backed identity.UserRepository.
-type UserRepo struct {
-	q *sqlcdb.Queries
+// txBeginner is the subset of *pgxpool.Pool used to open a transaction. The
+// UserRepo needs it so that a user and its employer row are written atomically;
+// a plain DBTX (e.g. an already-open tx) cannot begin a nested one.
+type txBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-// NewUserRepo builds the repository from a sqlc DBTX.
-func NewUserRepo(db sqlcdb.DBTX) *UserRepo { return &UserRepo{q: sqlcdb.New(db)} }
+// UserRepo is a Postgres-backed identity.UserRepository.
+type UserRepo struct {
+	q  *sqlcdb.Queries
+	tx txBeginner // non-nil when the underlying handle is a pool (can open a tx)
+}
+
+// NewUserRepo builds the repository from a sqlc DBTX. When db is a connection
+// pool it is also used to run the two-statement employer creation atomically.
+func NewUserRepo(db sqlcdb.DBTX) *UserRepo {
+	repo := &UserRepo{q: sqlcdb.New(db)}
+	if b, ok := db.(txBeginner); ok {
+		repo.tx = b
+	}
+	return repo
+}
 
 // Create inserts a new user. Employer users also get a corresponding employers row
 // so that downstream role/match repositories can enforce their foreign-key
-// constraints without the caller needing to manage two aggregates.
+// constraints without the caller needing to manage two aggregates. The two writes
+// run in a single transaction so a failure of the second cannot leave an orphaned
+// user with no employers row — which, because the email is unique, would
+// permanently wedge that account (re-registration would return Conflict and never
+// retry the employer insert).
 func (r *UserRepo) Create(ctx context.Context, u *identity.User) error {
-	err := r.q.CreateUser(ctx, sqlcdb.CreateUserParams{
+	// A non-employer user is a single insert; no transaction needed.
+	if u.Role != identity.RoleEmployer {
+		return insertUser(ctx, r.q, u)
+	}
+	// Without a pool we cannot open a transaction (e.g. the handle is already a
+	// tx); fall back to sequential inserts rather than failing outright.
+	if r.tx == nil {
+		if err := insertUser(ctx, r.q, u); err != nil {
+			return err
+		}
+		return createEmployer(ctx, r.q, u)
+	}
+	tx, err := r.tx.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op after a successful Commit
+	q := r.q.WithTx(tx)
+	if err := insertUser(ctx, q, u); err != nil {
+		return err
+	}
+	if err := createEmployer(ctx, q, u); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// insertUser writes the users row, mapping a unique-constraint violation to a
+// domain Conflict. It runs against whichever Queries handle (pool or tx) is given.
+func insertUser(ctx context.Context, q *sqlcdb.Queries, u *identity.User) error {
+	err := q.CreateUser(ctx, sqlcdb.CreateUserParams{
 		ID:           u.ID.String(),
 		Email:        u.Email.String(),
 		Role:         userRoleToDB(u.Role),
@@ -36,20 +85,17 @@ func (r *UserRepo) Create(ctx context.Context, u *identity.User) error {
 	if isUniqueViolation(err) {
 		return kernel.Conflict("postgres: user already exists")
 	}
-	if err != nil {
-		return err
-	}
-	if u.Role == identity.RoleEmployer {
-		if eerr := r.q.CreateEmployer(ctx, sqlcdb.CreateEmployerParams{
-			ID:            u.ID.String(),
-			CompanyName:   u.Name,
-			ContactUserID: pgtype.Text{String: u.ID.String(), Valid: true},
-			CreatedAt:     pgtype.Timestamptz{Time: u.CreatedAt, Valid: true},
-		}); eerr != nil {
-			return eerr
-		}
-	}
-	return nil
+	return err
+}
+
+// createEmployer writes the employers row mirroring an employer user.
+func createEmployer(ctx context.Context, q *sqlcdb.Queries, u *identity.User) error {
+	return q.CreateEmployer(ctx, sqlcdb.CreateEmployerParams{
+		ID:            u.ID.String(),
+		CompanyName:   u.Name,
+		ContactUserID: pgtype.Text{String: u.ID.String(), Valid: true},
+		CreatedAt:     pgtype.Timestamptz{Time: u.CreatedAt, Valid: true},
+	})
 }
 
 // ByID returns a user by id.

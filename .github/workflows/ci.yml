@@ -166,8 +166,12 @@ jobs:
         working-directory: web
         run: npx playwright install --with-deps chromium
 
-      - name: Start the full stack
-        run: docker compose up --build -d
+      - name: Start the app stack
+        # Only the services the E2E suite exercises — the observability stack
+        # (loki, prometheus, grafana, alertmanager, alertreceiver) and the worker
+        # are not needed and only add build/pull/boot time (redis is pulled in as
+        # an api dependency).
+        run: docker compose up --build -d postgres migrate api web
 
       - name: Wait for API health
         run: |
@@ -176,6 +180,17 @@ jobs:
             sleep 2
           done
           echo "API did not become healthy" && exit 1
+
+      - name: Wait for web (Vite)
+        # Playwright's baseURL is the Vite dev server on :5173, which the web
+        # container only binds after `npm ci && npm run dev`. Without this wait the
+        # first page.goto could hit ECONNREFUSED and the suite would flake.
+        run: |
+          for i in {1..60}; do
+            curl -sf http://localhost:5173 >/dev/null && exit 0
+            sleep 2
+          done
+          echo "Web dev server did not become reachable" && exit 1
 
       - name: Seed the database
         run: CALIBER_DATABASE_URL="postgres://caliber:caliber@localhost:5432/caliber?sslmode=disable" go run ./cmd/reseed

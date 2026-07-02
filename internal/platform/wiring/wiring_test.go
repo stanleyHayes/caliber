@@ -10,6 +10,7 @@ import (
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/platform/config"
+	"github.com/xcreativs/caliber/internal/platform/telemetry"
 	"github.com/xcreativs/caliber/internal/platform/wiring"
 )
 
@@ -62,9 +63,32 @@ func TestBuildLLMDevPath(t *testing.T) {
 	assert.NotNil(t, recorder)
 }
 
+func TestBuildLLMUsesCustomGuardValues(t *testing.T) {
+	cfg := config.Config{
+		LLMMaxConcurrency: 64,
+		LLMRatePerSecond:  200,
+		LLMRateBurst:      400,
+		LLMMaxTokens:      4096,
+	}
+	llmClient, recorder := wiring.BuildLLM(cfg, slog.New(slog.DiscardHandler), nil)
+	assert.NotNil(t, llmClient)
+	assert.NotNil(t, recorder)
+}
+
 func TestBuildLLMClaudePath(t *testing.T) {
 	cfg := config.Config{AnthropicAPIKey: "sk-test", AnthropicModel: "claude-3-5-sonnet"}
 	llmClient, recorder := wiring.BuildLLM(cfg, slog.New(slog.DiscardHandler), nil)
+	assert.NotNil(t, llmClient)
+	assert.NotNil(t, recorder)
+}
+
+func TestBuildLLMWithTelemetry(t *testing.T) {
+	cfg := config.Config{OTelExporter: "noop"}
+	tele, err := telemetry.New(cfg)
+	require.NoError(t, err)
+	defer tele.Shutdown(context.Background())
+
+	llmClient, recorder := wiring.BuildLLM(config.Config{}, slog.New(slog.DiscardHandler), tele)
 	assert.NotNil(t, llmClient)
 	assert.NotNil(t, recorder)
 }
@@ -129,4 +153,32 @@ func TestNewAsynqmonHandlerReturnsErrorForInvalidRedisURL(t *testing.T) {
 	_, cleanup, err := wiring.NewAsynqmonHandler("://not-a-url")
 	require.Error(t, err)
 	cleanup()
+}
+
+func TestNewAsynqmonHandlerReturnsHandlerForValidRedisURL(t *testing.T) {
+	h, cleanup, err := wiring.NewAsynqmonHandler("redis://localhost:6379")
+	require.NoError(t, err)
+	assert.NotNil(t, h)
+	cleanup()
+}
+
+func TestSeedDemoDoesNothingWhenDisabled(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.Config{SeedDemo: false}
+	repos, cleanup, _, err := wiring.OpenRepositories(ctx, cfg, slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+	defer cleanup()
+
+	require.NoError(t, wiring.SeedDemo(ctx, cfg, repos, slog.New(slog.DiscardHandler)))
+	// No panic and no data seeded.
+	roles, _, err := repos.Roles.ListOpen(ctx, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	assert.Empty(t, roles)
+}
+
+func TestReseedReturnsErrorWhenOpenRepositoriesFails(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.Config{DatabaseURL: "postgres://invalid"}
+	err := wiring.Reseed(ctx, cfg, slog.New(slog.DiscardHandler))
+	require.Error(t, err)
 }

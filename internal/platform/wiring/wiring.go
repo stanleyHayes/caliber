@@ -56,7 +56,10 @@ func OpenRepositories(
 		return repos, cleanup, checks, err
 	}
 	if cfg.DatabaseURL == "" && cfg.SeedDemo {
-		SeedDemo(ctx, cfg, repos, log)
+		// Boot is best-effort: a seed failure must never block the API starting.
+		if serr := SeedDemo(ctx, cfg, repos, log); serr != nil {
+			log.Warn("demo seed skipped", "err", serr)
+		}
 	}
 	return repos, cleanup, checks, nil
 }
@@ -140,21 +143,26 @@ func Reseed(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 
 	// The reseed command always seeds; preserve the user's choice of generated
-	// vs hand-curated demo data.
+	// vs hand-curated demo data. Unlike boot, reseed surfaces a seed failure as a
+	// non-zero exit so CI (and operators) see an empty-database load rather than a
+	// silent success followed by confusing downstream failures.
 	seedCfg := cfg
 	seedCfg.SeedDemo = true
-	SeedDemo(ctx, seedCfg, repos, log)
+	if err := SeedDemo(ctx, seedCfg, repos, log); err != nil {
+		return fmt.Errorf("reseed: %w", err)
+	}
 	return nil
 }
 
 // SeedDemo loads the deterministic demo dataset into the in-memory dev stack so
 // the Radar, alerts, and pool are populated out of the box (CAL-016). When
 // CALIBER_SEED_GENERATED is true it uses the parser-driven generation pipeline
-// instead (CAL-098). It is a no-op when seeding is disabled or any step fails
-// (best-effort, never blocks boot).
-func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *slog.Logger) {
+// instead (CAL-098). It is a no-op when seeding is disabled, and returns the
+// seed error otherwise so callers can choose whether to surface it: boot treats
+// it as best-effort (logs and continues), while reseed fails on it.
+func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *slog.Logger) error {
 	if !cfg.SeedDemo {
-		return
+		return nil
 	}
 	seedRepos := seed.Repositories{
 		Users: repos.Users, Candidates: repos.Candidates, Profiles: repos.Profiles, Roles: repos.Roles,
@@ -168,13 +176,12 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 		gen := seed.NewGenerator(authadapter.NewArgon2idHasher(), seedLLM, time.Now)
 		res, err := gen.Generate(ctx, seedRepos)
 		if err != nil {
-			log.Warn("generated demo seed skipped", "err", err)
-			return
+			return fmt.Errorf("generated demo seed: %w", err)
 		}
 		log.Info("generated demo dataset",
 			"employers", res.Employers, "roles", res.Roles, "candidates", res.Candidates,
 			"demo_login_password", seed.DefaultPassword)
-		return
+		return nil
 	}
 
 	res, err := seed.Load(ctx, seedRepos, authadapter.NewArgon2idHasher(), time.Now(),
@@ -182,24 +189,44 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 		seed.WithPreSeededAgentState(seedLLM, repos.Apps),
 	)
 	if err != nil {
-		log.Warn("demo seed skipped", "err", err)
-		return
+		return fmt.Errorf("demo seed: %w", err)
 	}
 	log.Info("loaded demo dataset",
 		"employers", res.Employers, "roles", res.Roles, "candidates", res.Candidates,
 		"interviews", res.Interviews, "applications", res.Applications,
 		"demo_login_password", seed.DefaultPassword)
+	return nil
 }
 
-// LLM guardrail defaults (CAL-035): bound per-call tokens, simultaneous in-flight
-// calls, and the request budget so a misbehaving client or adversarial prompt
-// cannot run up provider cost.
+// LLM guardrail production defaults (CAL-035). The Config object carries the
+// effective values loaded from env vars; these constants are the fallback when
+// a zero value slips through (e.g., tests that build a bare Config{}).
 const (
 	llmMaxTokensCap   = 2048
 	llmMaxConcurrency = 8
 	llmRatePerSecond  = 20
 	llmRateBurst      = 40
 )
+
+func effectiveLLMGuard(cfg config.Config) (int, int, int, float64) {
+	maxTokens := cfg.LLMMaxTokens
+	if maxTokens <= 0 {
+		maxTokens = llmMaxTokensCap
+	}
+	maxConcurrency := cfg.LLMMaxConcurrency
+	if maxConcurrency <= 0 {
+		maxConcurrency = llmMaxConcurrency
+	}
+	rateBurst := cfg.LLMRateBurst
+	if rateBurst <= 0 {
+		rateBurst = llmRateBurst
+	}
+	ratePerSecond := cfg.LLMRatePerSecond
+	if ratePerSecond <= 0 {
+		ratePerSecond = llmRatePerSecond
+	}
+	return maxTokens, maxConcurrency, rateBurst, ratePerSecond
+}
 
 // BuildLLM constructs the audited+guarded LLM facade from config. It returns the
 // client plus a queryable memory recorder that powers the AI-quality debug
@@ -219,10 +246,11 @@ func BuildLLM(cfg config.Config, log *slog.Logger, tele *telemetry.Provider) (ap
 		}
 	}
 	rec := llm.NewMultiRecorder(recorders...)
+	maxTokens, maxConcurrency, rateBurst, ratePerSecond := effectiveLLMGuard(cfg)
 	guarded := llm.NewGuarded(newLLMProvider(cfg, log),
-		llm.WithMaxTokens(llmMaxTokensCap),
-		llm.WithConcurrency(llmMaxConcurrency),
-		llm.WithRateLimiter(llm.NewTokenBucket(llmRatePerSecond, llmRateBurst, nil)),
+		llm.WithMaxTokens(maxTokens),
+		llm.WithConcurrency(maxConcurrency),
+		llm.WithRateLimiter(llm.NewTokenBucket(ratePerSecond, rateBurst, nil)),
 		llm.WithInjectionHook(func(categories []string) {
 			// Category labels only — never prompt content — so logs stay PII-safe.
 			log.Warn("llm prompt-injection signal detected", "categories", categories)

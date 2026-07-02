@@ -18,6 +18,11 @@ export default defineConfig({
   reporter: process.env.CI ? [['html', { open: 'never' }], ['list']] : 'html',
   use: {
     baseURL: 'http://localhost:5173',
+    // Pin the browser locale. The SPA's i18next detector falls back to the
+    // browser's navigator.language and supports fr/tw, so on a runner whose OS
+    // locale is non-English the app would render translated copy and every
+    // hard-coded English selector ('Sign in', 'Welcome back', …) would fail.
+    locale: 'en-US',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     contextOptions: {
