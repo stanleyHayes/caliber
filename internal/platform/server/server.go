@@ -70,7 +70,7 @@ func Run(
 	return RunWithOptions(ctx, cfg, log, svc, readiness, nil)
 }
 
-//nolint:ireturn
+//nolint:ireturn // returns the chi router interface by design.
 func buildRouter(
 	mux *runtime.ServeMux,
 	cfg config.Config,

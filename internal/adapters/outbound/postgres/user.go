@@ -20,7 +20,9 @@ type UserRepo struct {
 // NewUserRepo builds the repository from a sqlc DBTX.
 func NewUserRepo(db sqlcdb.DBTX) *UserRepo { return &UserRepo{q: sqlcdb.New(db)} }
 
-// Create inserts a new user.
+// Create inserts a new user. Employer users also get a corresponding employers row
+// so that downstream role/match repositories can enforce their foreign-key
+// constraints without the caller needing to manage two aggregates.
 func (r *UserRepo) Create(ctx context.Context, u *identity.User) error {
 	err := r.q.CreateUser(ctx, sqlcdb.CreateUserParams{
 		ID:           u.ID.String(),
@@ -34,7 +36,20 @@ func (r *UserRepo) Create(ctx context.Context, u *identity.User) error {
 	if isUniqueViolation(err) {
 		return kernel.Conflict("postgres: user already exists")
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if u.Role == identity.RoleEmployer {
+		if eerr := r.q.CreateEmployer(ctx, sqlcdb.CreateEmployerParams{
+			ID:            u.ID.String(),
+			CompanyName:   u.Name,
+			ContactUserID: pgtype.Text{String: u.ID.String(), Valid: true},
+			CreatedAt:     pgtype.Timestamptz{Time: u.CreatedAt, Valid: true},
+		}); eerr != nil {
+			return eerr
+		}
+	}
+	return nil
 }
 
 // ByID returns a user by id.
