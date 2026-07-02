@@ -1,9 +1,20 @@
 import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
 
 import type { PoolCandidate } from '../../api/types';
+import { PageControls } from '../PageControls';
 import { passportColor, passportLabel, pct, shortId } from '../../lib/format';
 
-export function PoolPanel({ candidates }: { candidates: PoolCandidate[] }) {
+export function PoolPanel({
+  candidates,
+  page,
+  pageCount,
+  onPageChange,
+}: {
+  candidates: PoolCandidate[];
+  page?: number;
+  pageCount?: number;
+  onPageChange?: (page: number) => void;
+}) {
   return (
     <Card variant="outlined">
       <CardContent>
@@ -25,6 +36,9 @@ export function PoolPanel({ candidates }: { candidates: PoolCandidate[] }) {
               </Box>
             </Stack>
           ))}
+          {pageCount !== undefined && pageCount > 1 && page !== undefined && onPageChange !== undefined && (
+            <PageControls page={page} pageCount={pageCount} onChange={onPageChange} />
+          )}
         </Stack>
       </CardContent>
     </Card>

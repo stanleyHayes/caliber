@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '../stores/auth';
 import { apiFetch, tryRefresh } from './client';
 import { ApiError } from './types';
+import type { User } from './types';
 
-const user = { id: 'u1', email: 'a@b.com', role: 'USER_ROLE_CANDIDATE', name: 'A', createdAt: '2026-01-01T00:00:00Z' };
+const user: User = { id: 'u1', email: 'a@b.com', role: 'USER_ROLE_CANDIDATE', name: 'A', createdAt: '2026-01-01T00:00:00Z' };
 const tokens = { accessToken: 'acc', refreshToken: 'ref', accessExpiresIn: 3600 };
 
 function mockResponse(status: number, body: unknown, opts?: { statusText?: string }) {

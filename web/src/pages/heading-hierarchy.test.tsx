@@ -36,7 +36,7 @@ vi.mock('../query/flow', () => ({
 }));
 vi.mock('../query/talent', () => ({ useProfile: query, useCreateProfile: mutation }));
 vi.mock('../query/agent', () => ({ useTimeAdvance: mutation, useApplications: query }));
-vi.mock('../query/radar', () => ({ usePool: query, useSupplyDemand: query, useTimeToShortlist: query }));
+vi.mock('../query/radar', () => ({ usePool: query, useSupplyDemand: query, useTimeToShortlist: query, useAlerts: query }));
 vi.mock('../query/contest', () => ({ useMyContests: query, useRaiseContest: mutation }));
 vi.mock('../query/privacy', () => ({ useExportMyData: mutation, useDeleteMyData: mutation }));
 vi.mock('../hooks/useInterview', () => ({

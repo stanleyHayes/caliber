@@ -1,10 +1,15 @@
-import { Alert, Skeleton, Stack, Typography } from '@mui/material';
+import { useState } from 'react';
+import { Alert, Stack, Typography } from '@mui/material';
 
 import { ApiError } from '../api/types';
+import { CardSkeleton } from '../components/Skeletons';
+import { AlertsPanel } from '../components/radar/AlertsPanel';
 import { PoolPanel } from '../components/radar/PoolPanel';
 import { SupplyDemandPanel } from '../components/radar/SupplyDemandPanel';
 import { TimeToShortlistHeadline } from '../components/radar/TimeToShortlistHeadline';
-import { usePool, useSupplyDemand, useTimeToShortlist } from '../query/radar';
+import { useAlerts, usePool, useSupplyDemand, useTimeToShortlist } from '../query/radar';
+
+const pageSize = 20;
 
 function unavailable(err: unknown): string {
   if (err instanceof ApiError && err.status === 501) {
@@ -14,19 +19,23 @@ function unavailable(err: unknown): string {
 }
 
 export function RadarPage() {
+  const [poolPage, setPoolPage] = useState(1);
+  const [alertsPage, setAlertsPage] = useState(1);
+
   const ttsl = useTimeToShortlist();
   const supply = useSupplyDemand();
-  const pool = usePool();
+  const pool = usePool(poolPage, pageSize);
+  const alerts = useAlerts(alertsPage, pageSize);
 
   return (
     <Stack spacing={4} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Stack spacing={1}>
         <Typography variant="h3" component="h1">Talent Radar</Typography>
-        <Typography color="text.secondary">The live god-view: pool, supply &amp; demand, and the headline metric.</Typography>
+        <Typography color="text.secondary">The live god-view: pool, supply &amp; demand, alerts, and the headline metric.</Typography>
       </Stack>
 
       {ttsl.isPending ? (
-        <Skeleton variant="rounded" height={160} />
+        <CardSkeleton lines={3} />
       ) : ttsl.isError ? (
         <Alert severity="info">{unavailable(ttsl.error)}</Alert>
       ) : (
@@ -34,7 +43,7 @@ export function RadarPage() {
       )}
 
       {supply.isPending ? (
-        <Skeleton variant="rounded" height={180} />
+        <CardSkeleton lines={4} />
       ) : supply.isError ? (
         <Alert severity="info">{unavailable(supply.error)}</Alert>
       ) : (
@@ -42,11 +51,29 @@ export function RadarPage() {
       )}
 
       {pool.isPending ? (
-        <Skeleton variant="rounded" height={220} />
+        <CardSkeleton lines={5} />
       ) : pool.isError ? (
         <Alert severity="info">{unavailable(pool.error)}</Alert>
       ) : (
-        <PoolPanel candidates={pool.data?.candidates ?? []} />
+        <PoolPanel
+          candidates={pool.data?.candidates ?? []}
+          page={poolPage}
+          pageCount={pool.data?.page?.totalPages ?? 1}
+          onPageChange={setPoolPage}
+        />
+      )}
+
+      {alerts.isPending ? (
+        <CardSkeleton lines={4} />
+      ) : alerts.isError ? (
+        <Alert severity="info">{unavailable(alerts.error)}</Alert>
+      ) : (
+        <AlertsPanel
+          alerts={alerts.data?.alerts ?? []}
+          page={alertsPage}
+          pageCount={alerts.data?.page?.totalPages ?? 1}
+          onPageChange={setAlertsPage}
+        />
       )}
     </Stack>
   );
