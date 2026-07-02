@@ -234,6 +234,13 @@ export interface ListApplicationsResponse {
   applications: Application[];
 }
 
+export interface PageResponse {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
 // ----- Talent Radar dashboard (caliber.v1 DashboardService) -----
 
 export type PassportStatus =
@@ -262,11 +269,29 @@ export interface TimeToShortlistMetric {
   improvementFactor: number;
 }
 
+export type AlertType =
+  | 'ALERT_TYPE_UNSPECIFIED'
+  | 'ALERT_TYPE_CANDIDATE_FOR_ROLE'
+  | 'ALERT_TYPE_ROLE_FOR_CANDIDATE';
+
+export interface MatchAlert {
+  id: string;
+  type: AlertType;
+  roleId: string;
+  candidateId: string;
+  message: string;
+}
+
 export interface GetPoolResponse {
   candidates: PoolCandidate[];
+  page?: PageResponse;
 }
 export interface GetSupplyDemandResponse {
   items: SupplyDemandItem[];
+}
+export interface GetAlertsResponse {
+  alerts: MatchAlert[];
+  page?: PageResponse;
 }
 export interface GetTimeToShortlistResponse {
   metric: TimeToShortlistMetric;
