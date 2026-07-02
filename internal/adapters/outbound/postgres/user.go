@@ -193,4 +193,15 @@ func userStatusFromDB(s string) identity.AccountStatus {
 	return identity.StatusActive
 }
 
+// Anonymize scrubs a user's identifying fields in place (CAL-118 right-to-
+// erasure). The row is retained — it may still be referenced — but the name and
+// password are blanked and the email is replaced with a unique, non-routable
+// tombstone so the unique constraint is preserved and no PII remains.
+func (r *UserRepo) Anonymize(ctx context.Context, id kernel.ID) error {
+	return r.q.AnonymizeUser(ctx, sqlcdb.AnonymizeUserParams{
+		ID:    id.String(),
+		Email: "erased+" + id.String() + "@erased.invalid",
+	})
+}
+
 var _ identity.UserRepository = (*UserRepo)(nil)

@@ -122,4 +122,11 @@ func toDomainCandidate(id, userID string, location pgtype.Text, prefs []byte) (*
 	}, nil
 }
 
+// Delete hard-deletes a candidate (CAL-118 right-to-erasure). The FK
+// ON DELETE CASCADE removes dependent profiles, matches, interviews, and
+// applications; the erasure use-case also deletes those explicitly first.
+func (r *CandidateRepo) Delete(ctx context.Context, id kernel.ID) error {
+	return r.q.DeleteCandidate(ctx, id.String())
+}
+
 var _ talent.CandidateRepository = (*CandidateRepo)(nil)

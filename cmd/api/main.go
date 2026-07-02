@@ -196,20 +196,24 @@ func wireApplicationServices(
 	svc.Privacy = grpcadapter.NewPrivacyServer(exporter, buildEraser(repos, auditRepo, contests))
 }
 
-// buildEraser wires the erasure cascade over the in-memory repositories, which
-// provide the hard-delete primitives. It returns nil when the repositories are
-// not the in-memory dev implementations (e.g. Postgres), so DeleteMyData reports
-// unimplemented there rather than panicking.
+// buildEraser wires the right-to-erasure cascade (CAL-118) from whichever
+// repositories are configured. Each dependency is taken through its privacy port
+// rather than a concrete type, so the same wiring serves both the in-memory dev
+// stack and the Postgres stack — candidate/profile/application/match/user now
+// provide the hard-delete primitives on both, while interviews, contests, and the
+// audit trail remain in-memory on both paths. It returns nil only if some
+// repository lacks an erasure primitive, so DeleteMyData reports unimplemented
+// rather than panicking.
 func buildEraser(repos wiring.Repositories, auditRepo audit.AuditRepository, contests *memory.ContestRepo) *privacyapp.Eraser {
-	cands, ok1 := repos.Candidates.(*memory.CandidateRepo)
-	users, ok2 := repos.Users.(*memory.UserRepo)
-	aud, ok3 := auditRepo.(*memory.AuditRepo)
-	profs, ok4 := repos.Profiles.(*memory.TalentProfileRepo)
-	apps, ok5 := repos.Apps.(*memory.ApplicationRepo)
-	ivs, ok6 := repos.Interviews.(*memory.InterviewRepo)
-	matches, ok7 := repos.Matches.(*memory.MatchRepo)
+	candidate, ok1 := repos.Candidates.(privacyapp.CandidateRemover)
+	identity, ok2 := repos.Users.(privacyapp.IdentityAnonymizer)
+	aud, ok3 := auditRepo.(privacyapp.AuditTombstoner)
+	profs, ok4 := repos.Profiles.(privacyapp.CandidateScopedEraser)
+	apps, ok5 := repos.Apps.(privacyapp.CandidateScopedEraser)
+	ivs, ok6 := repos.Interviews.(privacyapp.CandidateScopedEraser)
+	matches, ok7 := repos.Matches.(privacyapp.CandidateScopedEraser)
 	if ok1 && ok2 && ok3 && ok4 && ok5 && ok6 && ok7 {
-		return privacyapp.NewEraser(cands, users, aud, profs, apps, ivs, matches, contests)
+		return privacyapp.NewEraser(candidate, identity, aud, profs, apps, ivs, matches, contests)
 	}
 	return nil
 }

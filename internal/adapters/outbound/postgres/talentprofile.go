@@ -149,4 +149,10 @@ func passportFromDB(s string) talent.PassportStatus {
 	}
 }
 
+// DeleteByCandidate hard-deletes a candidate's talent profile and its embedding
+// (CAL-118 right-to-erasure).
+func (r *TalentProfileRepo) DeleteByCandidate(ctx context.Context, candidateID kernel.ID) error {
+	return r.q.DeleteTalentProfilesByCandidate(ctx, candidateID.String())
+}
+
 var _ talent.TalentProfileRepository = (*TalentProfileRepo)(nil)

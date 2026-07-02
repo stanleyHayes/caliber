@@ -115,4 +115,11 @@ func jsonOrNil(s string) []byte {
 	return []byte(s)
 }
 
+// TombstoneActor de-identifies an erased subject in the append-only audit trail
+// (CAL-118): the trail is itself a compliance record, so its entries are kept but
+// the subject's actor id is replaced with a tombstone.
+func (r *AuditRepo) TombstoneActor(ctx context.Context, actorID kernel.ID) error {
+	return r.q.TombstoneAuditActor(ctx, actorID.String())
+}
+
 var _ audit.AuditRepository = (*AuditRepo)(nil)

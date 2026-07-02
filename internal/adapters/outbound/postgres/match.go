@@ -148,4 +148,10 @@ func confidenceFromDB(s string) kernel.Confidence {
 	}
 }
 
+// DeleteByCandidate hard-deletes every match referencing a candidate
+// (CAL-118 right-to-erasure).
+func (r *MatchRepo) DeleteByCandidate(ctx context.Context, candidateID kernel.ID) error {
+	return r.q.DeleteMatchesByCandidate(ctx, candidateID.String())
+}
+
 var _ matching.MatchRepository = (*MatchRepo)(nil)

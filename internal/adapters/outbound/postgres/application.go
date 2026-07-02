@@ -154,4 +154,10 @@ func appStatusFromDB(s string) candidateagent.ApplicationStatus {
 	}
 }
 
+// DeleteByCandidate hard-deletes every application a candidate authored
+// (CAL-118 right-to-erasure).
+func (r *ApplicationRepo) DeleteByCandidate(ctx context.Context, candidateID kernel.ID) error {
+	return r.q.DeleteApplicationsByCandidate(ctx, candidateID.String())
+}
+
 var _ candidateagent.ApplicationRepository = (*ApplicationRepo)(nil)
