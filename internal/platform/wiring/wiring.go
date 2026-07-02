@@ -245,12 +245,27 @@ func BuildLLM(cfg config.Config, log *slog.Logger, tele *telemetry.Provider) (ap
 			log.Warn("telemetry: ai metrics recorder unavailable", "err", err)
 		}
 	}
+	// Cost/FinOps controls (CAL-159): a tracker observes every call's estimated
+	// spend, alerts as budget thresholds are crossed, and — when a budget is set —
+	// gates the guarded client so calls fail fast once the budget is exhausted.
+	cost := app.NewCostTracker(cfg.LLMBudgetUSD, func(a app.CostAlert) {
+		level := slog.LevelWarn
+		if a.Exceeded {
+			level = slog.LevelError
+		}
+		log.Log(context.Background(), level, "llm spend budget threshold crossed",
+			"alert", "llm_budget",
+			"spent_usd", a.SpentUSD, "budget_usd", a.BudgetUSD,
+			"fraction", a.Fraction, "exceeded", a.Exceeded)
+	})
+	recorders = append(recorders, cost)
 	rec := llm.NewMultiRecorder(recorders...)
 	maxTokens, maxConcurrency, rateBurst, ratePerSecond := effectiveLLMGuard(cfg)
 	guarded := llm.NewGuarded(newLLMProvider(cfg, log),
 		llm.WithMaxTokens(maxTokens),
 		llm.WithConcurrency(maxConcurrency),
 		llm.WithRateLimiter(llm.NewTokenBucket(ratePerSecond, rateBurst, nil)),
+		llm.WithBudgetGuard(cost),
 		llm.WithInjectionHook(func(categories []string) {
 			// Category labels only — never prompt content — so logs stay PII-safe.
 			log.Warn("llm prompt-injection signal detected", "categories", categories)

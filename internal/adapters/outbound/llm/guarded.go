@@ -16,15 +16,23 @@ type RateLimiter interface {
 	Allow() bool
 }
 
-// Guarded wraps an app.LLMClient with cost and safety controls (CAL-035): a hard
-// per-call token cap, a concurrency limit, a request-budget rate limit, and
-// prompt-injection telemetry over the untrusted prompt. It implements
-// app.LLMClient so it composes transparently in front of any provider.
+// BudgetGuard reports whether the spend budget still permits a model call. It is
+// consulted before each call so an exhausted cost budget fails fast, before any
+// further provider spend is incurred (CAL-159).
+type BudgetGuard interface {
+	WithinBudget() bool
+}
+
+// Guarded wraps an app.LLMClient with cost and safety controls (CAL-035/CAL-159):
+// a hard per-call token cap, a concurrency limit, a request-budget rate limit, a
+// spend-budget gate, and prompt-injection telemetry over the untrusted prompt. It
+// implements app.LLMClient so it composes transparently in front of any provider.
 type Guarded struct {
 	inner       app.LLMClient
 	maxTokens   int
 	sem         chan struct{}
 	limiter     RateLimiter
+	budget      BudgetGuard
 	onInjection func(categories []string)
 	recorder    app.AICallRecorder
 }
@@ -47,6 +55,10 @@ func WithConcurrency(n int) GuardOption {
 // WithRateLimiter enforces a request budget; denied calls fail fast with
 // kernel.KindTooManyRequests before any provider cost is incurred.
 func WithRateLimiter(rl RateLimiter) GuardOption { return func(g *Guarded) { g.limiter = rl } }
+
+// WithBudgetGuard enforces a spend budget; once it is exhausted, calls fail fast
+// with kernel.KindTooManyRequests instead of accruing further provider cost.
+func WithBudgetGuard(b BudgetGuard) GuardOption { return func(g *Guarded) { g.budget = b } }
 
 // WithInjectionHook is invoked (best-effort, before the call) with the detected
 // prompt-injection categories when the prompt looks adversarial. It never blocks
@@ -79,6 +91,9 @@ func (g *Guarded) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 	if g.limiter != nil && !g.limiter.Allow() {
 		return app.LLMResponse{}, kernel.TooManyRequests("llm: request budget exceeded; retry later")
 	}
+	if g.budget != nil && !g.budget.WithinBudget() {
+		return app.LLMResponse{}, kernel.TooManyRequests("llm: cost budget exhausted; retry later")
+	}
 	g.reportInjection(req.Prompt)
 	g.recordGuardrailTrips(req)
 	req.MaxTokens = g.cappedTokens(req.MaxTokens)
@@ -96,6 +111,9 @@ func (g *Guarded) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 func (g *Guarded) Warm(ctx context.Context) error {
 	if g.limiter != nil && !g.limiter.Allow() {
 		return kernel.TooManyRequests("llm: request budget exceeded; retry later")
+	}
+	if g.budget != nil && !g.budget.WithinBudget() {
+		return kernel.TooManyRequests("llm: cost budget exhausted; retry later")
 	}
 	release, err := g.acquire(ctx)
 	if err != nil {

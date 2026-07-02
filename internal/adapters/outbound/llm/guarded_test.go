@@ -78,6 +78,22 @@ func TestGuarded_RateLimitedFailsFast(t *testing.T) {
 	assert.Zero(t, inner.calls, "the provider is never called when the budget is exceeded")
 }
 
+type overBudget struct{}
+
+func (overBudget) WithinBudget() bool { return false }
+
+func TestGuarded_BudgetExhaustedFailsFast(t *testing.T) {
+	inner := &fakeLLM{}
+	g := llm.NewGuarded(inner, llm.WithBudgetGuard(overBudget{}))
+
+	_, err := g.Complete(context.Background(), app.LLMRequest{Prompt: "hi"})
+	assert.Equal(t, kernel.KindTooManyRequests, kernel.KindOf(err))
+	assert.Zero(t, inner.calls, "no provider call once the cost budget is exhausted")
+
+	assert.Equal(t, kernel.KindTooManyRequests, kernel.KindOf(g.Warm(context.Background())),
+		"warming is gated by the budget too")
+}
+
 func TestGuarded_InjectionHookFiresButDoesNotBlock(t *testing.T) {
 	inner := &fakeLLM{}
 	var got []string

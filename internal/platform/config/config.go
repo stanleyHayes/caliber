@@ -56,6 +56,11 @@ type Config struct {
 	LLMRateBurst      int
 	LLMMaxTokens      int
 
+	// LLMBudgetUSD is a cumulative spend cap for model calls (CAL-159). When > 0,
+	// estimated spend is tracked, threshold alerts are emitted, and calls fail
+	// fast once the budget is exhausted. 0 means unlimited (observe-only).
+	LLMBudgetUSD float64
+
 	DashboardCacheTTL time.Duration // Talent Radar snapshot TTL (CAL-080)
 
 	InterviewMaxQuestions int           // Flow B hard cap on question count (CAL-104)
@@ -119,6 +124,8 @@ func Load() (Config, error) {
 		LLMRatePerSecond:  getfloat("CALIBER_LLM_RATE_PER_SECOND", 20),
 		LLMRateBurst:      getint("CALIBER_LLM_RATE_BURST", 40),
 		LLMMaxTokens:      getint("CALIBER_LLM_MAX_TOKENS", 2048),
+		// Cumulative spend cap for model calls; 0 = unlimited (CAL-159).
+		LLMBudgetUSD: getfloat("CALIBER_LLM_BUDGET_USD", 0),
 		DashboardCacheTTL: getdur("CALIBER_DASHBOARD_CACHE_TTL", 30*time.Second),
 		InterviewMaxQuestions: getint("CALIBER_INTERVIEW_MAX_QUESTIONS", 4),
 		InterviewMaxDuration:  getdur("CALIBER_INTERVIEW_MAX_DURATION", 10*time.Minute),
