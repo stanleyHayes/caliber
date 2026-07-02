@@ -1,4 +1,4 @@
-# Observability stack (CAL-130 / CAL-131 / CAL-132 / CAL-133 / CAL-135)
+# Observability stack (CAL-130 / CAL-131 / CAL-132 / CAL-133 / CAL-135 / CAL-136)
 
 Project Caliber exposes OpenTelemetry traces and Prometheus metrics, ships logs
 to Loki, and provides Grafana dashboards out of the box.
@@ -113,6 +113,32 @@ Filter by class:
 ```logql
 {service="caliber-api"} | json | msg="operational_error" | class="llm"
 ```
+
+## Audit & compliance reporting (CAL-136)
+
+Reviewers can export the append-only audit trail via `AuditService.ExportAuditReport`
+(`GET /v1/audit-log/export`). The report supports:
+
+- Date range filtering (`start_time`, `end_time`).
+- Optional action filter (`approve_rejection`, `override_score`, `agent_submit`,
+  `contest_raised`, `contest_resolved`).
+- Optional entity filter (`match`, `application`, `contest`, etc.).
+- JSON or CSV output.
+
+Example REST call:
+
+```bash
+curl 'http://localhost:8080/v1/audit-log/export?\
+  start_time=2026-01-01T00:00:00Z&\
+  end_time=2026-01-31T23:59:59Z&\
+  actions=agent_submit&\
+  actions=approve_rejection&\
+  format=CSV' \
+  -H 'Authorization: Bearer <reviewer-token>'
+```
+
+The endpoint is restricted to employer/recruiter roles, consistent with
+`ListAuditLog`.
 
 ## Runbooks
 

@@ -57,6 +57,33 @@ func (q *Queries) CountAuditLog(ctx context.Context, arg CountAuditLogParams) (i
 	return count, err
 }
 
+const countAuditLogForReport = `-- name: CountAuditLogForReport :one
+SELECT count(*)
+FROM audit_log
+WHERE created_at >= $1 AND created_at <= $2
+  AND (cardinality($3::text[]) = 0 OR action = any($3::text[]))
+  AND (cardinality($4::text[]) = 0 OR entity = any($4::text[]))
+`
+
+type CountAuditLogForReportParams struct {
+	CreatedAt   pgtype.Timestamptz
+	CreatedAt_2 pgtype.Timestamptz
+	Column3     []string
+	Column4     []string
+}
+
+func (q *Queries) CountAuditLogForReport(ctx context.Context, arg CountAuditLogForReportParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAuditLogForReport,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Column3,
+		arg.Column4,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const listAuditLog = `-- name: ListAuditLog :many
 SELECT id, actor_user_id, action, entity, entity_id, before_json, after_json, created_at
 FROM audit_log WHERE entity = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4
@@ -73,6 +100,61 @@ func (q *Queries) ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]A
 	rows, err := q.db.Query(ctx, listAuditLog,
 		arg.Entity,
 		arg.EntityID,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuditLog
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.ActorUserID,
+			&i.Action,
+			&i.Entity,
+			&i.EntityID,
+			&i.BeforeJson,
+			&i.AfterJson,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchAuditLog = `-- name: SearchAuditLog :many
+SELECT id, actor_user_id, action, entity, entity_id, before_json, after_json, created_at
+FROM audit_log
+WHERE created_at >= $1 AND created_at <= $2
+  AND (cardinality($3::text[]) = 0 OR action = any($3::text[]))
+  AND (cardinality($4::text[]) = 0 OR entity = any($4::text[]))
+ORDER BY created_at DESC
+LIMIT $5 OFFSET $6
+`
+
+type SearchAuditLogParams struct {
+	CreatedAt   pgtype.Timestamptz
+	CreatedAt_2 pgtype.Timestamptz
+	Column3     []string
+	Column4     []string
+	Limit       int32
+	Offset      int32
+}
+
+func (q *Queries) SearchAuditLog(ctx context.Context, arg SearchAuditLogParams) ([]AuditLog, error) {
+	rows, err := q.db.Query(ctx, searchAuditLog,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Column3,
+		arg.Column4,
 		arg.Limit,
 		arg.Offset,
 	)

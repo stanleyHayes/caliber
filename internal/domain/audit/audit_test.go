@@ -186,6 +186,20 @@ func (s *stubRepo) List(_ context.Context, entity string, entityID kernel.ID, pa
 	return matched[start:end], total, nil
 }
 
+func (s *stubRepo) Search(_ context.Context, filter ReportFilter, page kernel.Page) ([]*AuditEntry, int64, error) {
+	var matched []*AuditEntry
+	for _, e := range s.entries {
+		if (e.Timestamp.Equal(filter.Start) || e.Timestamp.After(filter.Start)) &&
+			(e.Timestamp.Equal(filter.End) || e.Timestamp.Before(filter.End)) {
+			matched = append(matched, e)
+		}
+	}
+	total := int64(len(matched))
+	start := min(page.Offset(), len(matched))
+	end := min(start+page.Limit(), len(matched))
+	return matched[start:end], total, nil
+}
+
 func TestAuditRepositoryPort(t *testing.T) {
 	var repo AuditRepository = &stubRepo{}
 	ctx := context.Background()

@@ -58,6 +58,43 @@ func (r *AuditRepo) List(ctx context.Context, entity string, entityID kernel.ID,
 	return out, total, nil
 }
 
+// Search returns audit entries matching the report filter, newest first.
+func (r *AuditRepo) Search(ctx context.Context, filter audit.ReportFilter, page kernel.Page) ([]*audit.AuditEntry, int64, error) {
+	actions := filter.Actions
+	if actions == nil {
+		actions = []string{}
+	}
+	entities := filter.Entities
+	if entities == nil {
+		entities = []string{}
+	}
+	rows, err := r.q.SearchAuditLog(ctx, sqlcdb.SearchAuditLogParams{
+		CreatedAt:   pgtype.Timestamptz{Time: filter.Start, Valid: true},
+		CreatedAt_2: pgtype.Timestamptz{Time: filter.End, Valid: true},
+		Column3:     actions,
+		Column4:     entities,
+		Limit:       clampInt32(page.Limit()),
+		Offset:      clampInt32(page.Offset()),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]*audit.AuditEntry, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toDomainAuditEntry(row))
+	}
+	total, err := r.q.CountAuditLogForReport(ctx, sqlcdb.CountAuditLogForReportParams{
+		CreatedAt:   pgtype.Timestamptz{Time: filter.Start, Valid: true},
+		CreatedAt_2: pgtype.Timestamptz{Time: filter.End, Valid: true},
+		Column3:     actions,
+		Column4:     entities,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
 func toDomainAuditEntry(row sqlcdb.AuditLog) *audit.AuditEntry {
 	return &audit.AuditEntry{
 		ID:          kernel.ID(row.ID),

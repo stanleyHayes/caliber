@@ -2,6 +2,9 @@ package grpcadapter
 
 import (
 	"context"
+	"encoding/csv"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +19,8 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestAuditServer_ListAuditLog(t *testing.T) {
@@ -58,5 +63,100 @@ func TestAuditServer_AuthzAndValidation(t *testing.T) {
 	empCtx := context.WithValue(context.Background(), principalKey{},
 		app.Principal{UserID: kernel.NewID(), Role: identity.RoleEmployer.String()})
 	_, err = srv.ListAuditLog(empCtx, &caliberv1.ListAuditLogRequest{Entity: "contest"})
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestAuditServer_ExportAuditReport_JSON(t *testing.T) {
+	repo := memory.NewAuditRepo()
+	actor := kernel.NewID()
+	entityID := kernel.NewID()
+	e1, _ := audit.NewAuditEntry(actor, audit.ActionApproveRejection, "match", entityID, `{"old":1}`, `{"new":2}`, time.Unix(1, 0))
+	e2, _ := audit.NewAuditEntry(actor, audit.ActionAgentSubmit, "application", kernel.NewID(), "", "", time.Unix(2, 0))
+	require.NoError(t, repo.Append(context.Background(), e1))
+	require.NoError(t, repo.Append(context.Background(), e2))
+
+	srv := NewAuditServer(repo)
+	ctx := context.WithValue(context.Background(), principalKey{},
+		app.Principal{UserID: kernel.NewID(), Role: identity.RoleEmployer.String()})
+
+	resp, err := srv.ExportAuditReport(ctx, &caliberv1.ExportAuditReportRequest{
+		StartTime: timestamppb.New(time.Unix(0, 0)),
+		EndTime:   timestamppb.New(time.Unix(3, 0)),
+		Format:    caliberv1.ExportFormat_EXPORT_FORMAT_JSON,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "application/json", resp.GetContentType())
+	assert.True(t, strings.HasSuffix(resp.GetFilename(), ".json"))
+
+	var rows []map[string]any
+	require.NoError(t, json.Unmarshal(resp.GetPayload(), &rows))
+	require.Len(t, rows, 2)
+	assert.Equal(t, audit.ActionAgentSubmit, rows[0]["action"])
+	assert.Equal(t, audit.ActionApproveRejection, rows[1]["action"])
+	assert.Equal(t, `{"new":2}`, rows[1]["after_json"])
+}
+
+func TestAuditServer_ExportAuditReport_CSV(t *testing.T) {
+	repo := memory.NewAuditRepo()
+	actor := kernel.NewID()
+	e1, _ := audit.NewAuditEntry(actor, audit.ActionOverrideScore, "match", kernel.NewID(), "", "", time.Unix(5, 0))
+	require.NoError(t, repo.Append(context.Background(), e1))
+
+	srv := NewAuditServer(repo)
+	ctx := context.WithValue(context.Background(), principalKey{},
+		app.Principal{UserID: kernel.NewID(), Role: identity.RoleRecruiter.String()})
+
+	resp, err := srv.ExportAuditReport(ctx, &caliberv1.ExportAuditReportRequest{
+		StartTime: timestamppb.New(time.Unix(0, 0)),
+		EndTime:   timestamppb.New(time.Unix(10, 0)),
+		Actions:   []string{audit.ActionOverrideScore},
+		Entities:  []string{"match"},
+		Format:    caliberv1.ExportFormat_EXPORT_FORMAT_CSV,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "text/csv", resp.GetContentType())
+
+	records, err := csv.NewReader(strings.NewReader(string(resp.GetPayload()))).ReadAll()
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	assert.Equal(t, "id", records[0][0])
+	assert.Equal(t, audit.ActionOverrideScore, records[1][2])
+}
+
+func TestAuditServer_ExportAuditReport_ValidationAndAuthz(t *testing.T) {
+	srv := NewAuditServer(memory.NewAuditRepo())
+	base := &caliberv1.ExportAuditReportRequest{
+		StartTime: timestamppb.New(time.Unix(2, 0)),
+		EndTime:   timestamppb.New(time.Unix(1, 0)),
+		Format:    caliberv1.ExportFormat_EXPORT_FORMAT_JSON,
+	}
+
+	// candidate is forbidden.
+	candCtx := context.WithValue(context.Background(), principalKey{},
+		app.Principal{UserID: kernel.NewID(), Role: identity.RoleCandidate.String()})
+	_, err := srv.ExportAuditReport(candCtx, base)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	// unauthenticated.
+	_, err = srv.ExportAuditReport(context.Background(), base)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+
+	// employer: invalid date range.
+	empCtx := context.WithValue(context.Background(), principalKey{},
+		app.Principal{UserID: kernel.NewID(), Role: identity.RoleEmployer.String()})
+	_, err = srv.ExportAuditReport(empCtx, base)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	// missing format.
+	_, err = srv.ExportAuditReport(empCtx, &caliberv1.ExportAuditReportRequest{
+		StartTime: timestamppb.New(time.Unix(0, 0)),
+		EndTime:   timestamppb.New(time.Unix(1, 0)),
+	})
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	// missing timestamps.
+	_, err = srv.ExportAuditReport(empCtx, &caliberv1.ExportAuditReportRequest{
+		Format: caliberv1.ExportFormat_EXPORT_FORMAT_JSON,
+	})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }

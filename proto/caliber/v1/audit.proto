@@ -12,6 +12,9 @@ service AuditService {
   rpc ListAuditLog(ListAuditLogRequest) returns (ListAuditLogResponse) {
     option (google.api.http) = {get: "/v1/audit-log"};
   }
+  rpc ExportAuditReport(ExportAuditReportRequest) returns (ExportAuditReportResponse) {
+    option (google.api.http) = {get: "/v1/audit-log/export"};
+  }
 }
 
 message AuditEntry {
@@ -33,4 +36,25 @@ message ListAuditLogRequest {
 message ListAuditLogResponse {
   repeated AuditEntry entries = 1;
   PageResponse page = 2;
+}
+
+// ExportFormat selects the serialization for an audit-log report.
+enum ExportFormat {
+  EXPORT_FORMAT_UNSPECIFIED = 0;
+  EXPORT_FORMAT_JSON = 1;
+  EXPORT_FORMAT_CSV = 2;
+}
+
+message ExportAuditReportRequest {
+  google.protobuf.Timestamp start_time = 1;   // inclusive
+  google.protobuf.Timestamp end_time = 2;     // inclusive
+  repeated string actions = 3;                // optional; empty = all actions
+  repeated string entities = 4;               // optional; empty = all entities
+  ExportFormat format = 5;                    // JSON or CSV
+}
+
+message ExportAuditReportResponse {
+  bytes payload = 1;        // encoded report body
+  string filename = 2;      // suggested download filename
+  string content_type = 3;  // e.g. application/json or text/csv
 }

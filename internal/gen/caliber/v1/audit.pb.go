@@ -23,6 +23,56 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ExportFormat selects the serialization for an audit-log report.
+type ExportFormat int32
+
+const (
+	ExportFormat_EXPORT_FORMAT_UNSPECIFIED ExportFormat = 0
+	ExportFormat_EXPORT_FORMAT_JSON        ExportFormat = 1
+	ExportFormat_EXPORT_FORMAT_CSV         ExportFormat = 2
+)
+
+// Enum value maps for ExportFormat.
+var (
+	ExportFormat_name = map[int32]string{
+		0: "EXPORT_FORMAT_UNSPECIFIED",
+		1: "EXPORT_FORMAT_JSON",
+		2: "EXPORT_FORMAT_CSV",
+	}
+	ExportFormat_value = map[string]int32{
+		"EXPORT_FORMAT_UNSPECIFIED": 0,
+		"EXPORT_FORMAT_JSON":        1,
+		"EXPORT_FORMAT_CSV":         2,
+	}
+)
+
+func (x ExportFormat) Enum() *ExportFormat {
+	p := new(ExportFormat)
+	*p = x
+	return p
+}
+
+func (x ExportFormat) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ExportFormat) Descriptor() protoreflect.EnumDescriptor {
+	return file_caliber_v1_audit_proto_enumTypes[0].Descriptor()
+}
+
+func (ExportFormat) Type() protoreflect.EnumType {
+	return &file_caliber_v1_audit_proto_enumTypes[0]
+}
+
+func (x ExportFormat) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ExportFormat.Descriptor instead.
+func (ExportFormat) EnumDescriptor() ([]byte, []int) {
+	return file_caliber_v1_audit_proto_rawDescGZIP(), []int{0}
+}
+
 type AuditEntry struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -235,6 +285,142 @@ func (x *ListAuditLogResponse) GetPage() *PageResponse {
 	return nil
 }
 
+type ExportAuditReportRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StartTime     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`        // inclusive
+	EndTime       *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`              // inclusive
+	Actions       []string               `protobuf:"bytes,3,rep,name=actions,proto3" json:"actions,omitempty"`                             // optional; empty = all actions
+	Entities      []string               `protobuf:"bytes,4,rep,name=entities,proto3" json:"entities,omitempty"`                           // optional; empty = all entities
+	Format        ExportFormat           `protobuf:"varint,5,opt,name=format,proto3,enum=caliber.v1.ExportFormat" json:"format,omitempty"` // JSON or CSV
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportAuditReportRequest) Reset() {
+	*x = ExportAuditReportRequest{}
+	mi := &file_caliber_v1_audit_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportAuditReportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportAuditReportRequest) ProtoMessage() {}
+
+func (x *ExportAuditReportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_caliber_v1_audit_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportAuditReportRequest.ProtoReflect.Descriptor instead.
+func (*ExportAuditReportRequest) Descriptor() ([]byte, []int) {
+	return file_caliber_v1_audit_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ExportAuditReportRequest) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *ExportAuditReportRequest) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+func (x *ExportAuditReportRequest) GetActions() []string {
+	if x != nil {
+		return x.Actions
+	}
+	return nil
+}
+
+func (x *ExportAuditReportRequest) GetEntities() []string {
+	if x != nil {
+		return x.Entities
+	}
+	return nil
+}
+
+func (x *ExportAuditReportRequest) GetFormat() ExportFormat {
+	if x != nil {
+		return x.Format
+	}
+	return ExportFormat_EXPORT_FORMAT_UNSPECIFIED
+}
+
+type ExportAuditReportResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Payload       []byte                 `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`                            // encoded report body
+	Filename      string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`                          // suggested download filename
+	ContentType   string                 `protobuf:"bytes,3,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"` // e.g. application/json or text/csv
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportAuditReportResponse) Reset() {
+	*x = ExportAuditReportResponse{}
+	mi := &file_caliber_v1_audit_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportAuditReportResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportAuditReportResponse) ProtoMessage() {}
+
+func (x *ExportAuditReportResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_caliber_v1_audit_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportAuditReportResponse.ProtoReflect.Descriptor instead.
+func (*ExportAuditReportResponse) Descriptor() ([]byte, []int) {
+	return file_caliber_v1_audit_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ExportAuditReportResponse) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *ExportAuditReportResponse) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
+}
+
+func (x *ExportAuditReportResponse) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
 var File_caliber_v1_audit_proto protoreflect.FileDescriptor
 
 const file_caliber_v1_audit_proto_rawDesc = "" +
@@ -259,9 +445,25 @@ const file_caliber_v1_audit_proto_rawDesc = "" +
 	"\x04page\x18\x03 \x01(\v2\x17.caliber.v1.PageRequestR\x04page\"v\n" +
 	"\x14ListAuditLogResponse\x120\n" +
 	"\aentries\x18\x01 \x03(\v2\x16.caliber.v1.AuditEntryR\aentries\x12,\n" +
-	"\x04page\x18\x02 \x01(\v2\x18.caliber.v1.PageResponseR\x04page2x\n" +
+	"\x04page\x18\x02 \x01(\v2\x18.caliber.v1.PageResponseR\x04page\"\xf4\x01\n" +
+	"\x18ExportAuditReportRequest\x129\n" +
+	"\n" +
+	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
+	"\bend_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12\x18\n" +
+	"\aactions\x18\x03 \x03(\tR\aactions\x12\x1a\n" +
+	"\bentities\x18\x04 \x03(\tR\bentities\x120\n" +
+	"\x06format\x18\x05 \x01(\x0e2\x18.caliber.v1.ExportFormatR\x06format\"t\n" +
+	"\x19ExportAuditReportResponse\x12\x18\n" +
+	"\apayload\x18\x01 \x01(\fR\apayload\x12\x1a\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\x12!\n" +
+	"\fcontent_type\x18\x03 \x01(\tR\vcontentType*\\\n" +
+	"\fExportFormat\x12\x1d\n" +
+	"\x19EXPORT_FORMAT_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12EXPORT_FORMAT_JSON\x10\x01\x12\x15\n" +
+	"\x11EXPORT_FORMAT_CSV\x10\x022\xf8\x01\n" +
 	"\fAuditService\x12h\n" +
-	"\fListAuditLog\x12\x1f.caliber.v1.ListAuditLogRequest\x1a .caliber.v1.ListAuditLogResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/audit-logB\xa5\x01\n" +
+	"\fListAuditLog\x12\x1f.caliber.v1.ListAuditLogRequest\x1a .caliber.v1.ListAuditLogResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/audit-log\x12~\n" +
+	"\x11ExportAuditReport\x12$.caliber.v1.ExportAuditReportRequest\x1a%.caliber.v1.ExportAuditReportResponse\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/audit-log/exportB\xa5\x01\n" +
 	"\x0ecom.caliber.v1B\n" +
 	"AuditProtoP\x01Z>github.com/xcreativs/caliber/internal/gen/caliber/v1;caliberv1\xa2\x02\x03CXX\xaa\x02\n" +
 	"Caliber.V1\xca\x02\n" +
@@ -279,27 +481,36 @@ func file_caliber_v1_audit_proto_rawDescGZIP() []byte {
 	return file_caliber_v1_audit_proto_rawDescData
 }
 
-var file_caliber_v1_audit_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_caliber_v1_audit_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_caliber_v1_audit_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_caliber_v1_audit_proto_goTypes = []any{
-	(*AuditEntry)(nil),            // 0: caliber.v1.AuditEntry
-	(*ListAuditLogRequest)(nil),   // 1: caliber.v1.ListAuditLogRequest
-	(*ListAuditLogResponse)(nil),  // 2: caliber.v1.ListAuditLogResponse
-	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
-	(*PageRequest)(nil),           // 4: caliber.v1.PageRequest
-	(*PageResponse)(nil),          // 5: caliber.v1.PageResponse
+	(ExportFormat)(0),                 // 0: caliber.v1.ExportFormat
+	(*AuditEntry)(nil),                // 1: caliber.v1.AuditEntry
+	(*ListAuditLogRequest)(nil),       // 2: caliber.v1.ListAuditLogRequest
+	(*ListAuditLogResponse)(nil),      // 3: caliber.v1.ListAuditLogResponse
+	(*ExportAuditReportRequest)(nil),  // 4: caliber.v1.ExportAuditReportRequest
+	(*ExportAuditReportResponse)(nil), // 5: caliber.v1.ExportAuditReportResponse
+	(*timestamppb.Timestamp)(nil),     // 6: google.protobuf.Timestamp
+	(*PageRequest)(nil),               // 7: caliber.v1.PageRequest
+	(*PageResponse)(nil),              // 8: caliber.v1.PageResponse
 }
 var file_caliber_v1_audit_proto_depIdxs = []int32{
-	3, // 0: caliber.v1.AuditEntry.timestamp:type_name -> google.protobuf.Timestamp
-	4, // 1: caliber.v1.ListAuditLogRequest.page:type_name -> caliber.v1.PageRequest
-	0, // 2: caliber.v1.ListAuditLogResponse.entries:type_name -> caliber.v1.AuditEntry
-	5, // 3: caliber.v1.ListAuditLogResponse.page:type_name -> caliber.v1.PageResponse
-	1, // 4: caliber.v1.AuditService.ListAuditLog:input_type -> caliber.v1.ListAuditLogRequest
-	2, // 5: caliber.v1.AuditService.ListAuditLog:output_type -> caliber.v1.ListAuditLogResponse
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	6, // 0: caliber.v1.AuditEntry.timestamp:type_name -> google.protobuf.Timestamp
+	7, // 1: caliber.v1.ListAuditLogRequest.page:type_name -> caliber.v1.PageRequest
+	1, // 2: caliber.v1.ListAuditLogResponse.entries:type_name -> caliber.v1.AuditEntry
+	8, // 3: caliber.v1.ListAuditLogResponse.page:type_name -> caliber.v1.PageResponse
+	6, // 4: caliber.v1.ExportAuditReportRequest.start_time:type_name -> google.protobuf.Timestamp
+	6, // 5: caliber.v1.ExportAuditReportRequest.end_time:type_name -> google.protobuf.Timestamp
+	0, // 6: caliber.v1.ExportAuditReportRequest.format:type_name -> caliber.v1.ExportFormat
+	2, // 7: caliber.v1.AuditService.ListAuditLog:input_type -> caliber.v1.ListAuditLogRequest
+	4, // 8: caliber.v1.AuditService.ExportAuditReport:input_type -> caliber.v1.ExportAuditReportRequest
+	3, // 9: caliber.v1.AuditService.ListAuditLog:output_type -> caliber.v1.ListAuditLogResponse
+	5, // 10: caliber.v1.AuditService.ExportAuditReport:output_type -> caliber.v1.ExportAuditReportResponse
+	9, // [9:11] is the sub-list for method output_type
+	7, // [7:9] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_caliber_v1_audit_proto_init() }
@@ -313,13 +524,14 @@ func file_caliber_v1_audit_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_caliber_v1_audit_proto_rawDesc), len(file_caliber_v1_audit_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      1,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_caliber_v1_audit_proto_goTypes,
 		DependencyIndexes: file_caliber_v1_audit_proto_depIdxs,
+		EnumInfos:         file_caliber_v1_audit_proto_enumTypes,
 		MessageInfos:      file_caliber_v1_audit_proto_msgTypes,
 	}.Build()
 	File_caliber_v1_audit_proto = out.File
