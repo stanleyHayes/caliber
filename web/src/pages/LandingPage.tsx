@@ -1,5 +1,5 @@
 import { Box, Button, Container, Stack, Typography } from '@mui/material';
-import { motion, useScroll, useTransform } from 'motion/react';
+import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
@@ -9,9 +9,16 @@ const MotionBox = motion.create(Box);
 
 export function LandingPage() {
   const { t } = useTranslation();
+  // Scroll-driven parallax is a raw motion value, so — unlike the whileInView
+  // reveals — it is NOT disabled by the global MotionConfig reducedMotion. Gate
+  // it explicitly: when the visitor prefers reduced motion the blobs stay put
+  // (static y), honoring prefers-reduced-motion on the public/marketing page.
+  const reduceMotion = useReducedMotion();
   const { scrollY } = useScroll();
-  const blobY = useTransform(scrollY, [0, 600], [0, 160]);
-  const blobY2 = useTransform(scrollY, [0, 600], [0, -120]);
+  const scrollBlobY = useTransform(scrollY, [0, 600], [0, 160]);
+  const scrollBlobY2 = useTransform(scrollY, [0, 600], [0, -120]);
+  const blobY = reduceMotion ? 0 : scrollBlobY;
+  const blobY2 = reduceMotion ? 0 : scrollBlobY2;
 
   const features = [
     { title: t('landing.feature1Title'), body: t('landing.feature1Body') },
