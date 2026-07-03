@@ -34,13 +34,22 @@ Test efficacy = mutants killed / mutants covered. Recorded on the core domain:
 | `guard` (prompt-injection sanitiser) | 80.0% | 62.5% |
 | `salary` | 25.0% | 100% |
 
-Run `make mutation` for the full core set (`matching interview role candidateagent
-guard salary kernel`). `matching` and `guard` — the highest-stakes logic (scoring,
-security) — are strongly tested. `salary` is a tiny arithmetic helper whose
-surviving mutants are boundary tweaks worth follow-up assertions — exactly the kind
-of gap mutation testing surfaces that line coverage misses. The `.gremlins.yaml`
-floors (efficacy 15%, mutant-coverage 40%) sit below the baseline so the run passes
-today; **ratchet them up** as the weaker packages gain assertions.
+`make mutation` runs `matching guard salary` — the pure-domain packages with
+substantial **in-package** test suites, where per-package mutation testing is
+meaningful. `matching` and `guard` — the highest-stakes logic (scoring, security) —
+are strongly tested. `salary` is a tiny arithmetic helper whose surviving mutants
+are boundary tweaks worth follow-up assertions — exactly the kind of gap mutation
+testing surfaces that line coverage misses. The `.gremlins.yaml` floors (efficacy
+15%, mutant-coverage 40%) sit below the baseline so the run passes today;
+**ratchet them up** as tests gain assertions.
+
+Other domain packages (`role`, `interview`, `candidateagent`, `kernel`) are
+exercised mostly through the **app-layer** tests, not in-package, so gremlins run
+against the domain package alone reports near-zero mutant coverage. Mutation-testing
+those behaviours means running it against the app-layer suites that drive them — a
+worthwhile follow-up, tracked as a docs note rather than forced into a misleading
+per-package score. Override with `make mutation MUTATION_PKGS="…"` to explore any
+package.
 
 ## Reading the output
 

@@ -115,8 +115,8 @@ db-restore: ## restore a Postgres backup: make db-restore DUMP=path/to/backup.du
 restore-drill: ## run the disaster-recovery restore drill (backup -> fresh DB -> restore -> verify)
 	go test ./internal/adapters/outbound/postgres/ -run TestPostgresBackupRestoreDrill -v
 
-MUTATION_PKGS ?= matching interview role candidateagent guard salary kernel
-mutation: ## run gremlins mutation testing across core domain packages (CAL-144; slow)
+MUTATION_PKGS ?= matching guard salary
+mutation: ## run gremlins mutation testing across pure-domain packages (CAL-144; slow)
 	@command -v gremlins >/dev/null || { echo "install: go install github.com/go-gremlins/gremlins/cmd/gremlins@latest"; exit 1; }
 	@for p in $(MUTATION_PKGS); do \
 		echo "== internal/domain/$$p =="; \
