@@ -34,6 +34,11 @@ const (
 
 	// TypeBatchRematch enqueues a role re-match/re-rank pass.
 	TypeBatchRematch TaskType = "matching:rematch"
+
+	// TypeDataRetention runs the data-retention sweep (CAL-158): erase candidate
+	// records aged past the retention window. It is enqueued by the periodic
+	// scheduler, not by the API, so it has no dispatcher method.
+	TypeDataRetention TaskType = "privacy:data_retention"
 )
 
 // CandidateAgentRunPayload travels as JSON inside TypeCandidateAgentRun tasks.

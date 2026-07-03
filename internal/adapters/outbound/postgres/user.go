@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -202,6 +203,21 @@ func (r *UserRepo) Anonymize(ctx context.Context, id kernel.ID) error {
 		ID:    id.String(),
 		Email: "erased+" + id.String() + "@erased.invalid",
 	})
+}
+
+// ListEligibleForRetention returns the ids of candidate-role users whose account
+// was created on or before the cutoff — the subjects whose data has aged past the
+// retention window (CAL-158). A candidate's id equals their user id.
+func (r *UserRepo) ListEligibleForRetention(ctx context.Context, createdOnOrBefore time.Time) ([]kernel.ID, error) {
+	rows, err := r.q.ListRetentionEligibleCandidates(ctx, pgtype.Timestamptz{Time: createdOnOrBefore, Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]kernel.ID, len(rows))
+	for i, id := range rows {
+		ids[i] = kernel.ID(id)
+	}
+	return ids, nil
 }
 
 var _ identity.UserRepository = (*UserRepo)(nil)

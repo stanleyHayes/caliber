@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -97,6 +98,21 @@ func (r *UserRepo) Anonymize(_ context.Context, id kernel.ID) error {
 	r.byID[id] = u
 	r.byEmail[u.Email] = id
 	return nil
+}
+
+// ListEligibleForRetention returns the ids of candidate-role users created on or
+// before the cutoff — the subjects whose data has aged past the retention window
+// (CAL-158). A candidate's id equals their user id.
+func (r *UserRepo) ListEligibleForRetention(_ context.Context, createdOnOrBefore time.Time) ([]kernel.ID, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var ids []kernel.ID
+	for id, u := range r.byID {
+		if u.Role == identity.RoleCandidate && !u.CreatedAt.After(createdOnOrBefore) {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
 }
 
 var _ identity.UserRepository = (*UserRepo)(nil)

@@ -21,6 +21,8 @@ import (
 	queueadapter "github.com/xcreativs/caliber/internal/adapters/outbound/queue"
 	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
+	privacyapp "github.com/xcreativs/caliber/internal/app/privacy"
+	"github.com/xcreativs/caliber/internal/domain/audit"
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/platform/config"
 	"github.com/xcreativs/caliber/internal/platform/logging"
@@ -101,20 +103,16 @@ func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger, tele *t
 		return err
 	}
 
+	retentionSweeper := buildRetentionSweeper(cfg, repos, auditRepo, log)
+
 	mux := jobs.NewMux(log)
 	jobs.RegisterHandlers(mux, jobs.HandlerDeps{
-		AgentRunner: agentRunner,
-		Interviewer: interviewer,
+		AgentRunner:      agentRunner,
+		Interviewer:      interviewer,
+		RetentionSweeper: retentionSweeper,
 	}, log)
 
-	server := asynq.NewServer(redisOpt, asynq.Config{
-		Concurrency:     cfg.WorkerConcurrency,
-		Queues:          queueadapter.Priorities(),
-		ShutdownTimeout: 10 * time.Second,
-		Logger:          &asynqLogger{log: log},
-		RetryDelayFunc:  queueadapter.RetryDelayFunc(),
-		ErrorHandler:    jobs.NewArchiveAlertHandler(log),
-	})
+	server := newWorkerServer(cfg, redisOpt, log)
 
 	shutdownMetrics := startMetricsServer(ctx, cfg, log, tele)
 	defer shutdownMetrics()
@@ -124,11 +122,73 @@ func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger, tele *t
 		return fmt.Errorf("worker: start server: %w", err)
 	}
 
+	stopScheduler, err := startRetentionScheduler(cfg, redisOpt, retentionSweeper != nil, log)
+	if err != nil {
+		server.Stop()
+		server.Shutdown()
+		return err
+	}
+	defer stopScheduler()
+
 	<-ctx.Done()
 	log.Info("worker shutting down")
 	server.Stop()
 	server.Shutdown()
 	return nil
+}
+
+// newWorkerServer builds the Asynq server with Caliber's worker conventions.
+func newWorkerServer(cfg config.Config, redisOpt asynq.RedisConnOpt, log *slog.Logger) *asynq.Server {
+	return asynq.NewServer(redisOpt, asynq.Config{
+		Concurrency:     cfg.WorkerConcurrency,
+		Queues:          queueadapter.Priorities(),
+		ShutdownTimeout: 10 * time.Second,
+		Logger:          &asynqLogger{log: log},
+		RetryDelayFunc:  queueadapter.RetryDelayFunc(),
+		ErrorHandler:    jobs.NewArchiveAlertHandler(log),
+	})
+}
+
+// buildRetentionSweeper wires the data-retention sweep (CAL-158) when a retention
+// window is configured and the repositories support erasure. It returns nil
+// otherwise (retention disabled), so the handler reports it is not wired.
+func buildRetentionSweeper(
+	cfg config.Config, repos wiring.Repositories, auditRepo audit.AuditRepository, log *slog.Logger,
+) *privacyapp.RetentionSweeper {
+	if cfg.RetentionWindow <= 0 {
+		return nil
+	}
+	lister, ok := repos.Users.(privacyapp.RetentionLister)
+	if !ok {
+		log.Warn("data retention disabled: user repository cannot list retention-eligible candidates")
+		return nil
+	}
+	eraser := wiring.BuildEraser(repos, auditRepo, memory.NewContestRepo())
+	if eraser == nil {
+		log.Warn("data retention disabled: repositories do not provide the erasure cascade")
+		return nil
+	}
+	return privacyapp.NewRetentionSweeper(lister, eraser, cfg.RetentionWindow, time.Now)
+}
+
+// startRetentionScheduler runs an Asynq periodic scheduler that enqueues a
+// data-retention task on cfg.RetentionCron (CAL-158). It is a no-op (returns a
+// no-op stop func) when retention is not enabled.
+func startRetentionScheduler(
+	cfg config.Config, redisOpt asynq.RedisConnOpt, enabled bool, log *slog.Logger,
+) (func(), error) {
+	if !enabled {
+		return func() {}, nil
+	}
+	scheduler := asynq.NewScheduler(redisOpt, nil)
+	if _, err := scheduler.Register(cfg.RetentionCron, jobs.NewDataRetentionTask()); err != nil {
+		return func() {}, fmt.Errorf("worker: register retention schedule %q: %w", cfg.RetentionCron, err)
+	}
+	if err := scheduler.Start(); err != nil {
+		return func() {}, fmt.Errorf("worker: start retention scheduler: %w", err)
+	}
+	log.Info("data retention scheduler started", "cron", cfg.RetentionCron, "window", cfg.RetentionWindow)
+	return scheduler.Shutdown, nil
 }
 
 // startMetricsServer starts a Prometheus exposition HTTP server for the worker

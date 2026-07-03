@@ -14,6 +14,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/queue"
 	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
+	privacyapp "github.com/xcreativs/caliber/internal/app/privacy"
 	appqueue "github.com/xcreativs/caliber/internal/app/queue"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
@@ -99,9 +100,17 @@ func WithConcurrency(n int) Option {
 
 // HandlerDeps bundles the use-cases the business task handlers need.
 type HandlerDeps struct {
-	AgentRunner *candidateagentapp.AgentRunner
-	Interviewer *interviewapp.Interviewer
-	Idempotency IdempotencyStore
+	AgentRunner      *candidateagentapp.AgentRunner
+	Interviewer      *interviewapp.Interviewer
+	RetentionSweeper *privacyapp.RetentionSweeper
+	Idempotency      IdempotencyStore
+}
+
+// NewDataRetentionTask builds the task the periodic scheduler enqueues to trigger
+// a retention sweep (CAL-158). The payload is empty — the window is configured on
+// the sweeper, not carried per task.
+func NewDataRetentionTask() *asynq.Task {
+	return asynq.NewTask(string(appqueue.TypeDataRetention), nil)
 }
 
 // NewMux builds the task-handler mux.
@@ -128,6 +137,21 @@ func RegisterHandlers(mux *asynq.ServeMux, deps HandlerDeps, log *slog.Logger) {
 		framework.wrap("interview_scoring", handleInterviewScoring(deps.Interviewer, log)),
 	)
 	mux.HandleFunc(string(appqueue.TypeBatchRematch), framework.wrap("batch_rematch", handleBatchRematch(log)))
+	mux.HandleFunc(string(appqueue.TypeDataRetention), framework.wrap("data_retention", handleDataRetention(deps.RetentionSweeper, log)))
+}
+
+func handleDataRetention(sweeper *privacyapp.RetentionSweeper, log *slog.Logger) func(context.Context, *asynq.Task) error {
+	return func(ctx context.Context, _ *asynq.Task) error {
+		if sweeper == nil {
+			return errors.New("jobs: retention sweeper not wired")
+		}
+		res, err := sweeper.Sweep(ctx)
+		if log != nil {
+			log.Info("data retention sweep",
+				"eligible", res.Eligible, "erased", res.Erased, "failed", res.Failed)
+		}
+		return err
+	}
 }
 
 func handleHealthcheck(log *slog.Logger, callback HealthcheckCallback) func(context.Context, *asynq.Task) error {

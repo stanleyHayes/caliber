@@ -61,6 +61,12 @@ type Config struct {
 	// fast once the budget is exhausted. 0 means unlimited (observe-only).
 	LLMBudgetUSD float64
 
+	// Data-retention sweep (CAL-158). RetentionWindow is how long candidate data
+	// is kept; 0 disables the sweep. RetentionCron is the schedule the worker runs
+	// it on (cron spec or @-shortcut).
+	RetentionWindow time.Duration
+	RetentionCron   string
+
 	DashboardCacheTTL time.Duration // Talent Radar snapshot TTL (CAL-080)
 
 	InterviewMaxQuestions int           // Flow B hard cap on question count (CAL-104)
@@ -124,8 +130,9 @@ func Load() (Config, error) {
 		LLMRatePerSecond:  getfloat("CALIBER_LLM_RATE_PER_SECOND", 20),
 		LLMRateBurst:      getint("CALIBER_LLM_RATE_BURST", 40),
 		LLMMaxTokens:      getint("CALIBER_LLM_MAX_TOKENS", 2048),
-		// Cumulative spend cap for model calls; 0 = unlimited (CAL-159).
-		LLMBudgetUSD: getfloat("CALIBER_LLM_BUDGET_USD", 0),
+		LLMBudgetUSD:      getfloat("CALIBER_LLM_BUDGET_USD", 0),
+		RetentionWindow:   getdur("CALIBER_RETENTION_WINDOW", 0),
+		RetentionCron:     getenv("CALIBER_RETENTION_CRON", "@daily"),
 		DashboardCacheTTL: getdur("CALIBER_DASHBOARD_CACHE_TTL", 30*time.Second),
 		InterviewMaxQuestions: getint("CALIBER_INTERVIEW_MAX_QUESTIONS", 4),
 		InterviewMaxDuration:  getdur("CALIBER_INTERVIEW_MAX_DURATION", 10*time.Minute),
@@ -137,14 +144,9 @@ func Load() (Config, error) {
 		ServiceName:    getenv("CALIBER_SERVICE_NAME", "caliber-api"),
 		ServiceVersion: getenv("CALIBER_SERVICE_VERSION", "dev"),
 
-		LokiURL:           os.Getenv("CALIBER_LOKI_URL"),
-		LokiBatchSize:     getint("CALIBER_LOKI_BATCH_SIZE", 100),
-		LokiFlushInterval: getdur("CALIBER_LOKI_FLUSH_INTERVAL", 5*time.Second),
-		LokiTimeout:       getdur("CALIBER_LOKI_TIMEOUT", 10*time.Second),
-		LokiTenantID:      os.Getenv("CALIBER_LOKI_TENANT_ID"),
-
 		MetricsAddr: getenv("CALIBER_WORKER_METRICS_ADDR", ":8081"),
 	}
+	loadLokiConfig(&c)
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
 		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")
 	}
@@ -155,6 +157,15 @@ func Load() (Config, error) {
 		}
 	}
 	return c, nil
+}
+
+// loadLokiConfig fills the Loki log-shipping fields from the environment.
+func loadLokiConfig(c *Config) {
+	c.LokiURL = os.Getenv("CALIBER_LOKI_URL")
+	c.LokiBatchSize = getint("CALIBER_LOKI_BATCH_SIZE", 100)
+	c.LokiFlushInterval = getdur("CALIBER_LOKI_FLUSH_INTERVAL", 5*time.Second)
+	c.LokiTimeout = getdur("CALIBER_LOKI_TIMEOUT", 10*time.Second)
+	c.LokiTenantID = os.Getenv("CALIBER_LOKI_TENANT_ID")
 }
 
 // IsProd reports whether the process runs in a production-like environment.
