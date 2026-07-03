@@ -99,7 +99,10 @@ app code serves traffic:
 promotion.
 
 **Local:** `docker compose up --build` brings up the whole stack (backend +
-web + Prometheus/Loki/Grafana). See [demo-runbook.md](demo-runbook.md).
+web + Prometheus/Loki/Grafana). Host ports are overrideable when local services
+already occupy the defaults, for example
+`CALIBER_POSTGRES_PORT=15432 CALIBER_REDIS_PORT=16379 docker compose up --build`.
+See [demo-runbook.md](demo-runbook.md).
 
 ## Related docs
 

@@ -53,11 +53,14 @@ enforced independently on each side:
 **Sonar import (backend job → "SonarQube scan"):** `sonar-project.properties` imports
 Go coverage from `coverage.out` (`sonar.go.coverage.reportPaths`) and TS/JS coverage
 from `web/coverage/lcov.info` (`sonar.javascript.lcov.reportPaths` /
-`sonar.typescript.lcov.reportPaths`). `sonar.qualitygate.wait=true` makes the scan
-block on the gate result. The gate **definition** (thresholds, new-code period) lives
-in the SonarCloud UI, not in the repo — see [`docs/sonarqube.md`](sonarqube.md). The
-scan step is gated on the `SONAR_TOKEN` secret (`if: ${{ env.SONAR_TOKEN != '' }}`),
-so it is skipped when the token is absent (e.g. on forks). See caveat 2.
+`sonar.typescript.lcov.reportPaths`). When `SONAR_TOKEN` is present, the backend job
+also installs web dependencies and runs `npm run test:coverage` before the scan so
+both coverage files exist in the scanner workspace. `sonar.qualitygate.wait=true`
+makes the scan block on the gate result. The gate **definition** (thresholds,
+new-code period) lives in the SonarCloud UI, not in the repo — see
+[`docs/sonarqube.md`](sonarqube.md). The scan step is gated on the `SONAR_TOKEN`
+secret (`if: ${{ env.SONAR_TOKEN != '' }}`), so it is skipped when the token is absent
+(e.g. on forks). See caveat 2.
 
 ## Honest caveats — where enforcement is conditional
 
@@ -75,10 +78,11 @@ so it is skipped when the token is absent (e.g. on forks). See caveat 2.
 2. **Sonar's frontend LCOV import is wired.** `sonar-project.properties` reads web
    coverage from `web/coverage/lcov.info`, and `web/vite.config.ts` now includes
    `'lcov'` in `coverage.reporter` (`['text', 'json', 'html', 'lcov']`), so
-   `npm run test:coverage` emits that file for the scanner. The Go side uses a native
-   `coverage.out` coverprofile. Note the Sonar scan step itself is secret-gated (below),
-   so a fork/PR without `SONAR_TOKEN` still relies on the in-CI 80% floors, which run
-   unconditionally on both sides.
+   `npm run test:coverage` emits that file for the scanner. The backend job runs that
+   command before the Sonar scan when `SONAR_TOKEN` is present; the Go side uses a
+   native `coverage.out` coverprofile. Note the Sonar scan step itself is secret-gated
+   (below), so a fork/PR without `SONAR_TOKEN` still relies on the in-CI 80% floors,
+   which run unconditionally on both sides.
 
 3. **The SonarQube scan is secret-gated.** With no `SONAR_TOKEN` the scan step is
    skipped entirely, so the Sonar quality gate does not run on that push. The

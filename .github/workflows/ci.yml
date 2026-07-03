@@ -29,6 +29,8 @@ jobs:
   backend:
     name: Backend (lint · proto · test · coverage · sonar)
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       # All actions pinned to latest majors (Node 24 runtime; no Node 20).
       - uses: actions/checkout@v7
@@ -40,6 +42,14 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Set up Node for Sonar frontend coverage
+        if: ${{ env.SONAR_TOKEN != '' }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
       - name: Install buf + codegen plugins
         env:
@@ -101,11 +111,19 @@ jobs:
           name: go-coverage-report
           path: coverage-report.json
 
+      - name: Install web dependencies for Sonar coverage
+        if: ${{ env.SONAR_TOKEN != '' }}
+        working-directory: web
+        run: npm ci
+
+      - name: Generate frontend LCOV for Sonar
+        if: ${{ env.SONAR_TOKEN != '' }}
+        working-directory: web
+        run: npm run test:coverage
+
       - name: SonarQube scan
         if: ${{ env.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@v8
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   frontend:
     name: Frontend (typecheck · build · lint · test)

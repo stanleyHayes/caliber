@@ -22,5 +22,6 @@ Required settings for CAL-009:
 - Block branch deletion.
 - Do not allow direct pushes to `main`.
 
-SonarQube/SonarCloud remains part of the backend job until the SonarCloud project
-and `SONAR_TOKEN` secret are available.
+SonarQube/SonarCloud runs inside the required backend job when the repository has a
+`SONAR_TOKEN` secret. Forks or environments without that secret still run the
+unconditional in-workflow lint, test, coverage, and build gates.

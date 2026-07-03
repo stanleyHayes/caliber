@@ -34,7 +34,7 @@ scanner. Keep the two in sync.
   `sonar.organization`) with the project `xcreativs_caliber` bound to this repo.
 - A **project analysis token** exposed to CI as the GitHub Actions secret
   **`SONAR_TOKEN`**. The scan step in `.github/workflows/ci.yml` (backend job) is
-  gated on it (`if: env.SONAR_TOKEN != ''`); with no token, analysis is skipped
+  gated on it (`if: ${{ env.SONAR_TOKEN != '' }}`); with no token, analysis is skipped
   and the gate is **not** enforced. Set the secret to turn enforcement on.
 - `SONAR_TOKEN` is a CI/third-party credential, not a runtime app secret, so it is
   deliberately absent from `.env*.example` and `docs/environments.md`. Rotate and
@@ -110,24 +110,15 @@ state is reproducible.
 
 - **Go:** `make test` writes `coverage.out` at repo root; imported via
   `sonar.go.coverage.reportPaths`. CI produces it before the scan step.
-- **Web:** Vitest (v8 provider) must emit an **LCOV** report at
+- **Web:** Vitest (v8 provider) emits an **LCOV** report at
   `web/coverage/lcov.info`; imported via `sonar.javascript.lcov.reportPaths` /
   `sonar.typescript.lcov.reportPaths`.
 
-  **Action required:** the current `web/vite.config.ts` coverage reporters are
-  `['text','json','html']` — add **`'lcov'`** so `web/coverage/lcov.info` exists,
-  and run `npm run test:coverage` (`vitest run --coverage`) in CI's frontend job
-  before/alongside the scan. Until then, frontend coverage imports as 0% and the
-  coverage gate condition would be wrong for TS. (The `sonar-project.properties`
-  coverage exclusions already mirror the Vitest `coverage.exclude` list so the two
-  agree once LCOV is wired.)
-
-  Note: the SonarCloud scan currently runs only in the **backend** CI job over the
-  whole repo. For frontend coverage to reach Sonar, the LCOV file must be present
-  in the workspace at scan time — either generate web coverage before the backend
-  scan step, or move the scan to a job that has both `coverage.out` and
-  `web/coverage/lcov.info` available. Decide and reflect the choice in
-  `.github/workflows/ci.yml` (that workflow edit is out of scope for CAL-145).
+  `web/vite.config.ts` includes `'lcov'` in `coverage.reporter`, and the backend
+  CI job installs web dependencies and runs `npm run test:coverage` before the
+  SonarCloud scan when `SONAR_TOKEN` is present. That keeps `coverage.out` and
+  `web/coverage/lcov.info` in the same scanner workspace. The separate frontend
+  job still runs `npm run test:coverage` unconditionally as the local 80% floor.
 
 ## Keeping this in sync
 

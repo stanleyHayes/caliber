@@ -85,6 +85,8 @@ docker compose up --build
 ```
 
 This brings up Postgres+pgvector, Redis, migrations, API, worker, and the Vite dev server.  
+If another local stack already owns a default host port, override the binding, for example
+`CALIBER_POSTGRES_PORT=15432 CALIBER_REDIS_PORT=16379 docker compose up --build`.
 Open **http://localhost:5173**.  Asynqmon queue UI is available at `/asynqmon` on the API port if Redis is wired.
 
 ### Option C — Offline/standby deployment (CAL-107)

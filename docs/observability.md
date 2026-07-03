@@ -11,6 +11,9 @@ Run the full stack with Docker Compose:
 docker compose up --build
 ```
 
+If a host port is already in use, override the binding before starting compose,
+for example `CALIBER_POSTGRES_PORT=15432 CALIBER_REDIS_PORT=16379 docker compose up --build`.
+
 | Service         | URL                     | Purpose                                  |
 |-----------------|-------------------------|------------------------------------------|
 | API             | http://localhost:8080   | gRPC + REST gateway                      |
