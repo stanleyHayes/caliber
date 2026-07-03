@@ -12,14 +12,20 @@ type AdvanceResult = {
   error: unknown;
   data?: { wakeUp: WakeUpView };
 };
-type ApplicationsResult = { isPending: boolean; isError: boolean; error: unknown; data?: { applications: Application[] } };
+type ApplicationsResult = {
+  isPending: boolean;
+  isError: boolean;
+  error: unknown;
+  data?: { applications: Application[]; page?: { page: number; pageSize: number; totalItems: number; totalPages: number } };
+};
 
 let advanceResult: AdvanceResult;
 let applicationsResult: ApplicationsResult;
 const mutate = vi.fn();
+const useApplicationsMock = vi.hoisted(() => vi.fn());
 vi.mock('../query/agent', () => ({
   useTimeAdvance: () => advanceResult,
-  useApplications: () => applicationsResult,
+  useApplications: (...args: unknown[]) => useApplicationsMock(...args),
 }));
 
 const user: User = {
@@ -33,8 +39,10 @@ const user: User = {
 beforeEach(() => {
   useAuthStore.setState({ user });
   mutate.mockReset();
+  useApplicationsMock.mockReset();
   advanceResult = { mutate, isPending: false, isError: false, error: null };
   applicationsResult = { isPending: false, isError: false, error: null, data: { applications: [] } };
+  useApplicationsMock.mockImplementation(() => applicationsResult);
 });
 afterEach(() => {
   useAuthStore.getState().clear();
@@ -79,8 +87,33 @@ describe('AgentPage', () => {
       },
     };
     render(<AgentPage />);
+    expect(useApplicationsMock).toHaveBeenCalledWith('cand-1', 1, 20);
     expect(screen.getByText('Tailored to the payments role.')).toBeInTheDocument();
     expect(screen.getByText('by your agent')).toBeInTheDocument();
+  });
+
+  it('requests the selected server page when paginating applications', () => {
+    applicationsResult = {
+      isPending: false,
+      isError: false,
+      error: null,
+      data: {
+        applications: [
+          {
+            id: 'a1',
+            roleId: 'role-1',
+            candidateId: 'cand-1',
+            source: 'APPLICATION_SOURCE_AGENT',
+            tailoredSummary: 'Tailored to the payments role.',
+            status: 'APPLICATION_STATUS_SUBMITTED',
+          },
+        ],
+        page: { page: 1, pageSize: 20, totalItems: 41, totalPages: 3 },
+      },
+    };
+    render(<AgentPage />);
+    fireEvent.click(screen.getByRole('button', { name: /go to page 2/i }));
+    expect(useApplicationsMock).toHaveBeenLastCalledWith('cand-1', 2, 20);
   });
 
   it('explains a 501 (agent needs the configured environment) plainly', () => {

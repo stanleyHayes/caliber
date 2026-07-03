@@ -71,6 +71,32 @@ func TestPoolEnrichesCandidates(t *testing.T) {
 	assert.InDelta(t, 0.9, pool[0].HeadlineScore, 0.01, "mean level (4.5) / 5")
 }
 
+func TestPoolUsesRequestedPageAndReturnsTotal(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	page := kernel.NewPage(2, 2)
+	cand, err := talent.NewCandidate(kernel.NewID(), "Kumasi", talent.CandidateIntake{})
+	require.NoError(t, err)
+	email, err := identity.NewEmail("kofi@example.com")
+	require.NoError(t, err)
+	user, err := identity.NewUser(email, identity.RoleCandidate, "Kofi Boateng", "hash", time.Unix(2, 0))
+	require.NoError(t, err)
+	profile, err := talent.NewTalentProfile(cand.ID, "platform engineer",
+		[]talent.ProfileCompetency{{Name: "Kubernetes", Level: 5, EvidenceQuote: "ran clusters"}})
+	require.NoError(t, err)
+
+	d.candidates.EXPECT().List(gomock.Any(), page).Return([]*talent.Candidate{cand}, int64(3), nil)
+	d.users.EXPECT().ByID(gomock.Any(), cand.UserID).Return(user, nil)
+	d.profiles.EXPECT().ByCandidateID(gomock.Any(), cand.ID).Return(profile, nil)
+
+	pool, total, err := d.agg().Pool(context.Background(), page)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), total, "total reflects the full pool, not just the current page")
+	require.Len(t, pool, 1)
+	assert.Equal(t, cand.ID, pool[0].CandidateID)
+	assert.Equal(t, "Kofi Boateng", pool[0].Name)
+}
+
 func TestPoolToleratesMissingUserAndProfile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	d := newDeps(ctrl)
@@ -106,6 +132,33 @@ func TestSupplyDemandGroupsBySeniority(t *testing.T) {
 	assert.Equal(t, "senior", items[1].RoleFamily)
 	assert.Equal(t, 2, items[1].OpenRoles)
 	assert.Equal(t, 2-5, items[1].Gap)
+}
+
+func TestSupplyDemandReconcilesEachFamilyAgainstPoolTotal(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	d.roles.EXPECT().ListOpen(gomock.Any(), kernel.NewPage(1, kernel.MaxPageSize)).Return([]*role.Role{
+		openRole(t, role.SeniorityJunior),
+		openRole(t, role.SeniorityMid),
+		openRole(t, role.SeniorityMid),
+	}, int64(3), nil)
+	d.candidates.EXPECT().List(gomock.Any(), kernel.NewPage(1, 1)).Return(nil, int64(7), nil)
+
+	items, err := d.agg().SupplyDemand(context.Background())
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	assert.Equal(t, dashboardapp.SupplyDemandItem{
+		RoleFamily:          "junior",
+		OpenRoles:           1,
+		AvailableCandidates: 7,
+		Gap:                 -6,
+	}, items[0])
+	assert.Equal(t, dashboardapp.SupplyDemandItem{
+		RoleFamily:          "mid",
+		OpenRoles:           2,
+		AvailableCandidates: 7,
+		Gap:                 -5,
+	}, items[1])
 }
 
 func TestTimeToShortlist(t *testing.T) {

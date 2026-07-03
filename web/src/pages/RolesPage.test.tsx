@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,9 +6,15 @@ import type { Role, User } from '../api/types';
 import { useAuthStore } from '../stores/auth';
 import { RolesPage } from './RolesPage';
 
-type RolesResult = { isPending: boolean; isError: boolean; error: Error | null; data?: { roles: Role[] } };
+type RolesResult = {
+  isPending: boolean;
+  isError: boolean;
+  error: Error | null;
+  data?: { roles: Role[]; page?: { page: number; pageSize: number; totalItems: number; totalPages: number } };
+};
+const useRolesMock = vi.hoisted(() => vi.fn());
 let rolesResult: RolesResult;
-vi.mock('../query/flow', () => ({ useRoles: () => rolesResult }));
+vi.mock('../query/flow', () => ({ useRoles: (...args: unknown[]) => useRolesMock(...args) }));
 
 const user: User = {
   id: 'emp-1',
@@ -47,7 +53,9 @@ function renderPage() {
 
 beforeEach(() => {
   useAuthStore.setState({ user });
+  useRolesMock.mockReset();
   rolesResult = { isPending: false, isError: false, error: null, data: { roles: [] } };
+  useRolesMock.mockImplementation(() => rolesResult);
 });
 afterEach(() => {
   useAuthStore.getState().clear();
@@ -68,11 +76,24 @@ describe('RolesPage', () => {
   it('lists a role with its seniority, location, competency count, and an interview link', () => {
     rolesResult = { isPending: false, isError: false, error: null, data: { roles: [role] } };
     renderPage();
+    expect(useRolesMock).toHaveBeenCalledWith('emp-1', 1, 20);
     expect(screen.getByRole('heading', { name: 'Senior Go Engineer' })).toBeInTheDocument();
     expect(screen.getByText('Senior')).toBeInTheDocument();
     expect(screen.getByText('Accra')).toBeInTheDocument();
     expect(screen.getByText('1 competencies')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Interview' })).toHaveAttribute('href', '/interview?roleId=role-1');
+  });
+
+  it('requests the selected server page when paginating roles', () => {
+    rolesResult = {
+      isPending: false,
+      isError: false,
+      error: null,
+      data: { roles: [role], page: { page: 1, pageSize: 20, totalItems: 45, totalPages: 3 } },
+    };
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /go to page 2/i }));
+    expect(useRolesMock).toHaveBeenLastCalledWith('emp-1', 2, 20);
   });
 
   it('surfaces a load error', () => {

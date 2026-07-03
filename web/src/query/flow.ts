@@ -21,12 +21,13 @@ export function useGenerateRole() {
   });
 }
 
-export function useRoles(employerId: string | undefined) {
+export function useRoles(employerId: string | undefined, page = 1, pageSize = 20) {
   return useQuery({
-    queryKey: ['roles', employerId],
-    queryFn: () => flowApi.listRoles(employerId as string),
+    queryKey: ['roles', employerId, page, pageSize],
+    queryFn: () => flowApi.listRoles(employerId as string, page, pageSize),
     enabled: Boolean(employerId),
     retry: 0,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -37,10 +38,10 @@ export function useUpdateRole() {
   });
 }
 
-export function useShortlist(roleId: string | undefined, pageSize: number, enabled: boolean, version: number) {
+export function useShortlist(roleId: string | undefined, page: number, pageSize: number, enabled: boolean, version: number) {
   return useQuery({
-    queryKey: ['shortlist', roleId, pageSize, version],
-    queryFn: () => flowApi.shortlist(roleId as string, pageSize),
+    queryKey: ['shortlist', roleId, page, pageSize, version],
+    queryFn: () => flowApi.shortlist(roleId as string, page, pageSize),
     enabled: enabled && Boolean(roleId),
     retry: 0, // a 501 (matching disabled without a DB) should not retry
     placeholderData: keepPreviousData, // keep the old ranking visible while re-ranking

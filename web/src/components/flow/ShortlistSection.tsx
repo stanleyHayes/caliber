@@ -9,6 +9,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
 
 import { ApiError } from '../../api/types';
@@ -16,13 +17,18 @@ import { useShortlist } from '../../query/flow';
 import { CardListSkeleton } from '../Skeletons';
 import { DotsButton } from '../DotsButton';
 import { shortId } from '../../lib/format';
+import { PageControls } from '../PageControls';
 import { MatchCard } from './MatchCard';
 
 const PAGE_SIZE = 20;
 
 export function ShortlistSection({ roleId, version }: { roleId: string; version: number }) {
   const [run, setRun] = useState(false);
-  const query = useShortlist(roleId, PAGE_SIZE, run, version);
+  const pageKey = `${roleId}:${version}`;
+  const [pageState, setPageState] = useState({ key: pageKey, page: 1 });
+  const page = pageState.key === pageKey ? pageState.page : 1;
+  const setCurrentPage = (next: number) => setPageState({ key: pageKey, page: next });
+  const query = useShortlist(roleId, page, PAGE_SIZE, run, version);
 
   if (!run) {
     return (
@@ -77,9 +83,23 @@ export function ShortlistSection({ roleId, version }: { roleId: string; version:
         <Alert severity="info">No candidates cleared the rubric and hard filters yet.</Alert>
       ) : (
         <Stack spacing={2}>
-          {matches.map((m, i) => (
-            <MatchCard key={m.id || m.candidateId} match={m} rank={i + 1} />
-          ))}
+          <AnimatePresence mode="popLayout">
+            {matches.map((m, i) => (
+              <motion.div
+                key={m.id || m.candidateId}
+                layout
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+              >
+                <MatchCard match={m} rank={(page - 1) * PAGE_SIZE + i + 1} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          {query.data.shortlist.page && (
+            <PageControls page={page} pageCount={query.data.shortlist.page.totalPages} onChange={setCurrentPage} />
+          )}
         </Stack>
       )}
 

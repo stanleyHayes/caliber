@@ -16,8 +16,11 @@ vi.mock('../query/talent', () => ({
   useCreateProfile: () => createResult,
 }));
 
-let contestsResult: { data?: { contests: Contest[] } };
-vi.mock('../query/contest', () => ({ useMyContests: () => contestsResult }));
+let contestsResult: {
+  data?: { contests: Contest[]; page?: { page: number; pageSize: number; totalItems: number; totalPages: number } };
+};
+const useMyContestsMock = vi.hoisted(() => vi.fn());
+vi.mock('../query/contest', () => ({ useMyContests: (...args: unknown[]) => useMyContestsMock(...args) }));
 
 const exportMutate = vi.fn();
 let exportResult: { mutate: ReturnType<typeof vi.fn>; isPending: boolean; isError: boolean; error: Error | null };
@@ -42,13 +45,25 @@ const profile: TalentProfile = {
   competencies: [{ name: 'Go', level: 4, evidenceQuote: 'built services in Go', sourceSpan: 'CV' }],
 };
 
+const contest: Contest = {
+  id: 'contest-1',
+  candidateId: 'cand-1',
+  subject: 'CONTEST_SUBJECT_MATCH',
+  subjectId: 'match-1',
+  reason: 'The evidence quote missed my real Go work.',
+  status: 'CONTEST_STATUS_OPEN',
+  resolution: '',
+};
+
 beforeEach(() => {
   useAuthStore.setState({ user });
   mutate.mockReset();
+  useMyContestsMock.mockReset();
   exportMutate.mockReset();
   profileResult = { isPending: false, error: new ApiError(404, 'not found') };
   createResult = { mutate, isPending: false, isError: false, error: null };
   contestsResult = { data: { contests: [] } };
+  useMyContestsMock.mockImplementation(() => contestsResult);
   exportResult = { mutate: exportMutate, isPending: false, isError: false, error: null };
 });
 afterEach(() => {
@@ -92,5 +107,15 @@ describe('ProfilePage', () => {
     expect(screen.getByText('Your data')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Download my data' }));
     expect(exportMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests the selected server page when paginating disputes', () => {
+    contestsResult = {
+      data: { contests: [contest], page: { page: 1, pageSize: 20, totalItems: 44, totalPages: 3 } },
+    };
+    render(<ProfilePage />);
+    expect(useMyContestsMock).toHaveBeenCalledWith(true, 1, 20);
+    fireEvent.click(screen.getByRole('button', { name: /go to page 2/i }));
+    expect(useMyContestsMock).toHaveBeenLastCalledWith(true, 2, 20);
   });
 });

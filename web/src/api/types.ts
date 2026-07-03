@@ -144,6 +144,7 @@ export interface CandidateExclusion {
 
 export interface Shortlist {
   matches: Match[];
+  page?: PageResponse;
   poolDepth: number;
   exclusions: CandidateExclusion[];
 }
@@ -232,6 +233,7 @@ export interface TimeAdvanceResponse {
 
 export interface ListApplicationsResponse {
   applications: Application[];
+  page?: PageResponse;
 }
 
 export interface PageResponse {
@@ -320,6 +322,7 @@ export interface ProfileResponse {
 
 export interface ListRolesResponse {
   roles: Role[];
+  page?: PageResponse;
 }
 
 // ----- Contests (RaiseContest / ListMyContests) -----
@@ -350,6 +353,7 @@ export interface RaiseContestResponse {
 
 export interface ListMyContestsResponse {
   contests: Contest[];
+  page?: PageResponse;
 }
 
 // ----- Rejections (RecordRejection — human-approved decline) -----

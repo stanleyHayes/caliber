@@ -5,6 +5,7 @@ import { ApiError } from '../api/types';
 import { MyContestsList } from '../components/contest/MyContestsList';
 import { DeleteAccount } from '../components/privacy/DeleteAccount';
 import { DotsButton } from '../components/DotsButton';
+import { PageControls } from '../components/PageControls';
 import { ProfileView } from '../components/talent/ProfileView';
 import { downloadTextFile } from '../lib/download';
 import { useMyContests } from '../query/contest';
@@ -12,11 +13,14 @@ import { useExportMyData } from '../query/privacy';
 import { useCreateProfile, useProfile } from '../query/talent';
 import { useAuthStore } from '../stores/auth';
 
+const CONTESTS_PAGE_SIZE = 20;
+
 export function ProfilePage() {
   const candidateId = useAuthStore((s) => s.user?.id);
   const profile = useProfile(candidateId);
   const create = useCreateProfile(candidateId);
-  const contests = useMyContests(Boolean(candidateId));
+  const [contestsPage, setContestsPage] = useState(1);
+  const contests = useMyContests(Boolean(candidateId), contestsPage, CONTESTS_PAGE_SIZE);
   const dataExport = useExportMyData();
   const [cv, setCv] = useState('');
   const [location, setLocation] = useState('');
@@ -81,6 +85,13 @@ export function ProfilePage() {
         <Stack spacing={2}>
           <Typography variant="h6" component="h2">Your disputes</Typography>
           <MyContestsList contests={contests.data?.contests ?? []} />
+          {contests.data?.page && (
+            <PageControls
+              page={contests.data.page.page || contestsPage}
+              pageCount={contests.data.page.totalPages}
+              onChange={setContestsPage}
+            />
+          )}
         </Stack>
       )}
 

@@ -15,19 +15,19 @@ export const flowApi = {
       method: 'POST',
       body: { employer_id: employerId, free_text: freeText },
     }),
-  listRoles: (employerId: string, pageSize = 50) =>
+  listRoles: (employerId: string, page = 1, pageSize = 20) =>
     apiFetch<ListRolesResponse>(
-      `/v1/roles?employer_id=${encodeURIComponent(employerId)}&page.page=1&page.page_size=${pageSize}`,
+      `/v1/roles?employer_id=${encodeURIComponent(employerId)}&page.page=${page}&page.page_size=${pageSize}`,
     ),
   updateRole: (roleId: string, spec: RoleSpec, rubric: Rubric) =>
     apiFetch<{ role: Role }>(`/v1/roles/${encodeURIComponent(roleId)}`, {
       method: 'PATCH',
       body: { role_id: roleId, spec, rubric },
     }),
-  // The backend produces a ranked top-N shortlist; pageSize bounds the pool size.
-  shortlist: (roleId: string, pageSize: number) =>
+  // The backend produces a ranked, explainable shortlist with page metadata.
+  shortlist: (roleId: string, page: number, pageSize: number) =>
     apiFetch<ShortlistResponse>(
-      `/v1/roles/${encodeURIComponent(roleId)}/shortlist?page.page=1&page.page_size=${pageSize}`,
+      `/v1/roles/${encodeURIComponent(roleId)}/shortlist?page.page=${page}&page.page_size=${pageSize}`,
     ),
   // A decline is never automatic: human_approved must be true and the approving
   // human is taken from the auth context server-side, not this body.

@@ -1,14 +1,19 @@
 import { Alert, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { PageControls } from '../components/PageControls';
 import { CardListSkeleton } from '../components/Skeletons';
 import { seniorityLabel } from '../lib/format';
 import { useRoles } from '../query/flow';
 import { useAuthStore } from '../stores/auth';
 
+const PAGE_SIZE = 20;
+
 export function RolesPage() {
   const employerId = useAuthStore((s) => s.user?.id);
-  const roles = useRoles(employerId);
+  const [page, setPage] = useState(1);
+  const roles = useRoles(employerId, page, PAGE_SIZE);
 
   return (
     <Stack spacing={4} sx={{ maxWidth: 820, mx: 'auto' }}>
@@ -51,6 +56,9 @@ export function RolesPage() {
               </CardContent>
             </Card>
           ))}
+          {roles.data?.page && (
+            <PageControls page={roles.data.page.page || page} pageCount={roles.data.page.totalPages} onChange={setPage} />
+          )}
         </Stack>
       )}
     </Stack>

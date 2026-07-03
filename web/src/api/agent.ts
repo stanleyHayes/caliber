@@ -7,8 +7,8 @@ export const agentApi = {
       method: 'POST',
       body: { candidate_id: candidateId },
     }),
-  listApplications: (candidateId: string, pageSize = 20) =>
+  listApplications: (candidateId: string, page = 1, pageSize = 20) =>
     apiFetch<ListApplicationsResponse>(
-      `/v1/candidates/${encodeURIComponent(candidateId)}/applications?page.page=1&page.page_size=${pageSize}`,
+      `/v1/candidates/${encodeURIComponent(candidateId)}/applications?page.page=${page}&page.page_size=${pageSize}`,
     ),
 };

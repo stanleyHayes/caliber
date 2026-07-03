@@ -18,6 +18,6 @@ describe('DotsButton', () => {
     expect(btn).toHaveAttribute('aria-busy', 'true');
     // The width-stable dots carry an accessible "loading" label; the label is hidden.
     expect(screen.getByLabelText('loading')).toBeInTheDocument();
-    expect(screen.queryByText('Generate')).not.toBeInTheDocument();
+    expect(screen.getByText('Generate')).toHaveStyle({ visibility: 'hidden' });
   });
 });

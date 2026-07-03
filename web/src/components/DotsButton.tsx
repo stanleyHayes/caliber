@@ -33,8 +33,21 @@ function Dots() {
 // DotsButton shows width-stable animated dots while loading instead of a spinner.
 export function DotsButton({ loading, children, disabled, ...props }: ButtonProps & { loading?: boolean }) {
   return (
-    <Button {...props} disabled={disabled ?? loading} aria-busy={loading ?? false}>
-      {loading ? <Dots /> : children}
+    <Button {...props} disabled={Boolean(disabled || loading)} aria-busy={loading ?? false}>
+      <Box component="span" sx={{ display: 'inline-grid', alignItems: 'center', justifyItems: 'center' }}>
+        <Box
+          component="span"
+          aria-hidden={loading ? 'true' : undefined}
+          sx={{ gridArea: '1 / 1', visibility: loading ? 'hidden' : 'visible' }}
+        >
+          {children}
+        </Box>
+        {loading && (
+          <Box component="span" sx={{ gridArea: '1 / 1', display: 'inline-flex' }}>
+            <Dots />
+          </Box>
+        )}
+      </Box>
     </Button>
   );
 }

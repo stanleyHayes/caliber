@@ -8,6 +8,6 @@ export const contestApi = {
       method: 'POST',
       body: { subject, subject_id: subjectId, reason },
     }),
-  listMine: (pageSize = 20) =>
-    apiFetch<ListMyContestsResponse>(`/v1/contests?page.page=1&page.page_size=${pageSize}`),
+  listMine: (page = 1, pageSize = 20) =>
+    apiFetch<ListMyContestsResponse>(`/v1/contests?page.page=${page}&page.page_size=${pageSize}`),
 };

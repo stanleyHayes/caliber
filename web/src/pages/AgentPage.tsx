@@ -1,12 +1,16 @@
 import { Alert, Box, Divider, Stack, Typography } from '@mui/material';
+import { useState } from 'react';
 
 import { ApiError } from '../api/types';
 import { ApplicationsList } from '../components/agent/ApplicationsList';
 import { CardListSkeleton } from '../components/Skeletons';
 import { DotsButton } from '../components/DotsButton';
+import { PageControls } from '../components/PageControls';
 import { WakeUpCard } from '../components/agent/WakeUpCard';
 import { useApplications, useTimeAdvance } from '../query/agent';
 import { useAuthStore } from '../stores/auth';
+
+const APPLICATIONS_PAGE_SIZE = 20;
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError && err.status === 501) {
@@ -17,8 +21,9 @@ function errorMessage(err: unknown): string {
 
 export function AgentPage() {
   const candidateId = useAuthStore((s) => s.user?.id);
+  const [applicationsPage, setApplicationsPage] = useState(1);
   const advance = useTimeAdvance(candidateId);
-  const applications = useApplications(candidateId);
+  const applications = useApplications(candidateId, applicationsPage, APPLICATIONS_PAGE_SIZE);
 
   return (
     <Stack spacing={4} sx={{ maxWidth: 760, mx: 'auto' }}>
@@ -48,7 +53,16 @@ export function AgentPage() {
         ) : applications.isError ? (
           <Alert severity="info">{errorMessage(applications.error)}</Alert>
         ) : (
-          <ApplicationsList applications={applications.data?.applications ?? []} />
+          <>
+            <ApplicationsList applications={applications.data?.applications ?? []} />
+            {applications.data?.page && (
+              <PageControls
+                page={applications.data.page.page || applicationsPage}
+                pageCount={applications.data.page.totalPages}
+                onChange={setApplicationsPage}
+              />
+            )}
+          </>
         )}
       </Stack>
     </Stack>

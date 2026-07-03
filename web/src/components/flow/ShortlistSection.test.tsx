@@ -16,6 +16,7 @@ function renderWithClient(node: ReactNode) {
 
 const response: ShortlistResponse = {
   shortlist: {
+    page: { page: 1, pageSize: 20, totalItems: 30, totalPages: 2 },
     poolDepth: 5,
     matches: [
       {
@@ -52,10 +53,22 @@ describe('ShortlistSection', () => {
 
     // The ranked, explainable match appears.
     expect(await screen.findByText('Strong backend fit.')).toBeInTheDocument();
+    expect(shortlist).toHaveBeenCalledWith('r1', 1, 20);
     expect(screen.getByText('5 in pool')).toBeInTheDocument();
     // The filtered-out candidate is surfaced with its gate + reason, not dropped.
     expect(screen.getByText('1 candidate filtered out')).toBeInTheDocument();
     expect(screen.getByText('location')).toBeInTheDocument();
     expect(screen.getByText('Based in Lagos, role is Accra-only')).toBeInTheDocument();
+  });
+
+  it('requests the selected server page from the reusable pagination control', async () => {
+    shortlist.mockResolvedValue(response);
+    renderWithClient(<ShortlistSection roleId="r1" version={0} />);
+
+    fireEvent.click(screen.getByText('Generate shortlist'));
+    await screen.findByText('Strong backend fit.');
+    fireEvent.click(screen.getByRole('button', { name: 'Go to page 2' }));
+
+    expect(shortlist).toHaveBeenLastCalledWith('r1', 2, 20);
   });
 });

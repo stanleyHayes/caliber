@@ -87,9 +87,10 @@ describe('useRoles', () => {
     const response: ListRolesResponse = { roles: [role] };
     vi.mocked(flowApi.listRoles).mockResolvedValue(response);
 
-    const { result } = renderHook(() => useRoles('e1'), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useRoles('e1', 2, 10), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(response);
+    expect(flowApi.listRoles).toHaveBeenCalledWith('e1', 2, 10);
   });
 
   it('stays disabled when the employer id is missing', () => {
@@ -122,13 +123,14 @@ describe('useShortlist', () => {
     };
     vi.mocked(flowApi.shortlist).mockResolvedValue(response);
 
-    const { result } = renderHook(() => useShortlist('r1', 10, true, 0), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useShortlist('r1', 2, 10, true, 0), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(response);
+    expect(flowApi.shortlist).toHaveBeenCalledWith('r1', 2, 10);
   });
 
   it('stays disabled when the role id is missing or enabled is false', () => {
-    const { result } = renderHook(() => useShortlist(undefined, 10, true, 0), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useShortlist(undefined, 1, 10, true, 0), { wrapper: createWrapper() });
     expect(result.current.isLoading).toBe(false);
     expect(result.current.fetchStatus).toBe('idle');
   });
