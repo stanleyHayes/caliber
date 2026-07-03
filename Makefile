@@ -1,7 +1,7 @@
 MODULE := github.com/xcreativs/caliber
 GOBIN  := $(shell go env GOPATH)/bin
 
-.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker run-of-show run-of-show-keep-alive backup-capture db-backup db-restore restore-drill tidy offline-build offline-pull offline-demo offline-stop offline-check test-load test-load-smoke test-load-keep-alive
+.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker run-of-show run-of-show-keep-alive backup-capture db-backup db-restore restore-drill mutation tidy offline-build offline-pull offline-demo offline-stop offline-check test-load test-load-smoke test-load-keep-alive
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
@@ -114,6 +114,14 @@ db-restore: ## restore a Postgres backup: make db-restore DUMP=path/to/backup.du
 
 restore-drill: ## run the disaster-recovery restore drill (backup -> fresh DB -> restore -> verify)
 	go test ./internal/adapters/outbound/postgres/ -run TestPostgresBackupRestoreDrill -v
+
+MUTATION_PKGS ?= matching interview role candidateagent guard salary kernel
+mutation: ## run gremlins mutation testing across core domain packages (CAL-144; slow)
+	@command -v gremlins >/dev/null || { echo "install: go install github.com/go-gremlins/gremlins/cmd/gremlins@latest"; exit 1; }
+	@for p in $(MUTATION_PKGS); do \
+		echo "== internal/domain/$$p =="; \
+		gremlins unleash ./internal/domain/$$p || exit 1; \
+	done
 
 tidy: ## sync go.mod/go.sum
 	go mod tidy

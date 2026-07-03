@@ -1,0 +1,21 @@
+# gremlins mutation-testing configuration (CAL-144). Run with: make mutation
+#
+# Mutation testing mutates the source (flip conditionals, tweak arithmetic, remove
+# statements) and reruns the tests: a mutant that still passes ("LIVED") is a gap
+# in the tests, not the coverage report. It measures test *strength*, complementing
+# the ≥80% line-coverage gate (CAL-139).
+#
+# Config keys mirror the `gremlins unleash` flags (see https://gremlins.dev).
+unleash:
+  # Per-mutant test timeout = this coefficient x the package's normal test time,
+  # so a mutant that induces an infinite loop is killed by timeout rather than
+  # hanging the run.
+  timeout-coefficient: 3
+
+  # Regression gate: fail the run if the kill rate (efficacy) or the share of
+  # mutants reached by tests (mutant coverage) drops below these floors. They are
+  # set conservatively below the recorded domain baseline (see
+  # docs/mutation-testing.md) so the run passes today but catches a real
+  # weakening of the tests; ratchet them up as the domain tests are strengthened.
+  threshold-efficacy: 15
+  threshold-mcover: 40
