@@ -94,8 +94,8 @@ func openRepositories(
 	repos.Profiles = postgres.NewTalentProfileRepo(pool)
 	repos.Apps = postgres.NewApplicationRepo(pool)
 	repos.Matches = postgres.NewMatchRepo(pool)
+	repos.Interviews = postgres.NewInterviewRepo(pool)
 	repos.Pool = pool
-	// Interviews remain in-memory until CAL-066 lands a Postgres adapter.
 	log.Info("persistence selected", "provider", "postgres")
 	checks := []readiness.NamedCheck{{Name: "postgres", Check: readiness.Func(pool.Ping)}}
 	return repos, pool.Close, checks, nil
