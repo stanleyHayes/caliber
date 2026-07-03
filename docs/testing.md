@@ -72,14 +72,13 @@ so it is skipped when the token is absent (e.g. on forks). See caveat 2.
    silent skip would not, by itself, redden the pipeline. `make test-short` /
    `make test-short` intentionally skips them.
 
-2. **The Sonar coverage import needs an LCOV reporter that Vitest does not currently
-   emit.** `sonar-project.properties` reads web coverage from `web/coverage/lcov.info`,
-   but `web/vite.config.ts` sets `coverage.reporter: ['text', 'json', 'html']` — no
-   `'lcov'`. Until `'lcov'` is added to that reporter list, `lcov.info` will not exist
-   and Sonar will import **0% frontend coverage** even though the Vitest 80% floor is
-   still enforced independently by the `frontend` job. (The properties file itself
-   flags this as a TODO.) The Go side is unaffected — `coverage.out` is a native Go
-   coverprofile.
+2. **Sonar's frontend LCOV import is wired.** `sonar-project.properties` reads web
+   coverage from `web/coverage/lcov.info`, and `web/vite.config.ts` now includes
+   `'lcov'` in `coverage.reporter` (`['text', 'json', 'html', 'lcov']`), so
+   `npm run test:coverage` emits that file for the scanner. The Go side uses a native
+   `coverage.out` coverprofile. Note the Sonar scan step itself is secret-gated (below),
+   so a fork/PR without `SONAR_TOKEN` still relies on the in-CI 80% floors, which run
+   unconditionally on both sides.
 
 3. **The SonarQube scan is secret-gated.** With no `SONAR_TOKEN` the scan step is
    skipped entirely, so the Sonar quality gate does not run on that push. The

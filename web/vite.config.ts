@@ -84,7 +84,10 @@ export default defineConfig(({ isSsrBuild }) => ({
     exclude: ['node_modules', 'dist', 'e2e'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      // 'lcov' emits web/coverage/lcov.info, which sonar-project.properties
+      // (sonar.javascript/typescript.lcov.reportPaths) imports for the Sonar
+      // coverage gate; without it Sonar sees 0% FE coverage.
+      reporter: ['text', 'json', 'html', 'lcov'],
       thresholds: {
         statements: 80,
         branches: 80,
