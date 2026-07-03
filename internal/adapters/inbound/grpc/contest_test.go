@@ -15,15 +15,41 @@ import (
 	contestapp "github.com/xcreativs/caliber/internal/app/contest"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
+	roledom "github.com/xcreativs/caliber/internal/domain/role"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
 
+// contestServer wires a ContestServer over empty memory repos — enough for the
+// raise/list tests, which never reach the ResolveContest ownership path.
 func contestServer() *ContestServer {
-	return NewContestServer(contestapp.NewService(memory.NewContestRepo(), memory.NewAuditRepo(), time.Now))
+	return NewContestServer(contestapp.NewService(
+		memory.NewContestRepo(), memory.NewAuditRepo(),
+		memory.NewMatchRepo(), memory.NewInterviewRepo(), memory.NewRoleRepo(), time.Now))
+}
+
+// ownedContestServer seeds a match assessment owned by employerID and returns the
+// wired server, the seeded audit repo, and the match id to contest against. It
+// lets ResolveContest resolve a real owning employer (CAL-153 tenant isolation).
+func ownedContestServer(t *testing.T, employerID kernel.ID) (*ContestServer, *memory.AuditRepo, kernel.ID) {
+	t.Helper()
+	roles, matches, auditRepo := memory.NewRoleRepo(), memory.NewMatchRepo(), memory.NewAuditRepo()
+	roleID, matchID := kernel.NewID(), kernel.NewID()
+	require.NoError(t, roles.Create(context.Background(), &roledom.Role{ID: roleID, EmployerID: employerID}))
+	require.NoError(t, matches.Upsert(context.Background(), &matchingdom.Match{
+		ID: matchID, RoleID: roleID, CandidateID: kernel.NewID(),
+	}))
+	srv := NewContestServer(contestapp.NewService(
+		memory.NewContestRepo(), auditRepo, matches, memory.NewInterviewRepo(), roles, time.Now))
+	return srv, auditRepo, matchID
 }
 
 func asRole(ctx context.Context, role identity.Role) context.Context {
-	return context.WithValue(ctx, principalKey{}, app.Principal{UserID: kernel.NewID(), Role: role.String()})
+	return asUser(ctx, kernel.NewID(), role)
+}
+
+func asUser(ctx context.Context, userID kernel.ID, role identity.Role) context.Context {
+	return context.WithValue(ctx, principalKey{}, app.Principal{UserID: userID, Role: role.String()})
 }
 
 func TestContestServer_RaiseAndListAsCandidate(t *testing.T) {
@@ -82,22 +108,31 @@ func TestContestServer_RaiseInvalidArgument(t *testing.T) {
 }
 
 func TestContestServer_ResolveAsReviewer(t *testing.T) {
-	srv := contestServer()
-	candCtx := context.WithValue(context.Background(), principalKey{},
-		app.Principal{UserID: kernel.NewID(), Role: identity.RoleCandidate.String()})
+	employer := kernel.NewID()
+	srv, _, matchID := ownedContestServer(t, employer)
+
+	// A candidate raises a contest against the seeded, employer-owned match.
+	candCtx := asUser(context.Background(), kernel.NewID(), identity.RoleCandidate)
 	raised, err := srv.RaiseContest(candCtx, &caliberv1.RaiseContestRequest{
-		Subject: caliberv1.ContestSubject_CONTEST_SUBJECT_REPORT_CARD, SubjectId: kernel.NewID().String(), Reason: "evidence misquoted",
+		Subject: caliberv1.ContestSubject_CONTEST_SUBJECT_MATCH, SubjectId: matchID.String(), Reason: "evidence misquoted",
 	})
 	require.NoError(t, err)
+	contestID := raised.GetContest().GetId()
 
-	resolved, err := srv.ResolveContest(asRole(context.Background(), identity.RoleEmployer),
-		&caliberv1.ResolveContestRequest{ContestId: raised.GetContest().GetId(), Uphold: true, Note: "agreed; rescoring"})
+	// CAL-153: a reviewer from a different employer cannot resolve it.
+	_, err = srv.ResolveContest(asRole(context.Background(), identity.RoleEmployer),
+		&caliberv1.ResolveContestRequest{ContestId: contestID, Uphold: true, Note: "not mine"})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err), "a non-owning employer cannot resolve")
+
+	// The owning employer resolves it.
+	resolved, err := srv.ResolveContest(asUser(context.Background(), employer, identity.RoleEmployer),
+		&caliberv1.ResolveContestRequest{ContestId: contestID, Uphold: true, Note: "agreed; rescoring"})
 	require.NoError(t, err)
 	assert.Equal(t, caliberv1.ContestStatus_CONTEST_STATUS_UPHELD, resolved.GetContest().GetStatus())
 	assert.Equal(t, "agreed; rescoring", resolved.GetContest().GetResolution())
 
-	// a candidate cannot resolve
-	_, err = srv.ResolveContest(asRole(context.Background(), identity.RoleCandidate),
-		&caliberv1.ResolveContestRequest{ContestId: raised.GetContest().GetId(), Uphold: true})
+	// A candidate cannot resolve (role gate, before ownership).
+	_, err = srv.ResolveContest(asUser(context.Background(), kernel.NewID(), identity.RoleCandidate),
+		&caliberv1.ResolveContestRequest{ContestId: contestID, Uphold: true})
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }

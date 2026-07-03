@@ -10,19 +10,43 @@ import (
 	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/domain/audit"
 	contestdom "github.com/xcreativs/caliber/internal/domain/contest"
+	"github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	"github.com/xcreativs/caliber/internal/domain/matching"
+	"github.com/xcreativs/caliber/internal/domain/role"
 )
 
-// Service orchestrates the contest lifecycle through the domain.
+// Service orchestrates the contest lifecycle through the domain. The match,
+// interview, and role repositories are read-only here — they resolve a
+// contested assessment to its owning employer so only that employer (the tenant
+// that owns the role) can resolve the contest (CAL-153 multi-tenant isolation).
 type Service struct {
-	contests contestdom.ContestRepository
-	audit    audit.AuditRepository
-	now      app.Clock
+	contests   contestdom.ContestRepository
+	audit      audit.AuditRepository
+	matches    matching.MatchRepository
+	interviews interview.InterviewRepository
+	roles      role.RoleRepository
+	now        app.Clock
 }
 
-// NewService wires the contest use-case.
-func NewService(contests contestdom.ContestRepository, auditRepo audit.AuditRepository, now app.Clock) *Service {
-	return &Service{contests: contests, audit: auditRepo, now: now}
+// NewService wires the contest use-case. matches/interviews/roles are used to
+// resolve a contest's owning employer for the tenant-ownership check on Resolve.
+func NewService(
+	contests contestdom.ContestRepository,
+	auditRepo audit.AuditRepository,
+	matches matching.MatchRepository,
+	interviews interview.InterviewRepository,
+	roles role.RoleRepository,
+	now app.Clock,
+) *Service {
+	return &Service{
+		contests:   contests,
+		audit:      auditRepo,
+		matches:    matches,
+		interviews: interviews,
+		roles:      roles,
+		now:        now,
+	}
 }
 
 // Raise opens a contest on behalf of a candidate against an assessment.
@@ -55,12 +79,23 @@ func (s *Service) ListForSubject(
 }
 
 // Resolve resolves an open contest as a human reviewer (uphold or dismiss).
+// The reviewer must own the contested assessment: the contest's subject resolves
+// to a role, and only that role's employer (the owning tenant) may resolve it.
+// A non-owner is rejected with kernel.Forbidden before any state change, closing
+// the cross-tenant IDOR where any reviewer could resolve any contest (CAL-153).
 func (s *Service) Resolve(
 	ctx context.Context, reviewerID, contestID kernel.ID, upheld bool, note string,
 ) (*contestdom.Contest, error) {
 	c, err := s.contests.ByID(ctx, contestID)
 	if err != nil {
 		return nil, err
+	}
+	ownerID, err := s.ownerOf(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	if ownerID != reviewerID {
+		return nil, kernel.Forbidden("contest: reviewer does not own the contested assessment")
 	}
 	if rerr := c.Resolve(upheld, note, s.now()); rerr != nil {
 		return nil, rerr
@@ -70,6 +105,36 @@ func (s *Service) Resolve(
 	}
 	s.record(ctx, reviewerID, audit.ActionContestResolved, c.ID)
 	return c, nil
+}
+
+// ownerOf resolves the employer (tenant) that owns the assessment a contest
+// disputes. A match and a report card both carry a role id, and the role carries
+// its owning employer id. Returns kernel.KindNotFound if the contested
+// assessment — or its role — no longer exists, which also validates that the
+// contest's subject_id references a real assessment.
+func (s *Service) ownerOf(ctx context.Context, c *contestdom.Contest) (kernel.ID, error) {
+	var roleID kernel.ID
+	switch c.Subject {
+	case contestdom.SubjectMatch:
+		m, err := s.matches.ByID(ctx, c.SubjectID)
+		if err != nil {
+			return "", err
+		}
+		roleID = m.RoleID
+	case contestdom.SubjectReportCard:
+		iv, err := s.interviews.ByID(ctx, c.SubjectID)
+		if err != nil {
+			return "", err
+		}
+		roleID = iv.RoleID
+	default:
+		return "", kernel.Invalid("contest: unknown subject")
+	}
+	rl, err := s.roles.ByID(ctx, roleID)
+	if err != nil {
+		return "", err
+	}
+	return rl.EmployerID, nil
 }
 
 // record appends an audit entry, best-effort: an audit failure never blocks the

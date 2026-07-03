@@ -65,10 +65,11 @@ func (s *ContestServer) ListMyContests(
 }
 
 // ResolveContest resolves an open contest as a reviewer (employer/recruiter).
-// POC simplification: any reviewer may resolve any contest (every resolution is
-// audited). Multi-tenant production should additionally verify the reviewer owns
-// the contested assessment, and validate that subject_id references a real
-// candidate-owned match/report card.
+// The acting principal comes from the authenticated context, and the use-case
+// enforces tenant ownership: the reviewer must be the employer that owns the
+// role behind the contested assessment (CAL-153), so a reviewer cannot resolve
+// another employer's contest. subject_id is validated by that same resolution —
+// a subject that references no real match/report card fails with NotFound.
 func (s *ContestServer) ResolveContest(
 	ctx context.Context, req *caliberv1.ResolveContestRequest,
 ) (*caliberv1.ResolveContestResponse, error) {

@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres/sqlcdb"
@@ -40,6 +42,18 @@ func (r *MatchRepo) Upsert(ctx context.Context, m *matching.Match) error {
 		WatchOuts:        watchOuts,
 		ThinEvidenceFlag: m.ThinEvidence,
 	})
+}
+
+// ByID returns a single match by id, or kernel.KindNotFound when absent.
+func (r *MatchRepo) ByID(ctx context.Context, id kernel.ID) (*matching.Match, error) {
+	row, err := r.q.MatchByID(ctx, id.String())
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, kernel.NotFound("postgres: match not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toDomainMatch(row)
 }
 
 // ByRole returns a page of matches for a role and the total count.

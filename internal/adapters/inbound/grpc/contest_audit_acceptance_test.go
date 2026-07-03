@@ -3,14 +3,10 @@ package grpcadapter
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
-	"github.com/xcreativs/caliber/internal/app"
-	contestapp "github.com/xcreativs/caliber/internal/app/contest"
 	"github.com/xcreativs/caliber/internal/domain/audit"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -23,19 +19,18 @@ import (
 // the contest service and the audit reader share one append-only trail.
 func TestContestAuditTrailEndToEnd(t *testing.T) {
 	ctx := context.Background()
-	auditRepo := memory.NewAuditRepo()
-	contestSrv := NewContestServer(contestapp.NewService(memory.NewContestRepo(), auditRepo, time.Now))
+	employer := kernel.NewID()
+	contestSrv, auditRepo, matchID := ownedContestServer(t, employer)
 	auditSrv := NewAuditServer(auditRepo)
 
 	candidateID := kernel.NewID()
-	candidateCtx := context.WithValue(ctx, principalKey{},
-		app.Principal{UserID: candidateID, Role: identity.RoleCandidate.String()})
-	reviewerCtx := asRole(ctx, identity.RoleEmployer)
+	candidateCtx := asUser(ctx, candidateID, identity.RoleCandidate)
+	reviewerCtx := asUser(ctx, employer, identity.RoleEmployer)
 
-	// 1) Candidate raises a contest over a match assessment.
+	// 1) Candidate raises a contest over the employer-owned match assessment.
 	raised, err := contestSrv.RaiseContest(candidateCtx, &caliberv1.RaiseContestRequest{
 		Subject:   caliberv1.ContestSubject_CONTEST_SUBJECT_MATCH,
-		SubjectId: kernel.NewID().String(),
+		SubjectId: matchID.String(),
 		Reason:    "the breakdown ignored my recent Go work",
 	})
 	require.NoError(t, err)

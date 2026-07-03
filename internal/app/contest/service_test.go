@@ -13,18 +13,53 @@ import (
 	contestapp "github.com/xcreativs/caliber/internal/app/contest"
 	"github.com/xcreativs/caliber/internal/domain/audit"
 	contestdom "github.com/xcreativs/caliber/internal/domain/contest"
+	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
+	roledom "github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/mocks"
 )
 
 func clock() time.Time { return time.Unix(1700000000, 0) }
 
-func deps(t *testing.T) (*contestapp.Service, *mocks.MockContestRepository, *mocks.MockAuditRepository) {
+// cmocks bundles the contest service's collaborators so Resolve tests can set
+// up the ownership-resolution path (match/interview -> role -> employer).
+type cmocks struct {
+	contests   *mocks.MockContestRepository
+	audit      *mocks.MockAuditRepository
+	matches    *mocks.MockMatchRepository
+	interviews *mocks.MockInterviewRepository
+	roles      *mocks.MockRoleRepository
+}
+
+func build(t *testing.T) (*contestapp.Service, cmocks) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
-	contests := mocks.NewMockContestRepository(ctrl)
-	auditRepo := mocks.NewMockAuditRepository(ctrl)
-	return contestapp.NewService(contests, auditRepo, clock), contests, auditRepo
+	m := cmocks{
+		contests:   mocks.NewMockContestRepository(ctrl),
+		audit:      mocks.NewMockAuditRepository(ctrl),
+		matches:    mocks.NewMockMatchRepository(ctrl),
+		interviews: mocks.NewMockInterviewRepository(ctrl),
+		roles:      mocks.NewMockRoleRepository(ctrl),
+	}
+	svc := contestapp.NewService(m.contests, m.audit, m.matches, m.interviews, m.roles, clock)
+	return svc, m
+}
+
+// deps is the slim helper for tests that never reach the ownership path
+// (Raise/List and contest-not-found), returning just the contest + audit mocks.
+func deps(t *testing.T) (*contestapp.Service, *mocks.MockContestRepository, *mocks.MockAuditRepository) {
+	t.Helper()
+	svc, m := build(t)
+	return svc, m.contests, m.audit
+}
+
+// expectOwner wires the match->role->employer resolution so ownerOf returns
+// owner as the contested match's owning employer.
+func expectOwner(m cmocks, owner kernel.ID) {
+	roleID := kernel.NewID()
+	m.matches.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(&matchingdom.Match{RoleID: roleID}, nil)
+	m.roles.EXPECT().ByID(gomock.Any(), roleID).Return(&roledom.Role{EmployerID: owner}, nil)
 }
 
 func TestRaise_CreatesAndAudits(t *testing.T) {
@@ -85,25 +120,28 @@ func TestRaise_PropagatesCreateFailure(t *testing.T) {
 }
 
 func TestResolve_PropagatesUpdateFailure(t *testing.T) {
-	svc, contests, _ := deps(t) // no Append: a failed update logs no "resolved" audit
+	svc, m := build(t) // no Append: a failed update logs no "resolved" audit
+	reviewer := kernel.NewID()
 	open, err := contestdom.NewContest(kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "missed evidence", clock())
 	require.NoError(t, err)
-	contests.EXPECT().ByID(gomock.Any(), open.ID).Return(open, nil)
-	contests.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("db down"))
+	m.contests.EXPECT().ByID(gomock.Any(), open.ID).Return(open, nil)
+	expectOwner(m, reviewer)
+	m.contests.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("db down"))
 
-	_, err = svc.Resolve(context.Background(), kernel.NewID(), open.ID, true, "agreed")
+	_, err = svc.Resolve(context.Background(), reviewer, open.ID, true, "agreed")
 	require.Error(t, err)
 }
 
 func TestResolve_UpholdLoadsUpdatesAudits(t *testing.T) {
-	svc, contests, auditRepo := deps(t)
+	svc, m := build(t)
 	reviewer := kernel.NewID()
 	open, err := contestdom.NewContest(kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "missed evidence", clock())
 	require.NoError(t, err)
 
-	contests.EXPECT().ByID(gomock.Any(), open.ID).Return(open, nil)
-	contests.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
-	auditRepo.EXPECT().Append(gomock.Any(), gomock.Any()).DoAndReturn(
+	m.contests.EXPECT().ByID(gomock.Any(), open.ID).Return(open, nil)
+	expectOwner(m, reviewer)
+	m.contests.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	m.audit.EXPECT().Append(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, e *audit.AuditEntry) error {
 			assert.Equal(t, audit.ActionContestResolved, e.Action)
 			assert.Equal(t, reviewer, e.ActorUserID)
@@ -117,19 +155,69 @@ func TestResolve_UpholdLoadsUpdatesAudits(t *testing.T) {
 }
 
 func TestResolve_AlreadyResolvedDoesNotUpdate(t *testing.T) {
-	svc, contests, _ := deps(t)
+	svc, m := build(t)
+	reviewer := kernel.NewID()
 	done, _ := contestdom.NewContest(kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "reason", clock())
 	require.NoError(t, done.Resolve(false, "dismissed", clock()))
-	// ByID returns an already-resolved contest; Update/Append must NOT be called.
-	contests.EXPECT().ByID(gomock.Any(), done.ID).Return(done, nil)
+	// Owner matches, but the contest is already resolved: Update/Append must NOT run.
+	m.contests.EXPECT().ByID(gomock.Any(), done.ID).Return(done, nil)
+	expectOwner(m, reviewer)
 
-	_, err := svc.Resolve(context.Background(), kernel.NewID(), done.ID, true, "again")
+	_, err := svc.Resolve(context.Background(), reviewer, done.ID, true, "again")
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 }
 
 func TestResolve_NotFound(t *testing.T) {
 	svc, contests, _ := deps(t)
+	// Contest lookup fails before ownership resolution — nothing else is consulted.
 	contests.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
 	_, err := svc.Resolve(context.Background(), kernel.NewID(), kernel.NewID(), true, "x")
+	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
+}
+
+// TestResolve_NonOwnerForbidden is the CAL-153 cross-tenant IDOR guard: a
+// reviewer from a different employer cannot resolve a contest over an assessment
+// they do not own. The contest is loaded and its owner resolved, then the resolve
+// is rejected with Forbidden before any state change (no Update, no audit).
+func TestResolve_NonOwnerForbidden(t *testing.T) {
+	svc, m := build(t)
+	open, err := contestdom.NewContest(kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "missed evidence", clock())
+	require.NoError(t, err)
+	m.contests.EXPECT().ByID(gomock.Any(), open.ID).Return(open, nil)
+	expectOwner(m, kernel.NewID()) // owned by some other employer, not the caller
+
+	_, err = svc.Resolve(context.Background(), kernel.NewID(), open.ID, true, "agreed")
+	assert.Equal(t, kernel.KindForbidden, kernel.KindOf(err))
+}
+
+// TestResolve_ReportCardResolvesViaInterview covers the report-card subject:
+// ownership resolves through the interview -> role -> employer chain.
+func TestResolve_ReportCardResolvesViaInterview(t *testing.T) {
+	svc, m := build(t)
+	reviewer, roleID := kernel.NewID(), kernel.NewID()
+	open, err := contestdom.NewContest(kernel.NewID(), kernel.NewID(), contestdom.SubjectReportCard, "evidence misquoted", clock())
+	require.NoError(t, err)
+	m.contests.EXPECT().ByID(gomock.Any(), open.ID).Return(open, nil)
+	m.interviews.EXPECT().ByID(gomock.Any(), open.SubjectID).Return(&interviewdom.Interview{RoleID: roleID}, nil)
+	m.roles.EXPECT().ByID(gomock.Any(), roleID).Return(&roledom.Role{EmployerID: reviewer}, nil)
+	m.contests.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	m.audit.EXPECT().Append(gomock.Any(), gomock.Any()).Return(nil)
+
+	resolved, err := svc.Resolve(context.Background(), reviewer, open.ID, false, "dismissed after review")
+	require.NoError(t, err)
+	assert.Equal(t, contestdom.StatusDismissed, resolved.Status)
+}
+
+// TestResolve_SubjectNotFoundPropagates: a contest whose assessment no longer
+// exists cannot be resolved — the missing subject surfaces NotFound and nothing
+// is mutated (this also validates subject_id references a real assessment).
+func TestResolve_SubjectNotFoundPropagates(t *testing.T) {
+	svc, m := build(t)
+	open, err := contestdom.NewContest(kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "missed evidence", clock())
+	require.NoError(t, err)
+	m.contests.EXPECT().ByID(gomock.Any(), open.ID).Return(open, nil)
+	m.matches.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("gone"))
+
+	_, err = svc.Resolve(context.Background(), kernel.NewID(), open.ID, true, "x")
 	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
 }

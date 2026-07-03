@@ -48,6 +48,20 @@ func (r *MatchRepo) Upsert(_ context.Context, m *matchingdom.Match) error {
 	return nil
 }
 
+// ByID returns a single match by id, or kernel.KindNotFound when absent. The
+// store is keyed by (role, candidate), so this scans the small in-memory set.
+func (r *MatchRepo) ByID(_ context.Context, id kernel.ID) (*matchingdom.Match, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, m := range r.byKey {
+		if m.ID == id {
+			cp := m
+			return &cp, nil
+		}
+	}
+	return nil, kernel.NotFound("memory: match not found")
+}
+
 // ByRole returns a role's matches, highest overall score first, paginated.
 func (r *MatchRepo) ByRole(_ context.Context, roleID kernel.ID, page kernel.Page) ([]*matchingdom.Match, int64, error) {
 	return r.filter(func(m matchingdom.Match) bool { return m.RoleID == roleID }, page)

@@ -9,6 +9,10 @@ ON CONFLICT (role_id, candidate_id) DO UPDATE SET
   watch_outs = EXCLUDED.watch_outs,
   thin_evidence_flag = EXCLUDED.thin_evidence_flag;
 
+-- name: MatchByID :one
+SELECT id, role_id, candidate_id, overall_score, confidence, breakdown, rationale, watch_outs, thin_evidence_flag, created_at
+FROM matches WHERE id = $1;
+
 -- name: ListMatchesByRole :many
 SELECT id, role_id, candidate_id, overall_score, confidence, breakdown, rationale, watch_outs, thin_evidence_flag, created_at
 FROM matches WHERE role_id = $1 ORDER BY overall_score DESC LIMIT $2 OFFSET $3;

@@ -42,6 +42,21 @@ func (m *MockMatchRepository) EXPECT() *MockMatchRepositoryMockRecorder {
 	return m.recorder
 }
 
+// ByID mocks base method.
+func (m *MockMatchRepository) ByID(ctx context.Context, id kernel.ID) (*matching.Match, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ByID", ctx, id)
+	ret0, _ := ret[0].(*matching.Match)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ByID indicates an expected call of ByID.
+func (mr *MockMatchRepositoryMockRecorder) ByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByID", reflect.TypeOf((*MockMatchRepository)(nil).ByID), ctx, id)
+}
+
 // ByRole mocks base method.
 func (m *MockMatchRepository) ByRole(ctx context.Context, roleID kernel.ID, page kernel.Page) ([]*matching.Match, int64, error) {
 	m.ctrl.T.Helper()

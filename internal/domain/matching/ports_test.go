@@ -38,6 +38,15 @@ func (s *stubRepo) ForCandidate(_ context.Context, candidateID kernel.ID, _ kern
 	return out, int64(len(out)), nil
 }
 
+func (s *stubRepo) ByID(_ context.Context, id kernel.ID) (*Match, error) {
+	for _, m := range s.stored {
+		if m.ID == id {
+			return m, nil
+		}
+	}
+	return nil, kernel.NotFound("stub: match not found")
+}
+
 func TestMatchRepository_Port(t *testing.T) {
 	var repo MatchRepository = &stubRepo{}
 	ctx := context.Background()
@@ -65,5 +74,13 @@ func TestMatchRepository_Port(t *testing.T) {
 	none, total, err := repo.ByRole(ctx, kernel.NewID(), kernel.NewPage(1, 20))
 	if err != nil || total != 0 || len(none) != 0 {
 		t.Fatalf("ByRole unknown: got %d/%d err=%v", len(none), total, err)
+	}
+
+	byID, err := repo.ByID(ctx, m.ID)
+	if err != nil || byID == nil || byID.ID != m.ID {
+		t.Fatalf("ByID: got %v err=%v", byID, err)
+	}
+	if _, err := repo.ByID(ctx, kernel.NewID()); kernel.KindOf(err) != kernel.KindNotFound {
+		t.Fatalf("ByID unknown: expected NotFound, got %v", err)
 	}
 }

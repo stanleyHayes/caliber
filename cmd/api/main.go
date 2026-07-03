@@ -202,7 +202,8 @@ func wireApplicationServices(
 		),
 	)
 	contests := memory.NewContestRepo()
-	svc.Contest = grpcadapter.NewContestServer(contestapp.NewService(contests, auditRepo, time.Now))
+	svc.Contest = grpcadapter.NewContestServer(
+		contestapp.NewService(contests, auditRepo, repos.Matches, repos.Interviews, repos.Roles, time.Now))
 	svc.Audit = grpcadapter.NewAuditServer(auditRepo)
 	// Data subject rights (CAL-118): read-only DSAR export, and the right-to-
 	// erasure cascade across the candidate's records (audit trail retained but

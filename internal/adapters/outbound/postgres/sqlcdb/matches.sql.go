@@ -117,6 +117,29 @@ func (q *Queries) ListMatchesByRole(ctx context.Context, arg ListMatchesByRolePa
 	return items, nil
 }
 
+const matchByID = `-- name: MatchByID :one
+SELECT id, role_id, candidate_id, overall_score, confidence, breakdown, rationale, watch_outs, thin_evidence_flag, created_at
+FROM matches WHERE id = $1
+`
+
+func (q *Queries) MatchByID(ctx context.Context, id string) (Match, error) {
+	row := q.db.QueryRow(ctx, matchByID, id)
+	var i Match
+	err := row.Scan(
+		&i.ID,
+		&i.RoleID,
+		&i.CandidateID,
+		&i.OverallScore,
+		&i.Confidence,
+		&i.Breakdown,
+		&i.Rationale,
+		&i.WatchOuts,
+		&i.ThinEvidenceFlag,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const upsertMatch = `-- name: UpsertMatch :exec
 INSERT INTO matches (id, role_id, candidate_id, overall_score, confidence, breakdown, rationale, watch_outs, thin_evidence_flag, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
