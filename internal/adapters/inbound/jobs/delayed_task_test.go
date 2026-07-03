@@ -48,18 +48,6 @@ func TestDelayedTaskFiresOnTime(t *testing.T) {
 		Logger:                   noopAsynqLogger{},
 	})
 
-	done := make(chan error, 1)
-	go func() { done <- srv.Start(mux) }()
-	t.Cleanup(func() {
-		srv.Stop()
-		select {
-		case err := <-done:
-			require.NoError(t, err)
-		case <-time.After(5 * time.Second):
-			t.Fatal("server did not stop")
-		}
-	})
-
 	payload, err := jobs.EncodeHealthcheckPayload(jobs.HealthcheckPayload{Probe: "delayed"})
 	require.NoError(t, err)
 
@@ -77,6 +65,7 @@ func TestDelayedTaskFiresOnTime(t *testing.T) {
 
 	// Confirm the task is sitting in the scheduled queue before it is due.
 	inspector := asynq.NewInspector(redisOpt)
+	defer func() { _ = inspector.Close() }()
 	scheduled, err := inspector.ListScheduledTasks("default", asynq.PageSize(10))
 	require.NoError(t, err)
 	require.Len(t, scheduled, 1)
@@ -84,6 +73,18 @@ func TestDelayedTaskFiresOnTime(t *testing.T) {
 
 	// Fast-forward Redis time so the delayed task becomes due deterministically.
 	redis.FastForward(delay + 100*time.Millisecond)
+
+	done := make(chan error, 1)
+	go func() { done <- srv.Start(mux) }()
+	t.Cleanup(func() {
+		srv.Stop()
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("server did not stop")
+		}
+	})
 
 	select {
 	case probe := <-processed:
