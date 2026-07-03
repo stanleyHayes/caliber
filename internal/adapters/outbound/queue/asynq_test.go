@@ -2,6 +2,7 @@ package queue_test
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -45,6 +46,26 @@ func TestDispatcherEnqueuesCandidateAgentRun(t *testing.T) {
 	taskID, err := d.DispatchCandidateAgentRun(context.Background(), kernel.NewID())
 	require.NoError(t, err)
 	assert.NotEmpty(t, taskID)
+}
+
+func TestDispatcherRedisDownReturnsClearError(t *testing.T) {
+	var lc net.ListenConfig
+	lis, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := lis.Addr().String()
+	require.NoError(t, lis.Close())
+
+	d, err := queue.NewDispatcher("redis://" + addr + "/0")
+	require.NoError(t, err)
+	defer func() { require.NoError(t, d.Close()) }()
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	_, err = d.DispatchCandidateAgentRun(ctx, kernel.NewID())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "queue: enqueue")
+	assert.Contains(t, err.Error(), string(appqueue.TypeCandidateAgentRun))
 }
 
 func TestDispatcherEnqueuesWithOptions(t *testing.T) {
