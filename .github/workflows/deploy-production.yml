@@ -1,0 +1,199 @@
+# CAL-148 — Production deploy with a QA approval gate.
+#
+# UNVERIFIED IN SANDBOX: this workflow, the GitHub Environment protection rules,
+# and the Render deploy hook cannot be exercised here. Validate it against
+# GitHub Actions' CURRENT schema (https://docs.github.com/actions) and Render's
+# current deploy-hook contract before relying on it. In particular, confirm the
+# action versions below are still the latest majors and that the "production"
+# Environment exists with the required-reviewer rule described in
+# docs/runbooks/production-deploy.md.
+#
+# What this does: promotes an already-built, staging-verified commit to the
+# Render PRODUCTION services behind a human approval gate. Approval is enforced
+# by a GitHub Environment named "production" whose protection rules require a
+# reviewer (the QA gate) — see docs/runbooks/production-deploy.md. The job that
+# references `environment: production` PAUSES until an authorized reviewer
+# approves in the GitHub UI; every approval/rejection is recorded in the
+# deployment's timeline, which is the audit trail for the promotion.
+#
+# Secrets/config live only in the platform secret store, never here
+# (docs/runbooks/secret-rotation.md, docs/environments.md). This workflow reads
+# exactly one repo/Environment secret: RENDER_PROD_DEPLOY_HOOK_URL (a Render
+# deploy-hook URL that redeploys the production API/worker/migrate services from
+# the current image — the same deploy/Dockerfile.{api,worker,migrate} images the
+# environments already run). Scope that secret to the "production" Environment so
+# it is only readable from an approved run.
+
+name: Deploy production
+
+on:
+  # Manual, deliberate promotion of a specific commit. `git_sha` lets an operator
+  # promote an exact staging-verified revision rather than whatever HEAD is.
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: "Commit SHA to promote (must be a merged, staging-verified main commit). Defaults to the ref this run was dispatched on."
+        required: false
+        type: string
+  # Optional: promote when a GitHub Release is published. The Environment gate
+  # still applies, so publishing a release does not bypass QA approval.
+  release:
+    types: [published]
+
+# Least privilege. `deployments: write` lets Actions record the deployment (and
+# thus the approval audit trail); `contents: write` is only needed by the
+# release-notes step when it publishes/updates a GitHub Release.
+permissions:
+  contents: write
+  deployments: write
+
+# Never run two production promotions at once, and never cancel one mid-flight.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # 1) Resolve and sanity-check the commit to promote BEFORE asking a human to
+  #    approve, so the reviewer approves a known-good, on-main revision.
+  resolve:
+    name: Resolve target commit
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.pick.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Pick target SHA
+        id: pick
+        env:
+          INPUT_SHA: ${{ github.event.inputs.git_sha }}
+        run: |
+          sha="${INPUT_SHA:-$GITHUB_SHA}"
+          # Full 40-char commit SHA required for an unambiguous, auditable target.
+          if ! git rev-parse --quiet --verify "${sha}^{commit}" >/dev/null; then
+            echo "::error::commit ${sha} not found in this repository" && exit 1
+          fi
+          full="$(git rev-parse "${sha}")"
+          # Refuse to promote a commit that is not on origin/main (CAL guardrail:
+          # only merged, CI-green main commits reach production).
+          if ! git merge-base --is-ancestor "${full}" origin/main; then
+            echo "::error::${full} is not an ancestor of origin/main — only merged main commits may be promoted" && exit 1
+          fi
+          echo "sha=${full}" >> "$GITHUB_OUTPUT"
+          echo "Resolved production target: ${full}"
+
+  # 2) THE GATE. This job declares `environment: production`; GitHub blocks it
+  #    until a required reviewer approves. Approval + who + when is captured in
+  #    the deployment timeline (the audit record). Only after approval does the
+  #    Render deploy hook fire.
+  deploy:
+    name: Approve & deploy to Render production
+    needs: resolve
+    runs-on: ubuntu-latest
+    # Required reviewers for this Environment are configured in repo Settings →
+    # Environments → production (documented in docs/runbooks/production-deploy.md).
+    # `url` surfaces the live site on the deployment record.
+    environment:
+      name: production
+      url: https://projectcaliber.app
+    steps:
+      - name: Confirm approved target
+        run: echo "Approved promotion of ${{ needs.resolve.outputs.sha }} to production."
+
+      - name: Trigger Render production deploy
+        env:
+          # Scope this secret to the "production" Environment (secret store only —
+          # see docs/runbooks/secret-rotation.md). It is a Render deploy-hook URL.
+          RENDER_PROD_DEPLOY_HOOK_URL: ${{ secrets.RENDER_PROD_DEPLOY_HOOK_URL }}
+          TARGET_SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          if [ -z "${RENDER_PROD_DEPLOY_HOOK_URL}" ]; then
+            echo "::error::RENDER_PROD_DEPLOY_HOOK_URL is not set for the production Environment" && exit 1
+          fi
+          # Render deploy hooks accept an optional ?ref=<sha> to pin the revision.
+          # Verify this parameter against Render's current deploy-hook docs before
+          # relying on it; without it Render deploys the service's tracked branch.
+          echo "Calling Render production deploy hook for ${TARGET_SHA} …"
+          code="$(curl -sS -o /tmp/render-deploy.out -w '%{http_code}' \
+            -X POST "${RENDER_PROD_DEPLOY_HOOK_URL}&ref=${TARGET_SHA}")"
+          echo "Render responded ${code}"
+          cat /tmp/render-deploy.out || true
+          case "${code}" in
+            2*) echo "Production deploy triggered." ;;
+            *)  echo "::error::Render deploy hook returned HTTP ${code}" && exit 1 ;;
+          esac
+
+      - name: Post-deploy note
+        # Health-gated rollout and automatic rollback are CAL-149; this job only
+        # triggers the deploy. Operators watch /readyz and Render's deploy status
+        # per docs/runbooks/production-deploy.md until CAL-149 automates it.
+        run: echo "Deploy hook accepted. Monitor Render + /readyz per the production-deploy runbook."
+
+  # 3) Auto-generate release notes for the promotion, so every production deploy
+  #    is documented (AC: release notes auto-generated). Runs only after a
+  #    successful, approved deploy.
+  release-notes:
+    name: Generate release notes
+    needs: [resolve, deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Build notes from the commit range since the last production tag
+        id: notes
+        env:
+          TARGET_SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          # Previous production marker = most recent prod-* tag (created below).
+          # First-ever run has no prior tag, so fall back to the full history.
+          prev="$(git describe --tags --match 'prod-*' --abbrev=0 "${TARGET_SHA}^" 2>/dev/null || true)"
+          if [ -n "${prev}" ]; then
+            range="${prev}..${TARGET_SHA}"
+            echo "Changes since ${prev}:"
+          else
+            range="${TARGET_SHA}"
+            echo "Changes up to ${TARGET_SHA} (no prior production tag):"
+          fi
+          {
+            echo "## Production deploy $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "**Commit:** \`${TARGET_SHA}\`"
+            echo ""
+            echo "### Changes"
+            git log --no-merges --pretty=format:'- %s (%h)' ${range} || true
+          } > release-notes.md
+          cat release-notes.md
+          # Expose the notes as a step output (multiline-safe).
+          {
+            echo "body<<__NOTES__"
+            cat release-notes.md
+            echo "__NOTES__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload release notes artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-release-notes
+          path: release-notes.md
+          retention-days: 90
+
+      # Tag this production revision and (optionally) publish a GitHub Release so
+      # the notes are permanently attached and the NEXT deploy's range starts here.
+      - name: Tag & publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_SHA: ${{ needs.resolve.outputs.sha }}
+          NOTES: ${{ steps.notes.outputs.body }}
+        run: |
+          tag="prod-$(date -u +%Y%m%d%H%M%S)"
+          # `gh release create --target <sha>` tags the exact promoted commit.
+          # Verify the gh CLI flags against the runner's current gh version.
+          gh release create "${tag}" \
+            --target "${TARGET_SHA}" \
+            --title "Production deploy ${tag}" \
+            --notes "${NOTES}" \
+          || echo "::warning::release creation failed (non-fatal); notes are still in the artifact above"

@@ -54,3 +54,5 @@ Use the `trace_id` to jump from a metric spike to the exact request:
 | [auth-rate-limit-spike.md](./auth-rate-limit-spike.md) | Sudden increase in 401/403/429 responses or `rate_limit_exceeded` logs |
 | [secret-rotation.md](./secret-rotation.md) | Secret inventory, rotation policy/procedure, and leaked-secret incident response |
 | [backup-restore.md](./backup-restore.md) | Postgres backup/restore, RPO/RTO targets, and the disaster-recovery restore drill |
+| [production-deploy.md](./production-deploy.md) | Gated/audited production promotion (GitHub `production` Environment approval + Render deploy) |
+| [deploy-rollback.md](./deploy-rollback.md) | Health-gated rollout, automatic + manual rollback, and DB migration (expand/contract) safety |

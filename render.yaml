@@ -1,0 +1,155 @@
+# =============================================================================
+# Project Caliber — Render Blueprint (Infrastructure as Code, CAL-150)
+#
+# Codifies the BACKEND only: managed Postgres (pgvector), a managed Key-Value
+# (Redis) store, and the `api` (web) + `worker` services built from the
+# existing deploy/Dockerfile.{api,worker}. The FRONTEND is deployed to Vercel
+# and is codified separately (CAL-152); local topology lives in
+# docker-compose.yml. See docs/infrastructure.md for the full map + apply steps.
+#
+# HONESTY / VALIDATION NOTE
+#   This file cannot be applied or validated inside the build sandbox. Render's
+#   Blueprint schema evolves; VALIDATE THIS AGAINST RENDER'S CURRENT BLUEPRINT
+#   SPEC (https://render.com/docs/blueprint-spec) before applying, and confirm
+#   the exact plan names/regions available to the account. Field names such as
+#   `databases[].postgresMajorVersion`, the pgvector extension enablement, and
+#   the Key-Value (Redis) block have changed names across Render revisions.
+#
+# SECRETS
+#   Real secrets are NEVER stored here. Values wired with `sync: false` are set
+#   once per environment in the Render dashboard / secret store and rotated per
+#   docs/runbooks/secret-rotation.md. The DB and Redis connection strings are
+#   injected by Render via fromDatabase / fromService and never hand-entered.
+#   Per-env value templates: .env.staging.example / .env.production.example;
+#   the full tunable list is .env.example; env topology is docs/environments.md.
+#
+# MIGRATIONS
+#   Schema migrations are NOT run by the api/worker at boot. They run as a
+#   pre-deploy step from deploy/Dockerfile.migrate (goose), which bakes in
+#   db/migrations and sets CALIBER_MIGRATIONS_DIR. This Blueprint declares that
+#   step via `preDeployCommand` on the api service (Render runs it against the
+#   about-to-be-deployed image before shifting traffic). If the account's plan
+#   does not support preDeploy, run the migrate image as an explicit CD step
+#   instead — see docs/infrastructure.md § Migrations.
+# =============================================================================
+
+databases:
+  # Managed Postgres with the pgvector extension (embeddings live here).
+  # NOTE: enabling pgvector may require a post-provision `CREATE EXTENSION vector`
+  # (our goose migrations already run `CREATE EXTENSION IF NOT EXISTS vector`, so
+  # the extension is created idempotently on first migrate). Confirm the chosen
+  # Postgres version ships pgvector on Render before applying.
+  - name: caliber-postgres
+    databaseName: caliber
+    user: caliber
+    plan: basic-256mb          # VALIDATE: pick a real current Render plan
+    postgresMajorVersion: "17" # matches pgvector/pgvector:pg17 used locally
+    region: oregon             # VALIDATE: keep DB + services in one region
+    ipAllowList: []            # empty = only Render internal network may connect
+
+services:
+  # ---------------------------------------------------------------------------
+  # Managed Key-Value (Redis) store — Asynq queue + rate-limit/cache backing.
+  # Render models Redis as a `redis` service type (a.k.a. "Key Value").
+  # ---------------------------------------------------------------------------
+  - type: redis
+    name: caliber-redis
+    plan: starter              # VALIDATE: pick a real current Render plan
+    region: oregon             # must match the DB + app services' region
+    ipAllowList: []            # empty = only Render internal network may connect
+    maxmemoryPolicy: noeviction # Asynq requires jobs are never evicted
+
+  # ---------------------------------------------------------------------------
+  # API (REST gateway + gRPC + health). Built from deploy/Dockerfile.api.
+  # /readyz and /healthz are served on the HTTP port (CALIBER_HTTP_ADDR).
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: caliber-api
+    runtime: image
+    region: oregon
+    plan: starter              # VALIDATE: pick a real current Render plan
+    dockerfilePath: ./deploy/Dockerfile.api
+    dockerContext: .
+    healthCheckPath: /readyz   # httpserver router.go: r.Get("/readyz", ...)
+    # Pre-deploy DB migration step (goose) using the migrate image's binary.
+    # VALIDATE: on Render, preDeployCommand runs inside the SERVICE image, which
+    # does not contain /migrate or db/migrations. If that is the case, drop this
+    # line and run deploy/Dockerfile.migrate as a separate CD job instead
+    # (docs/infrastructure.md § Migrations). Kept here to document the intent.
+    preDeployCommand: "/migrate up"
+    envVars:
+      - key: CALIBER_ENV
+        value: production
+      - key: CALIBER_LOG_LEVEL
+        value: info
+      # Render sets $PORT; the API's HTTP/health server must bind it.
+      - key: CALIBER_HTTP_ADDR
+        value: ":10000"        # VALIDATE against Render's injected $PORT
+      - key: CALIBER_GRPC_ADDR
+        value: ":9090"
+      # DB + Redis URLs are injected by Render — never hand-entered.
+      - key: CALIBER_DATABASE_URL
+        fromDatabase:
+          name: caliber-postgres
+          property: connectionString
+      - key: CALIBER_REDIS_URL
+        fromService:
+          type: redis
+          name: caliber-redis
+          property: connectionString
+      # Build/version correlation for traces + Report Card provenance. Render
+      # injects the deploy's commit SHA as the built-in RENDER_GIT_COMMIT env
+      # var automatically (Blueprint cannot interpolate it into another var, and
+      # fromService.property only exposes host/port/connectionString — not the
+      # commit). Set CALIBER_SERVICE_VERSION in the dashboard to RENDER_GIT_COMMIT
+      # if version correlation is needed, otherwise it defaults to "dev" in code.
+      # ---- Real secrets: set in the Render dashboard, never in the repo ----
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: CALIBER_JWT_SECRET
+        sync: false            # >=32 bytes, unique per env (secret-rotation.md)
+      - key: CALIBER_CORS_ORIGINS
+        sync: false            # e.g. https://projectcaliber.app (Vercel origin)
+
+  # ---------------------------------------------------------------------------
+  # Worker (Asynq consumer). Built from deploy/Dockerfile.worker. No inbound
+  # HTTP; exposes Prometheus metrics on CALIBER_WORKER_METRICS_ADDR (:8081).
+  # Modeled as a background worker (no public port / health check).
+  # ---------------------------------------------------------------------------
+  - type: worker
+    name: caliber-worker
+    runtime: image
+    region: oregon
+    plan: starter              # VALIDATE: pick a real current Render plan
+    dockerfilePath: ./deploy/Dockerfile.worker
+    dockerContext: .
+    envVars:
+      - key: CALIBER_ENV
+        value: production
+      - key: CALIBER_LOG_LEVEL
+        value: info
+      - key: CALIBER_WORKER_METRICS_ADDR
+        value: ":8081"
+      # Same managed DB + Redis as the api service (injected by Render).
+      - key: CALIBER_DATABASE_URL
+        fromDatabase:
+          name: caliber-postgres
+          property: connectionString
+      - key: CALIBER_REDIS_URL
+        fromService:
+          type: redis
+          name: caliber-redis
+          property: connectionString
+      # CALIBER_SERVICE_VERSION: Render injects RENDER_GIT_COMMIT automatically;
+      # set it in the dashboard if version correlation is needed (see api note).
+      # ---- Real secrets: set in the Render dashboard, never in the repo ----
+      # The worker runs the AI orchestration + retention sweep, so it needs the
+      # same model keys and JWT secret as the api. CORS is api-only.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: CALIBER_JWT_SECRET
+        sync: false

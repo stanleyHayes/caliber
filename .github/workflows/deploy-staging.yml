@@ -1,0 +1,180 @@
+# CAL-147 — Continuous deployment to the Render staging environment.
+#
+# VALIDATE BEFORE APPLYING: this workflow is infrastructure config that cannot
+# be exercised in the build sandbox. Confirm the referenced repo secrets exist
+# and that GitHub Actions' current schema/action versions still match before you
+# rely on it. See docs/environments.md (env topology) and
+# docs/runbooks/secret-rotation.md (where these secrets live).
+#
+# What it does: every push to `main` fires the Render staging deploy hook, then
+# waits for the freshly deployed API to report ready (/readyz) and runs a
+# lightweight post-deploy security check against the live staging URL. This is
+# the CD half of the pipeline; CI (build/test/lint/coverage/scan) already gates
+# the same commits in ci.yml, and the Render service definition itself is
+# codified as render.yaml (CAL-150 — Infrastructure as Code).
+#
+# Required repository secrets (set in the platform secret store, never in-repo —
+# see docs/runbooks/secret-rotation.md):
+#   RENDER_STAGING_DEPLOY_HOOK_URL  Render deploy-hook URL for the staging API
+#                                   service (embeds its own token; treat as a
+#                                   secret). Firing it redeploys staging from the
+#                                   current `main`, keeping "staging always
+#                                   reflects main" (the AC).
+# Required repository variable (non-secret, Settings → Variables):
+#   STAGING_BASE_URL                Public https base URL of the staging API,
+#                                   e.g. https://caliber-api-staging.onrender.com
+#                                   (documented as CALIBER_CORS_ORIGINS' peer in
+#                                   .env.staging.example).
+
+name: Deploy · Staging (Render)
+
+on:
+  push:
+    branches: [main]
+  # Manual re-deploy / re-verify without a new commit.
+  workflow_dispatch:
+
+# Least privilege: this workflow only reads the checked-out tree and talks to
+# Render/HTTP over the network. It needs no write scopes on the repo.
+permissions:
+  contents: read
+
+# Never run two staging deploys at once, and let a newer push supersede an
+# in-flight one so staging converges on the latest `main` rather than an older
+# commit finishing last.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Trigger Render staging deploy
+    runs-on: ubuntu-latest
+    # Publish the resolved base URL so downstream jobs interpolate it only inside
+    # env:, never directly into a shell command.
+    outputs:
+      base_url: ${{ steps.resolve.outputs.base_url }}
+    steps:
+      - name: Resolve staging base URL
+        id: resolve
+        env:
+          STAGING_BASE_URL: ${{ vars.STAGING_BASE_URL }}
+        run: |
+          if [ -z "${STAGING_BASE_URL}" ]; then
+            echo "::error::STAGING_BASE_URL repo variable is not set" >&2
+            exit 1
+          fi
+          # Strip any trailing slash so path concatenation is unambiguous.
+          base="${STAGING_BASE_URL%/}"
+          echo "base_url=${base}" >> "$GITHUB_OUTPUT"
+
+      - name: Fire Render deploy hook
+        env:
+          # The hook URL is untrusted-until-proven input from the secret store;
+          # keep it in env: so it is never inlined into the command text.
+          DEPLOY_HOOK_URL: ${{ secrets.RENDER_STAGING_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "${DEPLOY_HOOK_URL}" ]; then
+            echo "::error::RENDER_STAGING_DEPLOY_HOOK_URL secret is not set" >&2
+            exit 1
+          fi
+          # -f: fail (non-zero) on HTTP >= 400 so a rejected hook fails the job.
+          # -sS: quiet but still surface errors. Response body is Render's deploy
+          # metadata; we don't parse it here (readiness is verified below).
+          http_code=$(curl -fsS -o /dev/null -w '%{http_code}' \
+            -X POST "${DEPLOY_HOOK_URL}")
+          echo "Render deploy hook accepted (HTTP ${http_code})."
+
+  smoke-test:
+    name: Post-deploy smoke test (/readyz)
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for staging to report ready
+        env:
+          BASE_URL: ${{ needs.deploy.outputs.base_url }}
+          # Poll budget: Render pulls the image, runs migrate, then boots the API.
+          # 40 attempts * 15s = 10 minutes, comfortably covering a cold deploy.
+          MAX_ATTEMPTS: "40"
+          SLEEP_SECONDS: "15"
+        run: |
+          ready_url="${BASE_URL}/readyz"
+          echo "Polling ${ready_url} until the new build is ready..."
+          attempt=1
+          while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${ready_url}" || echo "000")
+            if [ "${code}" = "200" ]; then
+              echo "Staging is ready (HTTP 200 from /readyz) after ${attempt} attempt(s)."
+              exit 0
+            fi
+            echo "Attempt ${attempt}/${MAX_ATTEMPTS}: /readyz returned ${code}; retrying in ${SLEEP_SECONDS}s..."
+            attempt=$((attempt + 1))
+            sleep "${SLEEP_SECONDS}"
+          done
+          echo "::error::Staging did not become ready within the poll budget" >&2
+          exit 1
+
+      - name: Smoke-check liveness (/healthz)
+        env:
+          BASE_URL: ${{ needs.deploy.outputs.base_url }}
+        run: |
+          # /readyz already passed; confirm the plain liveness endpoint too so a
+          # readiness check that only probes dependencies can't mask a broken
+          # HTTP surface.
+          curl -fsS --max-time 10 -o /dev/null "${BASE_URL}/healthz"
+          echo "Liveness OK (HTTP 200 from /healthz)."
+
+  security-check:
+    name: Post-deploy security check
+    needs: [deploy, smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify TLS and baseline security headers
+        env:
+          BASE_URL: ${{ needs.deploy.outputs.base_url }}
+        run: |
+          # Lightweight, non-authenticated posture check against the live staging
+          # surface — complements (does not replace) the CI security stage in
+          # ci.yml (gitleaks / govulncheck / npm audit / Trivy image scans).
+
+          # 1) The base URL must be HTTPS — staging terminates TLS at the edge.
+          case "${BASE_URL}" in
+            https://*) : ;;
+            *) echo "::error::Staging base URL is not HTTPS: ${BASE_URL}" >&2; exit 1 ;;
+          esac
+
+          # 2) Fetch response headers from the health endpoint (no PII, always on).
+          headers_file="$(mktemp)"
+          curl -fsS --max-time 10 -D "${headers_file}" -o /dev/null "${BASE_URL}/healthz"
+
+          # Normalise header names to lower-case for case-insensitive matching.
+          lower_headers="$(tr '[:upper:]' '[:lower:]' < "${headers_file}")"
+
+          fail=0
+
+          # HSTS must be present in prod-like environments (edge/app set it).
+          if ! printf '%s' "${lower_headers}" | grep -q '^strict-transport-security:'; then
+            echo "::warning::Strict-Transport-Security header missing on /healthz"
+          fi
+
+          # These are set by the app's secureHeaders middleware; their absence
+          # signals a misconfigured or stale deploy.
+          for header in x-content-type-options x-frame-options; do
+            if ! printf '%s' "${lower_headers}" | grep -q "^${header}:"; then
+              echo "::error::Expected security header '${header}' missing on /healthz" >&2
+              fail=1
+            fi
+          done
+
+          # A server that leaks a stack/framework banner is a red flag; the app
+          # should not emit a revealing Server header.
+          if printf '%s' "${lower_headers}" | grep -Eq '^server:.*(go-http|golang|chi)'; then
+            echo "::error::Response leaks an implementation-revealing Server header" >&2
+            fail=1
+          fi
+
+          if [ "${fail}" -ne 0 ]; then
+            echo "::error::Post-deploy security check failed against ${BASE_URL}" >&2
+            exit 1
+          fi
+          echo "Post-deploy security check passed against ${BASE_URL}."
