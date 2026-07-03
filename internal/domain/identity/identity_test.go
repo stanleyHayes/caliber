@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -109,5 +110,11 @@ func TestNewUser(t *testing.T) {
 	}
 	if _, err := NewUser(em, RoleCandidate, "Ada", " ", now); err == nil {
 		t.Error("blank hash should fail")
+	}
+	if _, err := NewUser(em, RoleCandidate, strings.Repeat("a", MaxNameLen+1), "h", now); err == nil {
+		t.Errorf("name over %d chars should fail", MaxNameLen)
+	}
+	if _, err := NewUser(em, RoleCandidate, strings.Repeat("a", MaxNameLen), "h", now); err != nil {
+		t.Errorf("name at the %d-char limit should pass: %v", MaxNameLen, err)
 	}
 }

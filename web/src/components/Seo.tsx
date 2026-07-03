@@ -1,4 +1,5 @@
 import { SUPPORTED_LOCALES } from '../i18n/config';
+import { serializeJsonLd } from '../lib/jsonld';
 
 // Project's canonical production origin (no trailing slash). The POC has no live
 // domain yet; this documents intent and is overridden by a real host at deploy.
@@ -72,8 +73,10 @@ export function Seo({
       {jsonLd ? (
         <script
           type="application/ld+json"
-          // JSON-LD requires injecting a serialized, app-controlled object.
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          // JSON-LD must be injected as raw text; serializeJsonLd escapes any
+          // </script> / line-separator breakout so this can never become XSS,
+          // even if a dynamic value is ever added to the structured data (CAL-111).
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
         />
       ) : null}
     </>

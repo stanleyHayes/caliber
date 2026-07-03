@@ -35,6 +35,10 @@ func (s AccountStatus) String() string {
 // DefaultPasswordMinLength is the default minimum plaintext password length.
 const DefaultPasswordMinLength = 12
 
+// MaxNameLen bounds a user's display name (CAL-111): untrusted registration input
+// that is stored and rendered, so it is length-capped to prevent storage/UI abuse.
+const MaxNameLen = 200
+
 // PasswordPolicy validates plaintext passwords before they are hashed.
 type PasswordPolicy struct {
 	MinLength int
@@ -82,6 +86,9 @@ func NewUser(email Email, role Role, name, passwordHash string, createdAt time.T
 	}
 	if strings.TrimSpace(name) == "" {
 		return nil, kernel.Invalid("identity: name is required")
+	}
+	if len([]rune(name)) > MaxNameLen {
+		return nil, kernel.Invalidf("identity: name exceeds %d characters", MaxNameLen)
 	}
 	if strings.TrimSpace(passwordHash) == "" {
 		return nil, kernel.Invalid("identity: password hash is required")
