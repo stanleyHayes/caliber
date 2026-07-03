@@ -88,22 +88,23 @@ func NewGuarded(inner app.LLMClient, opts ...GuardOption) *Guarded {
 // Complete enforces the request budget, records injection telemetry, caps the
 // token budget, and delegates under the concurrency limit.
 func (g *Guarded) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResponse, error) {
-	if g.limiter != nil && !g.limiter.Allow() {
-		return app.LLMResponse{}, kernel.TooManyRequests("llm: request budget exceeded; retry later")
-	}
-	if g.budget != nil && !g.budget.WithinBudget() {
-		return app.LLMResponse{}, kernel.TooManyRequests("llm: cost budget exhausted; retry later")
-	}
-	g.reportInjection(req.Prompt)
-	g.recordGuardrailTrips(req)
-	req.MaxTokens = g.cappedTokens(req.MaxTokens)
-
-	release, err := g.acquire(ctx)
+	req, release, err := g.prepare(ctx, req)
 	if err != nil {
 		return app.LLMResponse{}, err
 	}
 	defer release()
 	return g.inner.Complete(ctx, req)
+}
+
+// Stream applies the same request budget, prompt guardrails, token cap, and
+// concurrency limit to provider streaming calls.
+func (g *Guarded) Stream(ctx context.Context, req app.LLMRequest, yield app.LLMStreamYield) error {
+	req, release, err := g.prepare(ctx, req)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return g.inner.Stream(ctx, req, yield)
 }
 
 // Warm applies the same budget and concurrency guardrails to the pre-warm call
@@ -121,6 +122,24 @@ func (g *Guarded) Warm(ctx context.Context) error {
 	}
 	defer release()
 	return g.inner.Warm(ctx)
+}
+
+func (g *Guarded) prepare(ctx context.Context, req app.LLMRequest) (app.LLMRequest, func(), error) {
+	if g.limiter != nil && !g.limiter.Allow() {
+		return app.LLMRequest{}, nil, kernel.TooManyRequests("llm: request budget exceeded; retry later")
+	}
+	if g.budget != nil && !g.budget.WithinBudget() {
+		return app.LLMRequest{}, nil, kernel.TooManyRequests("llm: cost budget exhausted; retry later")
+	}
+	g.reportInjection(req.Prompt)
+	g.recordGuardrailTrips(req)
+	req.MaxTokens = g.cappedTokens(req.MaxTokens)
+
+	release, err := g.acquire(ctx)
+	if err != nil {
+		return app.LLMRequest{}, nil, err
+	}
+	return req, release, nil
 }
 
 // reportInjection runs the advisory injection scan and hands any detected

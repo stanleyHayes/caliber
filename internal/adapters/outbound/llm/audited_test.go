@@ -18,10 +18,27 @@ type stubLLM struct {
 	resp    app.LLMResponse
 	err     error
 	warmErr error
+	stream  []string
 }
 
 func (s stubLLM) Complete(_ context.Context, _ app.LLMRequest) (app.LLMResponse, error) {
 	return s.resp, s.err
+}
+
+func (s stubLLM) Stream(_ context.Context, _ app.LLMRequest, yield app.LLMStreamYield) error {
+	if s.err != nil {
+		return s.err
+	}
+	chunks := s.stream
+	if len(chunks) == 0 {
+		chunks = []string{s.resp.Text}
+	}
+	for _, chunk := range chunks {
+		if err := yield(app.LLMStreamEvent{Text: chunk}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s stubLLM) Warm(_ context.Context) error { return s.warmErr }
@@ -58,6 +75,33 @@ func TestAudited_RecordsRedactedTraceOnSuccess(t *testing.T) {
 	assert.Equal(t, 7*time.Millisecond, snap[0].Latency)
 	assert.False(t, snap[0].Failed)
 	assert.Equal(t, start, snap[0].At)
+}
+
+func TestAudited_StreamRecordsRedactedTraceOnSuccess(t *testing.T) {
+	rec := llm.NewMemoryRecorder(8)
+	start := time.Unix(1700000000, 0)
+	clock := seqClock(start, start.Add(11*time.Millisecond))
+	a := llm.NewAudited(stubLLM{stream: []string{"hel", "lo"}}, rec, "claude-opus-4-8", clock)
+
+	var got string
+	err := a.Stream(context.Background(), app.LLMRequest{
+		Source: app.PromptRef{ID: "interview_question", Version: "v1"},
+		Prompt: "hello",
+	}, func(ev app.LLMStreamEvent) error {
+		got += ev.Text
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "hello", got)
+	snap := rec.Snapshot()
+	require.Len(t, snap, 1)
+	assert.Equal(t, "interview_question", snap[0].Operation)
+	assert.Equal(t, "claude-opus-4-8", snap[0].Model)
+	assert.Equal(t, 5, snap[0].PromptChars)
+	assert.Equal(t, 5, snap[0].ResponseChars)
+	assert.Equal(t, 11*time.Millisecond, snap[0].Latency)
+	assert.False(t, snap[0].Failed)
 }
 
 func TestAudited_RecordsFailureAndPropagates(t *testing.T) {

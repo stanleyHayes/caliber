@@ -27,6 +27,14 @@ func (s *sequencedLLM) Complete(_ context.Context, _ app.LLMRequest) (app.LLMRes
 
 func (s *sequencedLLM) Warm(_ context.Context) error { return nil }
 
+func (s *sequencedLLM) Stream(ctx context.Context, req app.LLMRequest, yield app.LLMStreamYield) error {
+	resp, err := s.Complete(ctx, req)
+	if err != nil {
+		return err
+	}
+	return yield(app.LLMStreamEvent(resp))
+}
+
 // TestAudited_PromptSourceSurvivesReAskLoop is the CAL-032 acceptance guard: the
 // prompt id+version must be recorded on EVERY model call, including the retries
 // app.DecodeJSON makes after a malformed reply. It wraps a stub whose first reply

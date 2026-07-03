@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -86,6 +87,66 @@ func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 		a.recorder.Record(rec)
 	}
 	return resp, err
+}
+
+// Stream delegates to the inner client and records a redacted streaming trace.
+// It accumulates response size only for telemetry; streamed content itself is
+// never logged.
+func (a *Audited) Stream(ctx context.Context, req app.LLMRequest, yield app.LLMStreamYield) error {
+	tracer := trace.SpanFromContext(ctx).TracerProvider().Tracer("github.com/xcreativs/caliber/internal/adapters/outbound/llm")
+	ctx, span := tracer.Start(ctx, "llm.stream")
+	defer span.End()
+
+	operation := req.Source.ID
+	if operation == "" {
+		operation = "unknown"
+	}
+	span.SetAttributes(
+		attribute.String("llm.operation", operation),
+		attribute.String("llm.model", a.model),
+		attribute.Bool("llm.expect_json", req.ExpectJSON),
+	)
+
+	start := a.now()
+	var response strings.Builder
+	err := a.inner.Stream(ctx, req, func(ev app.LLMStreamEvent) error {
+		response.WriteString(ev.Text)
+		return yield(ev)
+	})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		errortracking.Record(ctx, err, operation, "llm")
+	}
+	text := response.String()
+	span.SetAttributes(
+		attribute.Int("llm.prompt_chars", len(req.Prompt)),
+		attribute.Int("llm.response_chars", len(text)),
+		attribute.Bool("llm.failed", err != nil),
+		attribute.Bool("llm.stream", true),
+	)
+
+	if a.recorder != nil {
+		rec := app.AICallRecord{
+			Operation:     operation,
+			PromptID:      req.Source.ID,
+			PromptVersion: req.Source.Version,
+			Model:         a.model,
+			Latency:       a.now().Sub(start),
+			PromptChars:   len(req.Prompt),
+			ResponseChars: len(text),
+			Failed:        err != nil,
+			At:            start,
+		}
+		if err == nil && req.ExpectJSON && !app.IsValidJSON(text) {
+			rec.JSONFailure = true
+		}
+		if err == nil && app.LooksLikeRefusal(text) {
+			rec.Refusal = true
+		}
+		a.recorder.Record(rec)
+	}
+	return err
 }
 
 // Warm delegates to the inner client and records a redacted warm-up trace

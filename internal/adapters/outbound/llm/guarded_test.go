@@ -48,6 +48,14 @@ func (f *fakeLLM) Complete(_ context.Context, req app.LLMRequest) (app.LLMRespon
 	return app.LLMResponse{Text: "ok"}, nil
 }
 
+func (f *fakeLLM) Stream(ctx context.Context, req app.LLMRequest, yield app.LLMStreamYield) error {
+	resp, err := f.Complete(ctx, req)
+	if err != nil {
+		return err
+	}
+	return yield(app.LLMStreamEvent(resp))
+}
+
 func TestGuarded_CapsTokens(t *testing.T) {
 	inner := &fakeLLM{}
 	g := llm.NewGuarded(inner, llm.WithMaxTokens(100))
@@ -63,6 +71,21 @@ func TestGuarded_CapsTokens(t *testing.T) {
 	_, err = g.Complete(context.Background(), app.LLMRequest{Prompt: "hi", MaxTokens: 50})
 	require.NoError(t, err)
 	assert.Equal(t, 50, inner.lastReq.MaxTokens, "a request under the cap is left alone")
+}
+
+func TestGuarded_StreamAppliesTokenCap(t *testing.T) {
+	inner := &fakeLLM{}
+	g := llm.NewGuarded(inner, llm.WithMaxTokens(100))
+
+	var got string
+	err := g.Stream(context.Background(), app.LLMRequest{Prompt: "hi", MaxTokens: 5000}, func(ev app.LLMStreamEvent) error {
+		got += ev.Text
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "ok", got)
+	assert.Equal(t, 100, inner.lastReq.MaxTokens)
 }
 
 type denyAll struct{}

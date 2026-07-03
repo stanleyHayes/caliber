@@ -70,14 +70,13 @@ func Run(
 	return RunWithOptions(ctx, cfg, log, svc, readiness, nil)
 }
 
-//nolint:ireturn // returns the chi router interface by design.
 func buildRouter(
 	mux *runtime.ServeMux,
 	cfg config.Config,
 	log *slog.Logger,
 	readiness []httpserver.ReadinessChecker,
 	runCfg runConfig,
-) chi.Router {
+) *chi.Mux {
 	r := httpserver.NewRouter(mux, cfg.IsProd(), cfg.AllowedOrigins, log, readiness...)
 	if runCfg.metrics != nil {
 		r.Get("/metrics", runCfg.metrics.ServeHTTP)

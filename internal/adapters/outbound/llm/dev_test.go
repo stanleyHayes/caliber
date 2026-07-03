@@ -38,6 +38,38 @@ func TestDevCompleteEmptyPrompt(t *testing.T) {
 	}
 }
 
+func TestDevStreamEmitsDeterministicResponse(t *testing.T) {
+	d := NewDev()
+	req := app.LLMRequest{Prompt: "Need a data engineer"}
+	complete, err := d.Complete(context.Background(), req)
+	require.NoError(t, err)
+
+	var got string
+	err = d.Stream(context.Background(), req, func(ev app.LLMStreamEvent) error {
+		assert.NotEmpty(t, ev.Text)
+		assert.LessOrEqual(t, len(ev.Text), 24)
+		got += ev.Text
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, complete.Text, got)
+}
+
+func TestDevStreamHonorsCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var called bool
+	err := NewDev().Stream(ctx, app.LLMRequest{Prompt: "Need a data engineer"}, func(app.LLMStreamEvent) error {
+		called = true
+		return nil
+	})
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.False(t, called)
+}
+
 func TestDevExtractGroundsCompetenciesInCV(t *testing.T) {
 	cv := "Senior engineer with Go, Postgres, and Kubernetes experience."
 	doc := devExtract(cv)

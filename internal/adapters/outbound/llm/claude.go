@@ -76,6 +76,39 @@ func (c *Claude) Warm(ctx context.Context) error {
 
 // Complete sends a single-turn message and returns the concatenated text blocks.
 func (c *Claude) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResponse, error) {
+	resp, err := c.client.Messages.New(ctx, c.params(req))
+	if err != nil {
+		return app.LLMResponse{}, err
+	}
+
+	var sb strings.Builder
+	for _, block := range resp.Content {
+		if t, ok := block.AsAny().(anthropic.TextBlock); ok {
+			sb.WriteString(t.Text)
+		}
+	}
+	return app.LLMResponse{Text: sb.String()}, nil
+}
+
+// Stream sends a single-turn message and yields text deltas as Anthropic emits
+// them. It respects context cancellation through the SDK stream and stops early
+// if yield returns an error, allowing inbound transports to apply backpressure.
+func (c *Claude) Stream(ctx context.Context, req app.LLMRequest, yield app.LLMStreamYield) error {
+	stream := c.client.Messages.NewStreaming(ctx, c.params(req))
+	defer func() { _ = stream.Close() }()
+	for stream.Next() {
+		if ev, ok := stream.Current().AsAny().(anthropic.ContentBlockDeltaEvent); ok {
+			if delta, ok := ev.Delta.AsAny().(anthropic.TextDelta); ok && delta.Text != "" {
+				if err := yield(app.LLMStreamEvent{Text: delta.Text}); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return stream.Err()
+}
+
+func (c *Claude) params(req app.LLMRequest) anthropic.MessageNewParams {
 	maxTokens := int64(req.MaxTokens)
 	if maxTokens <= 0 {
 		maxTokens = defaultMaxTokens
@@ -90,19 +123,7 @@ func (c *Claude) Complete(ctx context.Context, req app.LLMRequest) (app.LLMRespo
 	if req.System != "" {
 		params.System = []anthropic.TextBlockParam{{Text: req.System}}
 	}
-
-	resp, err := c.client.Messages.New(ctx, params)
-	if err != nil {
-		return app.LLMResponse{}, err
-	}
-
-	var sb strings.Builder
-	for _, block := range resp.Content {
-		if t, ok := block.AsAny().(anthropic.TextBlock); ok {
-			sb.WriteString(t.Text)
-		}
-	}
-	return app.LLMResponse{Text: sb.String()}, nil
+	return params
 }
 
 var _ app.LLMClient = (*Claude)(nil)

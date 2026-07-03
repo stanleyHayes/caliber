@@ -54,6 +54,29 @@ func (d *Dev) Complete(_ context.Context, req app.LLMRequest) (app.LLMResponse, 
 	return app.LLMResponse{Text: string(b)}, nil
 }
 
+// Stream emits the deterministic dev response in small chunks so the local/demo
+// path exercises the same provider-agnostic streaming port as Claude.
+func (d *Dev) Stream(ctx context.Context, req app.LLMRequest, yield app.LLMStreamYield) error {
+	resp, err := d.Complete(ctx, req)
+	if err != nil {
+		return err
+	}
+	const chunkSize = 24
+	for len(resp.Text) > 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		n := min(chunkSize, len(resp.Text))
+		if err := yield(app.LLMStreamEvent{Text: resp.Text[:n]}); err != nil {
+			return err
+		}
+		resp.Text = resp.Text[n:]
+	}
+	return nil
+}
+
 func devRoleSpec(prompt string) map[string]any {
 	title := roleTitleFromPrompt(prompt)
 	if title == "" {

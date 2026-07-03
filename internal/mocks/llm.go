@@ -56,6 +56,20 @@ func (mr *MockLLMClientMockRecorder) Complete(ctx, req any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Complete", reflect.TypeOf((*MockLLMClient)(nil).Complete), ctx, req)
 }
 
+// Stream mocks base method.
+func (m *MockLLMClient) Stream(ctx context.Context, req app.LLMRequest, yield app.LLMStreamYield) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Stream", ctx, req, yield)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Stream indicates an expected call of Stream.
+func (mr *MockLLMClientMockRecorder) Stream(ctx, req, yield any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockLLMClient)(nil).Stream), ctx, req, yield)
+}
+
 // Warm mocks base method.
 func (m *MockLLMClient) Warm(ctx context.Context) error {
 	m.ctrl.T.Helper()

@@ -38,6 +38,14 @@ func (s *scriptedLLM) Complete(_ context.Context, req app.LLMRequest) (app.LLMRe
 
 func (s *scriptedLLM) Warm(_ context.Context) error { return nil }
 
+func (s *scriptedLLM) Stream(ctx context.Context, req app.LLMRequest, yield app.LLMStreamYield) error {
+	resp, err := s.Complete(ctx, req)
+	if err != nil {
+		return err
+	}
+	return yield(app.LLMStreamEvent(resp))
+}
+
 type payload struct {
 	Name string `json:"name"`
 }
