@@ -60,7 +60,13 @@ func run() error {
 		return err
 	}
 	if missing := cfg.Validate(); len(missing) > 0 {
+		if cfg.IsProd() {
+			return fmt.Errorf("missing required configuration in production: %v", missing)
+		}
 		log.Warn("missing configuration", "missing", missing, "env", cfg.Env)
+	}
+	if issues := cfg.ProdSafetyIssues(); len(issues) > 0 {
+		return fmt.Errorf("unsafe production configuration: %v", issues)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

@@ -52,6 +52,9 @@ func run() error {
 		}
 		log.Warn("missing configuration", "missing", missing, "env", cfg.Env)
 	}
+	if issues := cfg.ProdSafetyIssues(); len(issues) > 0 {
+		return fmt.Errorf("unsafe production configuration: %v", issues)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

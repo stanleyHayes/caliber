@@ -171,6 +171,43 @@ func loadLokiConfig(c *Config) {
 // IsProd reports whether the process runs in a production-like environment.
 func (c Config) IsProd() bool { return strings.EqualFold(c.Env, "prod") }
 
+// ProdSafetyIssues reports configuration that is present but must never run in
+// production — dev/local endpoints promoted from a lower environment, which would
+// be a data-integrity or security risk. It is empty outside production, and is a
+// distinct check from Validate (missing settings): here the values exist but are
+// unsafe (CAL-146 — environment parity, no dev config or shared endpoints in prod).
+func (c Config) ProdSafetyIssues() []string {
+	if !c.IsProd() {
+		return nil
+	}
+	var issues []string
+	if hostIsLocal(c.DatabaseURL) {
+		issues = append(issues, "CALIBER_DATABASE_URL points at a local endpoint")
+	}
+	if hostIsLocal(c.RedisURL) {
+		issues = append(issues, "CALIBER_REDIS_URL points at a local endpoint")
+	}
+	return issues
+}
+
+// hostIsLocal reports whether a URL/DSN targets the local machine — a dev endpoint
+// that must not be used in production.
+func hostIsLocal(raw string) bool {
+	if raw == "" {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1", "0.0.0.0":
+		return true
+	default:
+		return false
+	}
+}
+
 // Validate returns the names of required-but-missing settings for the given
 // environment. Callers decide whether to fail hard (prod) or warn (dev).
 func (c Config) Validate() []string {
