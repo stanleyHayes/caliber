@@ -2,6 +2,7 @@ package roles_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -40,6 +41,45 @@ func TestSpecEditorUpdateReweights(t *testing.T) {
 	require.Len(t, out.Rubric.Competencies, 2)
 	assert.InDelta(t, 0.75, out.Rubric.Competencies[0].Weight, 0.01, "re-weighting normalized to sum 1.0")
 	assert.InDelta(t, 0.25, out.Rubric.Competencies[1].Weight, 0.01)
+}
+
+func TestSpecEditorUpdateRefreshesEmbedding(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := mocks.NewMockRoleRepository(ctrl)
+	embedder := mocks.NewMockEmbedder(ctrl)
+	r := sampleRole(t)
+	repo.EXPECT().ByID(gomock.Any(), r.ID).Return(r, nil)
+	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, text string) ([]float32, error) {
+		assert.Contains(t, text, "Staff Engineer")
+		return []float32{0.3, 0.9}, nil
+	})
+	var updated *role.Role
+	repo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, r *role.Role) error {
+		updated = r
+		return nil
+	})
+
+	out, err := roles.NewSpecEditor(repo, roles.WithEditorEmbedder(embedder)).
+		Update(context.Background(), r.ID,
+			role.RoleSpec{Title: "Staff Engineer", Location: "Accra", Seniority: role.SenioritySenior},
+			r.Rubric)
+	require.NoError(t, err)
+	assert.Equal(t, []float32{0.3, 0.9}, out.Embedding)
+	require.NotNil(t, updated)
+	assert.Equal(t, []float32{0.3, 0.9}, updated.Embedding)
+}
+
+func TestSpecEditorEmbeddingErrorStopsBeforeUpdate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := mocks.NewMockRoleRepository(ctrl)
+	embedder := mocks.NewMockEmbedder(ctrl)
+	r := sampleRole(t)
+	repo.EXPECT().ByID(gomock.Any(), r.ID).Return(r, nil)
+	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return(nil, errors.New("embed down"))
+
+	_, err := roles.NewSpecEditor(repo, roles.WithEditorEmbedder(embedder)).
+		Update(context.Background(), r.ID, r.Spec, r.Rubric)
+	require.Error(t, err)
 }
 
 func TestSpecEditorUpdateRejectsInvalidSpec(t *testing.T) {

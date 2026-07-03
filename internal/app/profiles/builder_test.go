@@ -2,6 +2,7 @@ package profiles_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -47,6 +48,57 @@ func TestCreateFromCVCreatesProfileAndMergesIntake(t *testing.T) {
 	require.NotNil(t, updatedCand)
 	assert.Equal(t, "Accra", updatedCand.Location, "intake location merged into the candidate")
 	assert.InDelta(t, 9000.0, updatedCand.Intake.SalaryFloor, 0.01)
+}
+
+func TestCreateFromCVEmbedsEvidencedProfileBeforeCreate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	llm := mocks.NewMockLLMClient(ctrl)
+	embedder := mocks.NewMockEmbedder(ctrl)
+	cid := kernel.NewID()
+	cand, err := talent.NewCandidate(kernel.NewID(), "", talent.CandidateIntake{})
+	require.NoError(t, err)
+
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: extractJSON}, nil)
+	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, text string) ([]float32, error) {
+		assert.Contains(t, text, "Go")
+		assert.Contains(t, text, "built services in Go")
+		assert.NotContains(t, text, "Senior engineer.", "profile recall embedding must not include free-text summary")
+		return []float32{0.4, 0.8}, nil
+	})
+	candidates.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(nil, kernel.NotFound("none"))
+	var created *talent.TalentProfile
+	profiles.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, p *talent.TalentProfile) error { created = p; return nil })
+
+	out, err := profilesapp.NewProfileBuilder(candidates, profiles, llm, profilesapp.WithEmbedder(embedder)).
+		CreateFromCV(context.Background(), cid, "I built services in Go", talent.CandidateIntake{})
+	require.NoError(t, err)
+	assert.Equal(t, []float32{0.4, 0.8}, out.Embedding)
+	require.NotNil(t, created)
+	assert.Equal(t, []float32{0.4, 0.8}, created.Embedding)
+}
+
+func TestCreateFromCVEmbeddingErrorStopsBeforeMerge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	llm := mocks.NewMockLLMClient(ctrl)
+	embedder := mocks.NewMockEmbedder(ctrl)
+	cid := kernel.NewID()
+	cand, err := talent.NewCandidate(kernel.NewID(), "", talent.CandidateIntake{})
+	require.NoError(t, err)
+
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: extractJSON}, nil)
+	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return(nil, errors.New("embed down"))
+
+	_, err = profilesapp.NewProfileBuilder(candidates, profiles, llm, profilesapp.WithEmbedder(embedder)).
+		CreateFromCV(context.Background(), cid, "I built services in Go", talent.CandidateIntake{Location: "Accra"})
+	require.Error(t, err)
 }
 
 func TestCreateFromCVRejectsOversizedText(t *testing.T) {
@@ -97,6 +149,7 @@ func TestCreateFromCVUpdatesExistingProfile(t *testing.T) {
 	candidates := mocks.NewMockCandidateRepository(ctrl)
 	profiles := mocks.NewMockTalentProfileRepository(ctrl)
 	llm := mocks.NewMockLLMClient(ctrl)
+	embedder := mocks.NewMockEmbedder(ctrl)
 	cid := kernel.NewID()
 	cand, err := talent.NewCandidate(kernel.NewID(), "", talent.CandidateIntake{})
 	require.NoError(t, err)
@@ -106,6 +159,7 @@ func TestCreateFromCVUpdatesExistingProfile(t *testing.T) {
 
 	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
 	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: extractJSON}, nil)
+	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return([]float32{0.6, 0.1}, nil)
 	candidates.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 	// A profile already exists -> the upsert takes the update branch, not Create.
 	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(existing, nil)
@@ -113,12 +167,13 @@ func TestCreateFromCVUpdatesExistingProfile(t *testing.T) {
 	profiles.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, p *talent.TalentProfile) error { updated = p; return nil })
 
-	out, err := profilesapp.NewProfileBuilder(candidates, profiles, llm).
+	out, err := profilesapp.NewProfileBuilder(candidates, profiles, llm, profilesapp.WithEmbedder(embedder)).
 		CreateFromCV(context.Background(), cid, "I built services in Go", talent.CandidateIntake{})
 	require.NoError(t, err)
 	require.NotNil(t, updated)
 	assert.Same(t, existing, out, "the existing profile record is updated in place, not replaced")
 	assert.Equal(t, "Senior engineer.", out.Summary, "summary is refreshed from the new extraction")
+	assert.Equal(t, []float32{0.6, 0.1}, out.Embedding, "embedding is refreshed alongside the profile")
 	require.Len(t, out.Competencies, 1)
 	assert.Equal(t, "Go", out.Competencies[0].Name, "competencies are replaced, the stale COBOL entry is gone")
 }

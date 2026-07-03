@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -19,17 +20,15 @@ import (
 // baselineHours is the manual "weeks to shortlist" reference (3 working weeks).
 const baselineHours = 504.0
 
-// demoCurrentHours is the platform's representative time-to-shortlist for the
-// closing headline (weeks -> hours). It is a demo constant until per-role
-// timing is tracked (CAL-079).
-const demoCurrentHours = 2.0
-
 // Two-way alert tuning. A pair must clear this fit to be alert-worthy; the scans
 // bound how much of the open-role set and candidate pool a single feed builds.
 const (
-	strongFitThreshold = 0.7
-	alertRoleScanLimit = 50
-	alertCandidateScan = 200
+	strongFitThreshold           = 0.7
+	alertRoleScanLimit           = 50
+	alertCandidateScan           = 200
+	timeToShortlistRoleScanLimit = 50
+	fallbackCurrentHours         = 2.0
+	minCurrentHours              = 1.0
 )
 
 // Two-way match alert type identifiers (CAL-078).
@@ -77,6 +76,7 @@ type Aggregator struct {
 	profiles   talent.TalentProfileRepository
 	users      identity.UserRepository
 	roles      role.RoleRepository
+	matches    matchingdom.MatchRepository
 }
 
 // NewAggregator wires the read-model use-case.
@@ -85,8 +85,13 @@ func NewAggregator(
 	profiles talent.TalentProfileRepository,
 	users identity.UserRepository,
 	roles role.RoleRepository,
+	matches ...matchingdom.MatchRepository,
 ) *Aggregator {
-	return &Aggregator{candidates: candidates, profiles: profiles, users: users, roles: roles}
+	var matchRepo matchingdom.MatchRepository
+	if len(matches) > 0 {
+		matchRepo = matches[0]
+	}
+	return &Aggregator{candidates: candidates, profiles: profiles, users: users, roles: roles, matches: matchRepo}
 }
 
 // Pool returns a paginated, enriched view of the candidate pool. Per-candidate
@@ -264,10 +269,67 @@ func pageAlerts(all []MatchAlert, page kernel.Page) []MatchAlert {
 	return all[start:end]
 }
 
-// TimeToShortlist returns the headline weeks-to-hours metric.
-func (a *Aggregator) TimeToShortlist(_ context.Context) TimeToShortlist {
-	current := demoCurrentHours
+// TimeToShortlist returns the headline weeks-to-hours metric. When shortlist
+// timing data exists, it is averaged from role creation to the first persisted
+// match for each role; otherwise the demo fallback keeps the dashboard usable.
+func (a *Aggregator) TimeToShortlist(ctx context.Context) TimeToShortlist {
+	current := a.computedTimeToShortlistHours(ctx)
+	if current <= 0 {
+		current = fallbackCurrentHours
+	}
 	return TimeToShortlist{BaselineHours: baselineHours, CurrentHours: current, ImprovementFactor: baselineHours / current}
+}
+
+func (a *Aggregator) computedTimeToShortlistHours(ctx context.Context) float64 {
+	if a.matches == nil {
+		return 0
+	}
+	open, _, err := a.roles.ListOpen(ctx, kernel.NewPage(1, timeToShortlistRoleScanLimit))
+	if err != nil {
+		return 0
+	}
+	var total float64
+	var counted int
+	for _, rl := range open {
+		firstMatchAt, ok := a.firstMatchCreatedAt(ctx, rl.ID)
+		if !ok || rl.CreatedAt.IsZero() || firstMatchAt.Before(rl.CreatedAt) {
+			continue
+		}
+		total += firstMatchAt.Sub(rl.CreatedAt).Hours()
+		counted++
+	}
+	if counted == 0 {
+		return 0
+	}
+	current := total / float64(counted)
+	if current < minCurrentHours {
+		return minCurrentHours
+	}
+	return current
+}
+
+func (a *Aggregator) firstMatchCreatedAt(ctx context.Context, roleID kernel.ID) (time.Time, bool) {
+	page := kernel.NewPage(1, kernel.MaxPageSize)
+	var first time.Time
+	for {
+		matches, total, err := a.matches.ByRole(ctx, roleID, page)
+		if err != nil {
+			return time.Time{}, false
+		}
+		for _, m := range matches {
+			if m.CreatedAt.IsZero() {
+				continue
+			}
+			if first.IsZero() || m.CreatedAt.Before(first) {
+				first = m.CreatedAt
+			}
+		}
+		if len(matches) == 0 || int64(page.Offset()+len(matches)) >= total {
+			break
+		}
+		page = kernel.NewPage(page.Number+1, kernel.MaxPageSize)
+	}
+	return first, !first.IsZero()
 }
 
 // headlineScore is the mean verified competency level normalized to 0..1.

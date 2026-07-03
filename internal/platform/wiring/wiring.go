@@ -172,8 +172,9 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 	// for seeding: we are generating fixtures, not serving user traffic, and
 	// the rate/concurrency guard would otherwise throttle a batch run.
 	seedLLM := newLLMProvider(cfg, log)
+	seedEmbedder := BuildEmbedder(cfg, log)
 	if cfg.SeedGenerated {
-		gen := seed.NewGenerator(authadapter.NewArgon2idHasher(), seedLLM, time.Now)
+		gen := seed.NewGenerator(authadapter.NewArgon2idHasher(), seedLLM, time.Now, seed.WithGeneratorEmbedder(seedEmbedder))
 		res, err := gen.Generate(ctx, seedRepos)
 		if err != nil {
 			return fmt.Errorf("generated demo seed: %w", err)
@@ -185,6 +186,7 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 	}
 
 	res, err := seed.Load(ctx, seedRepos, authadapter.NewArgon2idHasher(), time.Now(),
+		seed.WithEmbedder(seedEmbedder),
 		seed.WithPreRunInterviews(seedLLM),
 		seed.WithPreSeededAgentState(seedLLM, repos.Apps),
 	)

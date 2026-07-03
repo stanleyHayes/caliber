@@ -39,6 +39,12 @@ func mkRole(t *testing.T, emp kernel.ID, title string, ts time.Time) *role.Role 
 	return rl
 }
 
+func embeddingVector(hotIndex int) []float32 {
+	v := make([]float32, 1536)
+	v[hotIndex] = 1
+	return v
+}
+
 func TestRoleRepoCRUDAndPagination(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping testcontainers integration test in -short mode")
@@ -75,8 +81,12 @@ func TestRoleRepoCRUDAndPagination(t *testing.T) {
 	repo := pgrepo.NewRoleRepo(pool)
 
 	rl := mkRole(t, emp, "Engineer", time.Unix(1000, 0).UTC())
+	rl.Embedding = embeddingVector(0)
 	require.NoError(t, repo.Create(ctx, rl))
 	assert.Equal(t, kernel.KindConflict, kernel.KindOf(repo.Create(ctx, rl)), "duplicate create should conflict")
+	var hasEmbedding bool
+	require.NoError(t, pool.QueryRow(ctx, `SELECT role_embedding IS NOT NULL FROM roles WHERE id=$1`, rl.ID.String()).Scan(&hasEmbedding))
+	assert.True(t, hasEmbedding, "role embedding is populated on create")
 
 	got, err := repo.ByID(ctx, rl.ID)
 	require.NoError(t, err)
@@ -87,7 +97,10 @@ func TestRoleRepoCRUDAndPagination(t *testing.T) {
 	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
 
 	rl.Title = "Senior Engineer"
+	rl.Embedding = nil // status/spec-only updates must preserve the stored vector.
 	require.NoError(t, repo.Update(ctx, rl))
+	require.NoError(t, pool.QueryRow(ctx, `SELECT role_embedding IS NOT NULL FROM roles WHERE id=$1`, rl.ID.String()).Scan(&hasEmbedding))
+	assert.True(t, hasEmbedding, "role embedding is preserved when update has no fresh vector")
 	got, err = repo.ByID(ctx, rl.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Senior Engineer", got.Title)

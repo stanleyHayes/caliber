@@ -1,6 +1,7 @@
 package role
 
 import (
+	"strings"
 	"time"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -28,6 +29,7 @@ type Role struct {
 	Status     RoleStatus
 	Spec       RoleSpec
 	Rubric     Rubric
+	Embedding  []float32
 	CreatedAt  time.Time
 }
 
@@ -79,4 +81,19 @@ func (r *Role) Revise(spec RoleSpec, rubric Rubric) error {
 	r.Rubric = rubric
 	r.Title = spec.Title
 	return nil
+}
+
+// EmbeddingText returns the bias-safe role text used for vector recall. It is
+// built only from the role spec fields that describe the work and requirements.
+func (r *Role) EmbeddingText() string {
+	return r.Spec.EmbeddingText()
+}
+
+// EmbeddingText returns the canonical text embedded for a role spec.
+func (s RoleSpec) EmbeddingText() string {
+	parts := make([]string, 0, 2+len(s.Responsibilities)+len(s.MustHaves))
+	parts = append(parts, s.Title, s.Location)
+	parts = append(parts, s.Responsibilities...)
+	parts = append(parts, s.MustHaves...)
+	return strings.Join(parts, " ")
 }

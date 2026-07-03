@@ -20,14 +20,27 @@ const MaxFreeTextLen = 8000
 
 // SpecGenerator turns a free-text hiring need into a structured, persisted Role.
 type SpecGenerator struct {
-	llm   app.LLMClient
-	roles role.RoleRepository
-	now   app.Clock
+	llm      app.LLMClient
+	roles    role.RoleRepository
+	embedder app.Embedder
+	now      app.Clock
+}
+
+// SpecGeneratorOption configures the role-spec generator.
+type SpecGeneratorOption func(*SpecGenerator)
+
+// WithEmbedder enables role-spec embedding before persistence.
+func WithEmbedder(embedder app.Embedder) SpecGeneratorOption {
+	return func(g *SpecGenerator) { g.embedder = embedder }
 }
 
 // NewSpecGenerator wires the use-case.
-func NewSpecGenerator(llm app.LLMClient, repo role.RoleRepository, now app.Clock) *SpecGenerator {
-	return &SpecGenerator{llm: llm, roles: repo, now: now}
+func NewSpecGenerator(llm app.LLMClient, repo role.RoleRepository, now app.Clock, opts ...SpecGeneratorOption) *SpecGenerator {
+	g := &SpecGenerator{llm: llm, roles: repo, now: now}
+	for _, opt := range opts {
+		opt(g)
+	}
+	return g
 }
 
 type llmRoleSpec struct {
@@ -77,10 +90,25 @@ func (g *SpecGenerator) Generate(ctx context.Context, employerID kernel.ID, free
 	if err != nil {
 		return nil, err
 	}
+	if err := g.embed(ctx, r); err != nil {
+		return nil, err
+	}
 	if err := g.roles.Create(ctx, r); err != nil {
 		return nil, err
 	}
 	return r, nil
+}
+
+func (g *SpecGenerator) embed(ctx context.Context, r *role.Role) error {
+	if g.embedder == nil {
+		return nil
+	}
+	embedding, err := g.embedder.Embed(ctx, r.EmbeddingText())
+	if err != nil {
+		return err
+	}
+	r.Embedding = cloneEmbedding(embedding)
+	return nil
 }
 
 func toDomain(p llmRoleSpec) (role.RoleSpec, role.Rubric) {
@@ -107,4 +135,13 @@ func toDomain(p llmRoleSpec) (role.RoleSpec, role.Rubric) {
 		comps = append(comps, role.Competency{Name: guard.Sanitize(c.Name), Weight: c.Weight, MustHave: c.MustHave})
 	}
 	return spec, role.Rubric{Competencies: comps}.Normalize()
+}
+
+func cloneEmbedding(v []float32) []float32 {
+	if len(v) == 0 {
+		return nil
+	}
+	out := make([]float32, len(v))
+	copy(out, v)
+	return out
 }

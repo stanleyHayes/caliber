@@ -101,7 +101,7 @@ func TestFullDryRunAcceptanceSweep(t *testing.T) {
 		candidateagentapp.WithWakeUpInsights(interviewRepo, matchRepo),
 		candidateagentapp.WithAuditTrail(auditRepo, time.Now))
 	agentSrv := NewAgentServer(agentRunner, appsRepo, nil)
-	dashboardSrv := NewDashboardServer(dashboardapp.NewAggregator(candRepo, profRepo, users, roleRepo))
+	dashboardSrv := NewDashboardServer(dashboardapp.NewAggregator(candRepo, profRepo, users, roleRepo, matchRepo))
 	auditSrv := NewAuditServer(auditRepo)
 
 	employerCtx := asEmployer(ctx, empUser.ID)

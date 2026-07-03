@@ -12,6 +12,7 @@ import (
 	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
@@ -27,6 +28,7 @@ func TestTalentRadarEndToEnd(t *testing.T) {
 	candRepo := memory.NewCandidateRepo()
 	profRepo := memory.NewTalentProfileRepo()
 	roleRepo := memory.NewRoleRepo()
+	matchRepo := memory.NewMatchRepo()
 
 	// A candidate (Ama) with a verified Go/SQL profile in Accra.
 	email, err := identity.NewEmail("ama@example.com")
@@ -45,15 +47,22 @@ func TestTalentRadarEndToEnd(t *testing.T) {
 	require.NoError(t, profRepo.Create(ctx, profile))
 
 	// An open role Ama is a strong fit for (drives a two-way alert).
+	roleCreatedAt := time.Unix(1700000000, 0)
 	rl, err := role.NewRole(kernel.NewID(),
 		role.RoleSpec{Title: "Backend Engineer", Location: "Accra", Seniority: role.SeniorityMid},
 		role.Rubric{Competencies: []role.Competency{{Name: "Go", Weight: 0.6, MustHave: true}, {Name: "SQL", Weight: 0.4}}},
-		time.Unix(1700000000, 0))
+		roleCreatedAt)
 	require.NoError(t, err)
 	require.NoError(t, rl.Open())
 	require.NoError(t, roleRepo.Create(ctx, rl))
+	match, err := matchingdom.NewMatch(rl.ID, cand.ID, 0.92, kernel.ConfidenceHigh,
+		[]matchingdom.MatchBreakdownItem{{Competency: "Go", Score: 5, Evidence: "led a payments platform"}},
+		"strong fit", nil, false)
+	require.NoError(t, err)
+	match.CreatedAt = roleCreatedAt.Add(2 * time.Hour)
+	require.NoError(t, matchRepo.Upsert(ctx, match))
 
-	srv := NewDashboardServer(dashboardapp.NewAggregator(candRepo, profRepo, users, roleRepo))
+	srv := NewDashboardServer(dashboardapp.NewAggregator(candRepo, profRepo, users, roleRepo, matchRepo))
 	page := &caliberv1.PageRequest{Page: 1, PageSize: 10}
 	// The Talent Radar is an employer/recruiter view (CAL-116).
 	reviewer := asRole(ctx, identity.RoleEmployer)
@@ -95,6 +104,7 @@ func TestTalentRadarEndToEnd(t *testing.T) {
 	require.NotNil(t, m)
 	assert.Positive(t, m.GetBaselineHours())
 	assert.Positive(t, m.GetCurrentHours())
+	assert.InDelta(t, 2.0, m.GetCurrentHours(), 0.01)
 	assert.Greater(t, m.GetBaselineHours(), m.GetCurrentHours(), "the platform is faster than the manual baseline")
 	assert.Greater(t, m.GetImprovementFactor(), 1.0)
 }

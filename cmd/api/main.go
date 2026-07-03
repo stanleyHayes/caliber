@@ -149,7 +149,7 @@ func buildServices(
 	if terr != nil {
 		return svc, cleanup, ready, aiRecorder, terr
 	}
-	wireApplicationServices(&svc, cfg, repos, model, auditRepo, dispatcher, matchServer, tokens)
+	wireApplicationServices(&svc, cfg, repos, model, cachedEmbedder, auditRepo, dispatcher, matchServer, tokens)
 	return svc, cleanup, ready, aiRecorder, nil
 }
 
@@ -158,6 +158,7 @@ func wireApplicationServices(
 	cfg config.Config,
 	repos wiring.Repositories,
 	model app.LLMClient,
+	embedder app.Embedder,
 	auditRepo audit.AuditRepository,
 	dispatcher appqueue.TaskDispatcher,
 	matchServer *grpcadapter.MatchServer,
@@ -175,8 +176,8 @@ func wireApplicationServices(
 	svc.EnableReflection = !cfg.IsProd()
 
 	svc.Role = grpcadapter.NewRoleServer(
-		roles.NewSpecGenerator(model, repos.Roles, time.Now),
-		roles.NewSpecEditor(repos.Roles),
+		roles.NewSpecGenerator(model, repos.Roles, time.Now, roles.WithEmbedder(embedder)),
+		roles.NewSpecEditor(repos.Roles, roles.WithEditorEmbedder(embedder)),
 		matchServer.AvailabilityCounter(),
 	)
 	svc.Interview = grpcadapter.NewInterviewServer(
@@ -184,7 +185,8 @@ func wireApplicationServices(
 			interviewdom.Config{MaxQuestions: cfg.InterviewMaxQuestions, MaxDuration: cfg.InterviewMaxDuration},
 			interviewapp.WithPassportUpdater(repos.Profiles)),
 	)
-	svc.Talent = grpcadapter.NewTalentServer(profilesapp.NewProfileBuilder(repos.Candidates, repos.Profiles, model))
+	svc.Talent = grpcadapter.NewTalentServer(
+		profilesapp.NewProfileBuilder(repos.Candidates, repos.Profiles, model, profilesapp.WithEmbedder(embedder)))
 	svc.Agent = grpcadapter.NewAgentServer(
 		candidateagentapp.NewAgentRunner(repos.Candidates, repos.Profiles, repos.Roles, repos.Apps, model,
 			candidateagentapp.WithAuditTrail(auditRepo, time.Now),
@@ -194,7 +196,7 @@ func wireApplicationServices(
 	)
 	svc.Dashboard = grpcadapter.NewDashboardServer(
 		dashboardapp.NewCachedAggregator(
-			dashboardapp.NewAggregator(repos.Candidates, repos.Profiles, repos.Users, repos.Roles),
+			dashboardapp.NewAggregator(repos.Candidates, repos.Profiles, repos.Users, repos.Roles, repos.Matches),
 			cfg.DashboardCacheTTL,
 			time.Now,
 		),

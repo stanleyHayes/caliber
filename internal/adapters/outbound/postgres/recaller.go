@@ -57,4 +57,11 @@ func vectorLiteral(v []float32) string {
 	return b.String()
 }
 
+func vectorLiteralOrEmpty(v []float32) string {
+	if len(v) == 0 {
+		return ""
+	}
+	return vectorLiteral(v)
+}
+
 var _ matchingapp.CandidateRecaller = (*Recaller)(nil)

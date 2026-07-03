@@ -119,6 +119,7 @@ func toDomainMatch(row sqlcdb.Match) (*matching.Match, error) {
 		Rationale:    row.Rationale.String,
 		WatchOuts:    watchOuts,
 		ThinEvidence: row.ThinEvidenceFlag,
+		CreatedAt:    row.CreatedAt.Time,
 	}, nil
 }
 

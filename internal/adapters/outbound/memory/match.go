@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
@@ -35,7 +36,15 @@ func matchKey(roleID, candidateID kernel.ID) string {
 func (r *MatchRepo) Upsert(_ context.Context, m *matchingdom.Match) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.byKey[matchKey(m.RoleID, m.CandidateID)] = *m
+	key := matchKey(m.RoleID, m.CandidateID)
+	cp := *m
+	if existing, ok := r.byKey[key]; ok && !existing.CreatedAt.IsZero() {
+		cp.CreatedAt = existing.CreatedAt
+	}
+	if cp.CreatedAt.IsZero() {
+		cp.CreatedAt = time.Now().UTC()
+	}
+	r.byKey[key] = cp
 	return nil
 }
 

@@ -27,11 +27,29 @@ type ProfileBuilder struct {
 	candidates talent.CandidateRepository
 	profiles   talent.TalentProfileRepository
 	llm        app.LLMClient
+	embedder   app.Embedder
+}
+
+// BuilderOption configures the profile builder.
+type BuilderOption func(*ProfileBuilder)
+
+// WithEmbedder enables profile embedding before persistence.
+func WithEmbedder(embedder app.Embedder) BuilderOption {
+	return func(b *ProfileBuilder) { b.embedder = embedder }
 }
 
 // NewProfileBuilder wires the use-case.
-func NewProfileBuilder(candidates talent.CandidateRepository, profiles talent.TalentProfileRepository, llm app.LLMClient) *ProfileBuilder {
-	return &ProfileBuilder{candidates: candidates, profiles: profiles, llm: llm}
+func NewProfileBuilder(
+	candidates talent.CandidateRepository,
+	profiles talent.TalentProfileRepository,
+	llm app.LLMClient,
+	opts ...BuilderOption,
+) *ProfileBuilder {
+	b := &ProfileBuilder{candidates: candidates, profiles: profiles, llm: llm}
+	for _, opt := range opts {
+		opt(b)
+	}
+	return b
 }
 
 type llmProfile struct {
@@ -80,6 +98,9 @@ func (b *ProfileBuilder) CreateFromCV(
 	if err != nil {
 		return nil, err
 	}
+	if err := b.embed(ctx, fresh); err != nil {
+		return nil, err
+	}
 
 	if err := b.mergeIntake(ctx, cand, intake); err != nil {
 		return nil, err
@@ -104,6 +125,7 @@ func (b *ProfileBuilder) upsert(ctx context.Context, candidateID kernel.ID, fres
 	if existing, err := b.profiles.ByCandidateID(ctx, candidateID); err == nil {
 		existing.Summary = fresh.Summary
 		existing.Competencies = fresh.Competencies
+		existing.Embedding = cloneEmbedding(fresh.Embedding)
 		if uerr := b.profiles.Update(ctx, existing); uerr != nil {
 			return nil, uerr
 		}
@@ -113,4 +135,29 @@ func (b *ProfileBuilder) upsert(ctx context.Context, candidateID kernel.ID, fres
 		return nil, err
 	}
 	return fresh, nil
+}
+
+func (b *ProfileBuilder) embed(ctx context.Context, profile *talent.TalentProfile) error {
+	if b.embedder == nil {
+		return nil
+	}
+	text := profile.EmbeddingText()
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+	embedding, err := b.embedder.Embed(ctx, text)
+	if err != nil {
+		return err
+	}
+	profile.Embedding = cloneEmbedding(embedding)
+	return nil
+}
+
+func cloneEmbedding(v []float32) []float32 {
+	if len(v) == 0 {
+		return nil
+	}
+	out := make([]float32, len(v))
+	copy(out, v)
+	return out
 }

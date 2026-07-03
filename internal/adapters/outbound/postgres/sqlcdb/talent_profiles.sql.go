@@ -23,8 +23,8 @@ func (q *Queries) CountTalentProfiles(ctx context.Context) (int64, error) {
 }
 
 const createTalentProfile = `-- name: CreateTalentProfile :exec
-INSERT INTO talent_profiles (id, candidate_id, summary, profile, passport_status)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO talent_profiles (id, candidate_id, summary, profile, profile_embedding, passport_status)
+VALUES ($1, $2, $3, $4, NULLIF($5, '')::vector, $6)
 `
 
 type CreateTalentProfileParams struct {
@@ -32,6 +32,7 @@ type CreateTalentProfileParams struct {
 	CandidateID    string
 	Summary        pgtype.Text
 	Profile        []byte
+	Column5        interface{}
 	PassportStatus string
 }
 
@@ -41,6 +42,7 @@ func (q *Queries) CreateTalentProfile(ctx context.Context, arg CreateTalentProfi
 		arg.CandidateID,
 		arg.Summary,
 		arg.Profile,
+		arg.Column5,
 		arg.PassportStatus,
 	)
 	return err
@@ -140,13 +142,19 @@ func (q *Queries) ListTalentProfiles(ctx context.Context, arg ListTalentProfiles
 }
 
 const updateTalentProfile = `-- name: UpdateTalentProfile :execrows
-UPDATE talent_profiles SET summary = $2, profile = $3, passport_status = $4 WHERE id = $1
+UPDATE talent_profiles
+SET summary = $2,
+    profile = $3,
+    profile_embedding = COALESCE(NULLIF($4, '')::vector, profile_embedding),
+    passport_status = $5
+WHERE id = $1
 `
 
 type UpdateTalentProfileParams struct {
 	ID             string
 	Summary        pgtype.Text
 	Profile        []byte
+	Column4        interface{}
 	PassportStatus string
 }
 
@@ -155,6 +163,7 @@ func (q *Queries) UpdateTalentProfile(ctx context.Context, arg UpdateTalentProfi
 		arg.ID,
 		arg.Summary,
 		arg.Profile,
+		arg.Column4,
 		arg.PassportStatus,
 	)
 	if err != nil {

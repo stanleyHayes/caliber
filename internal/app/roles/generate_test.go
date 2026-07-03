@@ -46,6 +46,45 @@ func TestGenerateHappyPath(t *testing.T) {
 	assert.Equal(t, r.ID, saved.ID)
 }
 
+func TestGenerateEmbedsRoleBeforeCreate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	llm := mocks.NewMockLLMClient(ctrl)
+	repo := mocks.NewMockRoleRepository(ctrl)
+	embedder := mocks.NewMockEmbedder(ctrl)
+
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: validSpecJSON}, nil)
+	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, text string) ([]float32, error) {
+		assert.Contains(t, text, "Backend Engineer")
+		assert.Contains(t, text, "Go")
+		return []float32{0.7, 0.2}, nil
+	})
+	var saved *role.Role
+	repo.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, r *role.Role) error {
+		saved = r
+		return nil
+	})
+
+	_, err := roles.NewSpecGenerator(llm, repo, fixedClock(), roles.WithEmbedder(embedder)).
+		Generate(context.Background(), kernel.NewID(), "senior Go engineer in Accra")
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	assert.Equal(t, []float32{0.7, 0.2}, saved.Embedding)
+}
+
+func TestGenerateEmbeddingErrorStopsBeforeCreate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	llm := mocks.NewMockLLMClient(ctrl)
+	repo := mocks.NewMockRoleRepository(ctrl)
+	embedder := mocks.NewMockEmbedder(ctrl)
+
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: validSpecJSON}, nil)
+	embedder.EXPECT().Embed(gomock.Any(), gomock.Any()).Return(nil, errors.New("embed down"))
+
+	_, err := roles.NewSpecGenerator(llm, repo, fixedClock(), roles.WithEmbedder(embedder)).
+		Generate(context.Background(), kernel.NewID(), "senior Go engineer in Accra")
+	require.Error(t, err)
+}
+
 func TestGenerateUnknownSeniorityDefaultsMid(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	llm := mocks.NewMockLLMClient(ctrl)

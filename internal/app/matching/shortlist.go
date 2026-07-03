@@ -286,11 +286,7 @@ func mustHaveNames(r role.Rubric) []string {
 }
 
 func roleText(rl *role.Role) string {
-	parts := make([]string, 0, 2+len(rl.Spec.Responsibilities)+len(rl.Spec.MustHaves))
-	parts = append(parts, rl.Spec.Title, rl.Spec.Location)
-	parts = append(parts, rl.Spec.Responsibilities...)
-	parts = append(parts, rl.Spec.MustHaves...)
-	return strings.Join(parts, " ")
+	return rl.EmbeddingText()
 }
 
 func scoringPrompt(rl *role.Role, p *talent.TalentProfile) string {

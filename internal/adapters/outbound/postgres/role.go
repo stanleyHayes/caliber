@@ -42,6 +42,7 @@ func (r *RoleRepo) Create(ctx context.Context, rl *role.Role) error {
 		RoleSpec:   spec,
 		Rubric:     rubric,
 		SalaryBand: band,
+		Column8:    vectorLiteralOrEmpty(rl.Embedding),
 		CreatedAt:  pgtype.Timestamptz{Time: rl.CreatedAt, Valid: true},
 	})
 	if isUniqueViolation(err) {
@@ -75,6 +76,7 @@ func (r *RoleRepo) Update(ctx context.Context, rl *role.Role) error {
 		RoleSpec:   spec,
 		Rubric:     rubric,
 		SalaryBand: band,
+		Column7:    vectorLiteralOrEmpty(rl.Embedding),
 	})
 	if err != nil {
 		return err

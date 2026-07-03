@@ -116,6 +116,7 @@ type TalentProfile struct { //nolint:revive // name fixed by domain spec (Talent
 	CandidateID    kernel.ID
 	Summary        string
 	Competencies   []ProfileCompetency
+	Embedding      []float32
 	PassportStatus PassportStatus
 }
 
@@ -155,4 +156,15 @@ func (p *TalentProfile) AddCompetency(c ProfileCompetency) error {
 	}
 	p.Competencies = append(p.Competencies, c)
 	return nil
+}
+
+// EmbeddingText returns the bias-safe profile text used for vector recall. It is
+// deliberately derived from evidenced competencies, not free-text summary fields
+// that may contain identity attributes unrelated to fit.
+func (p *TalentProfile) EmbeddingText() string {
+	parts := make([]string, 0, len(p.Competencies)*3)
+	for _, c := range p.Competencies {
+		parts = append(parts, c.Name, c.EvidenceQuote, c.SourceSpan)
+	}
+	return strings.Join(parts, " ")
 }

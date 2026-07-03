@@ -12,6 +12,7 @@ import (
 	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	matchingdom "github.com/xcreativs/caliber/internal/domain/matching"
 	"github.com/xcreativs/caliber/internal/domain/role"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	"github.com/xcreativs/caliber/internal/mocks"
@@ -22,6 +23,7 @@ type deps struct {
 	profiles   *mocks.MockTalentProfileRepository
 	users      *mocks.MockUserRepository
 	roles      *mocks.MockRoleRepository
+	matches    *mocks.MockMatchRepository
 }
 
 func newDeps(ctrl *gomock.Controller) deps {
@@ -30,11 +32,16 @@ func newDeps(ctrl *gomock.Controller) deps {
 		profiles:   mocks.NewMockTalentProfileRepository(ctrl),
 		users:      mocks.NewMockUserRepository(ctrl),
 		roles:      mocks.NewMockRoleRepository(ctrl),
+		matches:    mocks.NewMockMatchRepository(ctrl),
 	}
 }
 
 func (d deps) agg() *dashboardapp.Aggregator {
 	return dashboardapp.NewAggregator(d.candidates, d.profiles, d.users, d.roles)
+}
+
+func (d deps) aggWithMatches() *dashboardapp.Aggregator {
+	return dashboardapp.NewAggregator(d.candidates, d.profiles, d.users, d.roles, d.matches)
 }
 
 func TestPoolEnrichesCandidates(t *testing.T) {
@@ -107,6 +114,30 @@ func TestTimeToShortlist(t *testing.T) {
 	assert.InDelta(t, 504.0, m.BaselineHours, 0.01)
 	assert.Positive(t, m.CurrentHours)
 	assert.InDelta(t, m.BaselineHours/m.CurrentHours, m.ImprovementFactor, 0.01)
+}
+
+func TestTimeToShortlistComputesFromFirstRoleMatch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	base := time.Unix(1700000000, 0)
+	slow := openRole(t, role.SenioritySenior)
+	slow.CreatedAt = base
+	fast := openRole(t, role.SeniorityMid)
+	fast.CreatedAt = base.Add(time.Hour)
+
+	d.roles.EXPECT().ListOpen(gomock.Any(), gomock.Any()).Return([]*role.Role{slow, fast}, int64(2), nil)
+	d.matches.EXPECT().ByRole(gomock.Any(), slow.ID, gomock.Any()).Return([]*matchingdom.Match{
+		{RoleID: slow.ID, CandidateID: kernel.NewID(), CreatedAt: base.Add(4 * time.Hour)},
+		{RoleID: slow.ID, CandidateID: kernel.NewID(), CreatedAt: base.Add(3 * time.Hour)},
+	}, int64(2), nil)
+	d.matches.EXPECT().ByRole(gomock.Any(), fast.ID, gomock.Any()).Return([]*matchingdom.Match{
+		{RoleID: fast.ID, CandidateID: kernel.NewID(), CreatedAt: base.Add(2 * time.Hour)},
+	}, int64(1), nil)
+
+	m := d.aggWithMatches().TimeToShortlist(context.Background())
+	assert.InDelta(t, 504.0, m.BaselineHours, 0.01)
+	assert.InDelta(t, 2.0, m.CurrentHours, 0.01, "average of 3h and 1h role-to-first-match durations")
+	assert.InDelta(t, 252.0, m.ImprovementFactor, 0.01)
 }
 
 func openRole(t *testing.T, seniority role.Seniority) *role.Role {

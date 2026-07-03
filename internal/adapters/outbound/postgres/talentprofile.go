@@ -34,6 +34,7 @@ func (r *TalentProfileRepo) Create(ctx context.Context, p *talent.TalentProfile)
 		CandidateID:    p.CandidateID.String(),
 		Summary:        pgtype.Text{String: p.Summary, Valid: true},
 		Profile:        comps,
+		Column5:        vectorLiteralOrEmpty(p.Embedding),
 		PassportStatus: passportToDB(p.PassportStatus),
 	})
 	if isUniqueViolation(err) {
@@ -76,6 +77,7 @@ func (r *TalentProfileRepo) Update(ctx context.Context, p *talent.TalentProfile)
 		ID:             p.ID.String(),
 		Summary:        pgtype.Text{String: p.Summary, Valid: true},
 		Profile:        comps,
+		Column4:        vectorLiteralOrEmpty(p.Embedding),
 		PassportStatus: passportToDB(p.PassportStatus),
 	})
 	if err != nil {

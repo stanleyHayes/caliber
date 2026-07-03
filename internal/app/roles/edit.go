@@ -3,6 +3,7 @@ package roles
 import (
 	"context"
 
+	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
 )
@@ -10,11 +11,26 @@ import (
 // SpecEditor reads and edits a persisted Role's spec and rubric (Flow A.1,
 // CAL-040). Re-weighting normalizes the rubric so weights sum to 1.0.
 type SpecEditor struct {
-	roles role.RoleRepository
+	roles    role.RoleRepository
+	embedder app.Embedder
+}
+
+// SpecEditorOption configures the role-spec editor.
+type SpecEditorOption func(*SpecEditor)
+
+// WithEditorEmbedder enables role-spec embedding after edits.
+func WithEditorEmbedder(embedder app.Embedder) SpecEditorOption {
+	return func(e *SpecEditor) { e.embedder = embedder }
 }
 
 // NewSpecEditor wires the use-case.
-func NewSpecEditor(repo role.RoleRepository) *SpecEditor { return &SpecEditor{roles: repo} }
+func NewSpecEditor(repo role.RoleRepository, opts ...SpecEditorOption) *SpecEditor {
+	e := &SpecEditor{roles: repo}
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
+}
 
 // Get loads a role by id.
 func (e *SpecEditor) Get(ctx context.Context, roleID kernel.ID) (*role.Role, error) {
@@ -37,6 +53,9 @@ func (e *SpecEditor) Update(ctx context.Context, roleID kernel.ID, spec role.Rol
 	if err := r.Revise(spec, rubric.Normalize()); err != nil {
 		return nil, err
 	}
+	if err := e.embed(ctx, r); err != nil {
+		return nil, err
+	}
 	if err := e.roles.Update(ctx, r); err != nil {
 		return nil, err
 	}
@@ -49,4 +68,16 @@ func (e *SpecEditor) List(ctx context.Context, employerID kernel.ID, page kernel
 		return nil, 0, kernel.Invalid("roles: employer id is required")
 	}
 	return e.roles.ListByEmployer(ctx, employerID, page)
+}
+
+func (e *SpecEditor) embed(ctx context.Context, r *role.Role) error {
+	if e.embedder == nil {
+		return nil
+	}
+	embedding, err := e.embedder.Embed(ctx, r.EmbeddingText())
+	if err != nil {
+		return err
+	}
+	r.Embedding = cloneEmbedding(embedding)
+	return nil
 }

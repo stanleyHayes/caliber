@@ -1,6 +1,6 @@
 -- name: CreateTalentProfile :exec
-INSERT INTO talent_profiles (id, candidate_id, summary, profile, passport_status)
-VALUES ($1, $2, $3, $4, $5);
+INSERT INTO talent_profiles (id, candidate_id, summary, profile, profile_embedding, passport_status)
+VALUES ($1, $2, $3, $4, NULLIF($5, '')::vector, $6);
 
 -- name: GetTalentProfile :one
 SELECT id, candidate_id, summary, profile, passport_status FROM talent_profiles WHERE id = $1;
@@ -9,7 +9,12 @@ SELECT id, candidate_id, summary, profile, passport_status FROM talent_profiles 
 SELECT id, candidate_id, summary, profile, passport_status FROM talent_profiles WHERE candidate_id = $1;
 
 -- name: UpdateTalentProfile :execrows
-UPDATE talent_profiles SET summary = $2, profile = $3, passport_status = $4 WHERE id = $1;
+UPDATE talent_profiles
+SET summary = $2,
+    profile = $3,
+    profile_embedding = COALESCE(NULLIF($4, '')::vector, profile_embedding),
+    passport_status = $5
+WHERE id = $1;
 
 -- name: ListTalentProfiles :many
 SELECT id, candidate_id, summary, profile, passport_status FROM talent_profiles ORDER BY created_at DESC LIMIT $1 OFFSET $2;

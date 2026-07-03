@@ -13,6 +13,7 @@ package matching
 
 import (
 	"strings"
+	"time"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
@@ -62,6 +63,8 @@ type Match struct {
 	WatchOuts []string
 	// ThinEvidence flags matches computed from sparse evidence.
 	ThinEvidence bool
+	// CreatedAt records when the shortlist match was first produced.
+	CreatedAt time.Time
 }
 
 // NewMatch validates its inputs and constructs a Match. It returns a

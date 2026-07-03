@@ -34,8 +34,8 @@ func (q *Queries) CountRolesByEmployer(ctx context.Context, employerID string) (
 }
 
 const createRole = `-- name: CreateRole :exec
-INSERT INTO roles (id, employer_id, title, status, role_spec, rubric, salary_band, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO roles (id, employer_id, title, status, role_spec, rubric, salary_band, role_embedding, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, '')::vector, $9)
 `
 
 type CreateRoleParams struct {
@@ -46,6 +46,7 @@ type CreateRoleParams struct {
 	RoleSpec   []byte
 	Rubric     []byte
 	SalaryBand []byte
+	Column8    interface{}
 	CreatedAt  pgtype.Timestamptz
 }
 
@@ -58,6 +59,7 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) error {
 		arg.RoleSpec,
 		arg.Rubric,
 		arg.SalaryBand,
+		arg.Column8,
 		arg.CreatedAt,
 	)
 	return err
@@ -205,7 +207,12 @@ func (q *Queries) ListRolesByEmployer(ctx context.Context, arg ListRolesByEmploy
 
 const updateRole = `-- name: UpdateRole :execrows
 UPDATE roles
-SET title = $2, status = $3, role_spec = $4, rubric = $5, salary_band = $6
+SET title = $2,
+    status = $3,
+    role_spec = $4,
+    rubric = $5,
+    salary_band = $6,
+    role_embedding = COALESCE(NULLIF($7, '')::vector, role_embedding)
 WHERE id = $1
 `
 
@@ -216,6 +223,7 @@ type UpdateRoleParams struct {
 	RoleSpec   []byte
 	Rubric     []byte
 	SalaryBand []byte
+	Column7    interface{}
 }
 
 func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (int64, error) {
@@ -226,6 +234,7 @@ func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (int64, 
 		arg.RoleSpec,
 		arg.Rubric,
 		arg.SalaryBand,
+		arg.Column7,
 	)
 	if err != nil {
 		return 0, err

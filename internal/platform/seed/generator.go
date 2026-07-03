@@ -28,15 +28,28 @@ var seniorityLabels = []string{"junior", "mid", "senior", "lead"} //nolint:goche
 // parser (roles.SpecGenerator). Every profile that survives parsing carries
 // traceable CV evidence, satisfying the no-fabrication guardrail.
 type Generator struct {
-	hasher Hasher
-	llm    app.LLMClient
-	now    func() time.Time
+	hasher   Hasher
+	llm      app.LLMClient
+	embedder app.Embedder
+	now      func() time.Time
+}
+
+// GeneratorOption configures the parser-driven seed generator.
+type GeneratorOption func(*Generator)
+
+// WithGeneratorEmbedder enables role/profile embeddings during generated seed.
+func WithGeneratorEmbedder(embedder app.Embedder) GeneratorOption {
+	return func(g *Generator) { g.embedder = embedder }
 }
 
 // NewGenerator wires a seed generator. now is usually time.Now; it is injected
 // so tests can pin creation timestamps.
-func NewGenerator(hasher Hasher, llm app.LLMClient, now func() time.Time) *Generator {
-	return &Generator{hasher: hasher, llm: llm, now: now}
+func NewGenerator(hasher Hasher, llm app.LLMClient, now func() time.Time, opts ...GeneratorOption) *Generator {
+	g := &Generator{hasher: hasher, llm: llm, now: now}
+	for _, opt := range opts {
+		opt(g)
+	}
+	return g
 }
 
 // Generate runs the full pipeline: 6–8 employers, 8–12 roles, and 50–60
@@ -116,7 +129,7 @@ func (g *Generator) generateRoles(
 	ctx context.Context, repo role.RoleRepository, employers []*identity.User,
 ) ([]*role.Role, error) {
 	tmpl := generatorTemplates()
-	gen := roles.NewSpecGenerator(g.llm, repo, g.now)
+	gen := roles.NewSpecGenerator(g.llm, repo, g.now, roles.WithEmbedder(g.embedder))
 
 	out := make([]*role.Role, 0, len(tmpl.roles))
 	for _, rt := range tmpl.roles {
@@ -147,7 +160,7 @@ func buildRoleFreeText(rt roleTemplate) string {
 func (g *Generator) generateCandidates(ctx context.Context, repos Repositories, pwHash string) (int, error) {
 	tmpl := generatorTemplates()
 	heroes := heroCandidateMap()
-	builder := profilesapp.NewProfileBuilder(repos.Candidates, repos.Profiles, g.llm)
+	builder := profilesapp.NewProfileBuilder(repos.Candidates, repos.Profiles, g.llm, profilesapp.WithEmbedder(g.embedder))
 
 	for i := range candidateCount {
 		inputs, ok := heroes[i]
@@ -212,15 +225,15 @@ func (g *Generator) extractAndScreenProfile(
 // candidateInputs bundles the deterministic inputs for a single generated
 // candidate.
 type candidateInputs struct {
-	name       string
-	email      string
-	location   string
-	family     familyTemplate
-	seniority  string
-	years      int
+	name        string
+	email       string
+	location    string
+	family      familyTemplate
+	seniority   string
+	years       int
 	salaryFloor float64
-	cv         string
-	intake     talent.CandidateIntake
+	cv          string
+	intake      talent.CandidateIntake
 }
 
 func buildCandidateInputs(

@@ -9,10 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authadapter "github.com/xcreativs/caliber/internal/adapters/outbound/auth"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/embeddings"
 	llmadapter "github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
-	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
 	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
+	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
 	agentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
@@ -71,6 +72,25 @@ func TestLoad_ProducesTwoWayAlerts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Positive(t, totalAlerts, "demo data produces two-way match alerts")
 	assert.NotEmpty(t, alerts)
+}
+
+func TestLoad_EmbedsRolesAndProfilesWhenEmbedderProvided(t *testing.T) {
+	ctx := context.Background()
+	repos, h := newRepos()
+
+	_, err := seed.Load(ctx, repos, authadapter.NewArgon2idHasher(), time.Unix(1700000000, 0),
+		seed.WithEmbedder(embeddings.NewDev()))
+	require.NoError(t, err)
+
+	roles, _, err := h.roles.ListOpen(ctx, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	require.NotEmpty(t, roles)
+	assert.Len(t, roles[0].Embedding, 1536)
+
+	profiles, _, err := h.profs.List(ctx, kernel.NewPage(1, 100))
+	require.NoError(t, err)
+	require.NotEmpty(t, profiles)
+	assert.Len(t, profiles[0].Embedding, 1536)
 }
 
 func TestLoad_PreRunsInterviewsWhenLLMProvided(t *testing.T) {

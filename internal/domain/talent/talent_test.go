@@ -1,6 +1,7 @@
 package talent
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -248,5 +249,25 @@ func TestTalentProfileAddCompetency(t *testing.T) {
 	}
 	if len(p.Competencies) != 1 {
 		t.Fatalf("invalid competency was appended: %d", len(p.Competencies))
+	}
+}
+
+func TestTalentProfileEmbeddingTextUsesEvidencedCompetenciesOnly(t *testing.T) {
+	p, err := NewTalentProfile(kernel.NewID(), "48-year-old Ghanaian engineer",
+		[]ProfileCompetency{{Name: "Go", Level: 4, EvidenceQuote: "built services", SourceSpan: "line 3"}})
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	text := p.EmbeddingText()
+	for _, want := range []string{"Go", "built services", "line 3"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("EmbeddingText()=%q, missing %q", text, want)
+		}
+	}
+	for _, leaked := range []string{"48-year-old", "Ghanaian"} {
+		if strings.Contains(text, leaked) {
+			t.Fatalf("EmbeddingText()=%q leaked summary term %q", text, leaked)
+		}
 	}
 }

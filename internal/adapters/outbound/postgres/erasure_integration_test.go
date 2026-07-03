@@ -79,7 +79,12 @@ func TestPostgresErasureCascade(t *testing.T) {
 
 	prof, err := talent.NewTalentProfile(cand.ID, "Backend engineer.", nil)
 	require.NoError(t, err)
+	prof.Embedding = embeddingVector(1)
 	require.NoError(t, profiles.Create(ctx, prof))
+	var profileHasEmbedding bool
+	require.NoError(t, pool.QueryRow(ctx,
+		`SELECT profile_embedding IS NOT NULL FROM talent_profiles WHERE id=$1`, prof.ID.String()).Scan(&profileHasEmbedding))
+	assert.True(t, profileHasEmbedding, "profile embedding is populated on create")
 
 	entry, err := auditdom.NewAuditEntry(cand.ID, "profile.build", "candidate", cand.ID, "", "", time.Now())
 	require.NoError(t, err)

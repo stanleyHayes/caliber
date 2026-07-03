@@ -7,6 +7,7 @@ package seed
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/xcreativs/caliber/internal/app"
@@ -60,6 +61,12 @@ type loadConfig struct {
 	preRunLLM   app.LLMClient
 	preSeedLLM  app.LLMClient
 	preSeedApps agentdom.ApplicationRepository
+	embedder    app.Embedder
+}
+
+// WithEmbedder enables role/profile embeddings during seed load.
+func WithEmbedder(embedder app.Embedder) LoadOption {
+	return func(c *loadConfig) { c.embedder = embedder }
 }
 
 // WithPreRunInterviews runs screening interviews for a curated subset of seeded
@@ -96,10 +103,10 @@ func Load(ctx context.Context, repos Repositories, hasher Hasher, now time.Time,
 	if err != nil {
 		return Result{}, err
 	}
-	if err := seedRoles(ctx, repos, data.roles, employers, now); err != nil {
+	if err := seedRoles(ctx, repos, data.roles, employers, now, cfg.embedder); err != nil {
 		return Result{}, err
 	}
-	if err := seedCandidates(ctx, repos, data.candidates, pwHash, now); err != nil {
+	if err := seedCandidates(ctx, repos, data.candidates, pwHash, now, cfg.embedder); err != nil {
 		return Result{}, err
 	}
 
@@ -136,11 +143,14 @@ func seedEmployers(
 }
 
 func seedRoles(
-	ctx context.Context, repos Repositories, specs []roleSpec, employers []*identity.User, now time.Time,
+	ctx context.Context, repos Repositories, specs []roleSpec, employers []*identity.User, now time.Time, embedder app.Embedder,
 ) error {
 	for _, r := range specs {
 		rl, err := role.NewRole(employers[r.employer].ID, r.spec(), r.rubric(), now)
 		if err != nil {
+			return err
+		}
+		if err := embedRole(ctx, embedder, rl); err != nil {
 			return err
 		}
 		if err := repos.Roles.Create(ctx, rl); err != nil {
@@ -151,10 +161,10 @@ func seedRoles(
 }
 
 func seedCandidates(
-	ctx context.Context, repos Repositories, specs []candidateSpec, pwHash string, now time.Time,
+	ctx context.Context, repos Repositories, specs []candidateSpec, pwHash string, now time.Time, embedder app.Embedder,
 ) error {
 	for _, c := range specs {
-		if err := loadCandidate(ctx, repos, c, pwHash, now); err != nil {
+		if err := loadCandidate(ctx, repos, c, pwHash, now, embedder); err != nil {
 			return err
 		}
 	}
@@ -172,7 +182,9 @@ func maybePreRunInterviews(ctx context.Context, repos Repositories, cfg *loadCon
 	return preRun.InterviewCount, nil
 }
 
-func loadCandidate(ctx context.Context, repos Repositories, c candidateSpec, pwHash string, now time.Time) error {
+func loadCandidate(
+	ctx context.Context, repos Repositories, c candidateSpec, pwHash string, now time.Time, embedder app.Embedder,
+) error {
 	u, err := newUser(c.email, c.name, identity.RoleCandidate, pwHash, now)
 	if err != nil {
 		return err
@@ -193,7 +205,47 @@ func loadCandidate(ctx context.Context, repos Repositories, c candidateSpec, pwH
 		return err
 	}
 	profile.MarkScreened() // demo profiles are screened (visible on the Radar)
+	if err := embedProfile(ctx, embedder, profile); err != nil {
+		return err
+	}
 	return repos.Profiles.Create(ctx, profile)
+}
+
+func embedRole(ctx context.Context, embedder app.Embedder, rl *role.Role) error {
+	if embedder == nil {
+		return nil
+	}
+	embedding, err := embedder.Embed(ctx, rl.EmbeddingText())
+	if err != nil {
+		return err
+	}
+	rl.Embedding = cloneEmbedding(embedding)
+	return nil
+}
+
+func embedProfile(ctx context.Context, embedder app.Embedder, profile *talent.TalentProfile) error {
+	if embedder == nil {
+		return nil
+	}
+	text := profile.EmbeddingText()
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+	embedding, err := embedder.Embed(ctx, text)
+	if err != nil {
+		return err
+	}
+	profile.Embedding = cloneEmbedding(embedding)
+	return nil
+}
+
+func cloneEmbedding(v []float32) []float32 {
+	if len(v) == 0 {
+		return nil
+	}
+	out := make([]float32, len(v))
+	copy(out, v)
+	return out
 }
 
 func newUser(email, name string, r identity.Role, pwHash string, now time.Time) (*identity.User, error) {

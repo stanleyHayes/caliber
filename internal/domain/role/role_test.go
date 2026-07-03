@@ -1,6 +1,7 @@
 package role
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -163,5 +164,26 @@ func TestRoleRevise(t *testing.T) {
 	}
 	if err := r.Revise(validSpec(), Rubric{}); err == nil {
 		t.Error("expected an empty rubric to be rejected")
+	}
+}
+
+func TestRoleEmbeddingTextUsesSpecSignals(t *testing.T) {
+	spec := RoleSpec{
+		Title:            "Backend Engineer",
+		Location:         "Accra",
+		Seniority:        SenioritySenior,
+		Responsibilities: []string{"build payment APIs"},
+		MustHaves:        []string{"Go", "Postgres"},
+		NiceToHaves:      []string{"Kubernetes"},
+	}
+
+	text := spec.EmbeddingText()
+	for _, want := range []string{"Backend Engineer", "Accra", "build payment APIs", "Go", "Postgres"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("EmbeddingText()=%q, missing %q", text, want)
+		}
+	}
+	if strings.Contains(text, "Kubernetes") {
+		t.Fatalf("EmbeddingText()=%q should not include nice-to-have signal", text)
 	}
 }
