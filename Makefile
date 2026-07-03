@@ -1,7 +1,7 @@
 MODULE := github.com/xcreativs/caliber
 GOBIN  := $(shell go env GOPATH)/bin
 
-.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker run-of-show run-of-show-keep-alive backup-capture tidy offline-build offline-pull offline-demo offline-stop offline-check test-load test-load-smoke test-load-keep-alive
+.PHONY: help mocks tools proto sqlc lint vet test test-short cover build ci scan scan-go scan-web scan-containers run-api run-worker run-of-show run-of-show-keep-alive backup-capture db-backup db-restore restore-drill tidy offline-build offline-pull offline-demo offline-stop offline-check test-load test-load-smoke test-load-keep-alive
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
@@ -105,6 +105,15 @@ run-of-show-keep-alive: ## drive the demo and keep the API running for UI explor
 
 backup-capture: ## record a clean Flow B transcript + report card to web/public/interview-backup.json (CAL-106)
 	go run ./cmd/backup-capture -out web/public/interview-backup.json
+
+db-backup: ## pg_dump a timestamped Postgres backup (CAL-151; uses CALIBER_DATABASE_URL)
+	scripts/db-backup.sh
+
+db-restore: ## restore a Postgres backup: make db-restore DUMP=path/to/backup.dump (CAL-151)
+	scripts/db-restore.sh "$(DUMP)"
+
+restore-drill: ## run the disaster-recovery restore drill (backup -> fresh DB -> restore -> verify)
+	go test ./internal/adapters/outbound/postgres/ -run TestPostgresBackupRestoreDrill -v
 
 tidy: ## sync go.mod/go.sum
 	go mod tidy
