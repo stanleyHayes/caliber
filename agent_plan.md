@@ -8,7 +8,7 @@
 > from the *AI Development Workflow Training Manual* and *AI-Native Software Engineering Operations Manual*.
 
 - **Document version:** 0.3 (draft for technical team)
-- **Last updated:** 2026-06-30
+- **Last updated:** 2026-07-03
 - **Source spec:** `Caliber_POC_Build_Spec.pdf` (v0.1, Office of the CTO, XCreativs Technologies)
 - **Owner:** Engineering Lead · **Prepared with:** Claude (planning), per AI Governance policy
 - **Classification:** Confidential — Caliber build team only
@@ -215,7 +215,7 @@ caliber/
 | **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | WIP | ~70% |
 | | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~85% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | DONE | 100% |
-| | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | WIP | ~40% |
+| | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | DONE | 100% |
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | WIP | ~40% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | TODO | 0% |
 | | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | WIP | ~35% |
@@ -264,6 +264,9 @@ We deliver **sprint by sprint**. This board is the live cursor over the epics ab
 |---|---|---|---|
 | 1 | CAL-024 | Asynq client/server wiring | **DONE** — `TaskDispatcher` port + Asynq dispatcher/no-op adapter, worker handler mux, weighted queues, API candidate-agent enqueue/fallback path, and miniredis enqueue-to-process round trip verified. Local build/lint/race suite pass; app-code coverage reports 81.8%. |
 | 2 | CAL-025 | Idempotent job handler framework | **DONE** — all Asynq handlers run through the base job wrapper with idempotency claims, structured lifecycle logs, and OTel spans; duplicate direct delivery is skipped before side effects. |
+| 3 | CAL-026 | Retry, backoff & dead-letter handling | **DONE** — per-task retry policies/backoff are wired into worker servers; exhausted retries emit a structured `dead_letter` alert and are visible through the archive inspector; poison-task archive path verified. |
+| 4 | CAL-027 | Scheduled / delayed tasks | **DONE** — dispatch options support `ProcessIn`/`ProcessAt`, map to Asynq scheduled tasks, and delayed tasks are proven to fire on time in miniredis-backed worker tests. |
+| 5 | CAL-028 | Asynqmon dashboard & ops | **DONE** — `/asynqmon/` mounts on the API when Redis is configured, protected by employer/recruiter bearer-token RBAC; queue operations runbook documents inspection and response. |
 
 **Hardening lane (pulled while Sprint 2 queue stories are active)** — EPIC-16 supply-chain gate.
 
@@ -322,9 +325,9 @@ Build a thin end-to-end slice early, then harden toward the demo. Maps to spec b
 
 - **CAL-024** `[DONE]` · 5 pts — **Asynq client/server wiring.** `worker` entrypoint; `TaskDispatcher` port; queues with priorities. *Implemented 2026-06-29:* added the app-level task dispatcher port, Asynq outbound adapter, no-op dev adapter, Redis-backed API dispatcher wiring for candidate-agent runs, worker dependency wiring, registered handlers for candidate-agent, interview scoring, and batch rematch tasks, weighted queues, and miniredis-backed enqueue-to-process tests. *Verification:* `make build`, `make lint`, and `make cover` all complete; app-code coverage reports 81.8% after excluding generated/vendor-like packages from the coverage view. *AC:* enqueue-to-process round-trip tested. *Deps:* CAL-006, CAL-008
 - **CAL-025** `[DONE]` · 3 pts — **Idempotent job handler framework.** Base handler with idempotency keys, structured logging, otel spans. *Implemented 2026-06-29:* added a reusable jobs handler framework with a pluggable `IdempotencyStore`, process-local memory implementation, stable keys from `Idempotency-Key` header / Asynq task id / task payload digest fallback, structured start/complete/fail/duplicate logs, and OTel spans per task. All registered healthcheck and business Asynq handlers now pass through the wrapper; failed attempts release their key for retry, while duplicate completed deliveries are skipped before side effects. Tests cover duplicate suppression, failure release, span emission, and the candidate-agent handler not double-applying. *AC:* duplicate delivery does not double-apply. *Deps:* CAL-024
-- **CAL-026** `[TODO]` · 5 pts — **Retry, backoff & dead-letter handling.** Per-task retry policy, max-retry → archive, alerting hook. *AC:* failing task lands in archive after policy; visible. *Deps:* CAL-025
-- **CAL-027** `[TODO]` · 3 pts — **Scheduled / delayed tasks.** Support deferred enqueue (time-advance & re-matching). *AC:* delayed task fires on time in tests. *Deps:* CAL-024
-- **CAL-028** `[TODO]` · 5 pts — **Asynqmon dashboard & ops.** Mount monitoring UI (protected); operational runbook. *AC:* queue depth/failures observable. *Deps:* CAL-024
+- **CAL-026** `[DONE]` · 5 pts — **Retry, backoff & dead-letter handling.** Per-task retry policy, max-retry → archive, alerting hook. *Done 2026-07-03:* `DefaultRetryPolicy` defines task-specific retry ceilings/backoff, the Asynq adapter applies those defaults and exposes a `RetryDelayFunc`, and workers use `NewArchiveAlertHandler` to emit structured `alert=dead_letter` logs when retries are exhausted. `ArchiveInspector` exposes archived tasks for operations, and `TestFailingTaskLandsInArchiveAfterMaxRetry` proves a poison healthcheck task reaches the archive after `MaxRetry(1)` and logs the alert. *AC:* failing task lands in archive after policy; visible. *Deps:* CAL-025
+- **CAL-027** `[DONE]` · 3 pts — **Scheduled / delayed tasks.** Support deferred enqueue (time-advance & re-matching). *Done 2026-07-03:* dispatch options now include `ProcessIn` and `ProcessAt`; the Asynq dispatcher maps them to scheduled tasks while preserving queue/max-retry options. Tests cover relative delay scheduling, absolute-time scheduling, and `TestDelayedTaskFiresOnTime` proves a delayed task fires deterministically in a miniredis-backed worker. *AC:* delayed task fires on time in tests. *Deps:* CAL-024
+- **CAL-028** `[DONE]` · 5 pts — **Asynqmon dashboard & ops.** Mount monitoring UI (protected); operational runbook. *Done 2026-07-03:* `wiring.NewAsynqmonHandler` builds the dashboard from `CALIBER_REDIS_URL`; `cmd/api` mounts `/asynqmon/` when Redis is configured; `MountAsynqmon` protects it with bearer-token RBAC for employer/recruiter principals and applies an Asynqmon-specific CSP. `docs/runbooks/queue-operations.md` documents access, queue-state triage, retries, scheduled tasks, and archived dead letters. *AC:* queue depth/failures observable. *Deps:* CAL-024
 
 ## EPIC-04 · AI Orchestration Layer
 **Goal:** All model interaction behind one clean module: prompt assembly, the Claude gateway, schema-validated structured outputs, embeddings, cost/latency controls. Prompts & rubrics are versioned product, not config.

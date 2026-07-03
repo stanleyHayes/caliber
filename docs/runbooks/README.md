@@ -18,6 +18,7 @@ structure:
 | Prometheus | http://localhost:9091 | raw metrics, alert state |
 | Alertmanager | http://localhost:9093 | alert routing, silences |
 | Loki | http://localhost:3100 | log search via Grafana Explore |
+| Asynqmon | http://localhost:8080/asynqmon/ | queue depth, retries, scheduled tasks, dead letters |
 
 ## Correlation by `trace_id`
 
@@ -48,6 +49,7 @@ Use the `trace_id` to jump from a metric spike to the exact request:
 | [5xx-spike.md](./5xx-spike.md) | `CaliberHighHTTPErrorRate`, sudden increase in `caliber_errors_total{class="grpc"}` |
 | [high-ai-failure-rate.md](./high-ai-failure-rate.md) | `CaliberHighAIFailureRate` |
 | [high-queue-error-rate.md](./high-queue-error-rate.md) | `CaliberHighQueueJobErrorRate` |
+| [queue-operations.md](./queue-operations.md) | Asynqmon access, queue inspection, retries, scheduled tasks, archived dead letters |
 | [high-latency.md](./high-latency.md) | `CaliberHighHTTPLatency`, gRPC p95 latency elevated |
 | [auth-rate-limit-spike.md](./auth-rate-limit-spike.md) | Sudden increase in 401/403/429 responses or `rate_limit_exceeded` logs |
 | [secret-rotation.md](./secret-rotation.md) | Secret inventory, rotation policy/procedure, and leaked-secret incident response |

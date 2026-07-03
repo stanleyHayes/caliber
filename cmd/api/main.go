@@ -93,11 +93,20 @@ func run() error {
 	}
 	defer cleanup()
 
-	return server.RunWithOptions(ctx, cfg, log, svc, []httpserver.ReadinessChecker{ready},
-		[]server.Option{
-			server.WithMetrics(tele.PrometheusHandler()),
-			server.WithAIQualityMetrics(httpserver.AIQualityMetrics(aiRecorder)),
-		})
+	opts := []server.Option{
+		server.WithMetrics(tele.PrometheusHandler()),
+		server.WithAIQualityMetrics(httpserver.AIQualityMetrics(aiRecorder)),
+	}
+	asynqmon, closeAsynqmon, err := wiring.NewAsynqmonHandler(cfg.RedisURL)
+	if err != nil {
+		return fmt.Errorf("asynqmon: %w", err)
+	}
+	defer closeAsynqmon()
+	if asynqmon != nil {
+		opts = append(opts, server.WithAsynqmon("/asynqmon", asynqmon, svc.AccessVerifier))
+	}
+
+	return server.RunWithOptions(ctx, cfg, log, svc, []httpserver.ReadinessChecker{ready}, opts)
 }
 
 func buildServices(
