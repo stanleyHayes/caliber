@@ -37,6 +37,15 @@ Code within hexagonal boundaries · tests keep repo **≥80%** · `gofmt`/`golan
 SonarQube gate passes · security handled (validation, authz, secrets, PII) · PR reviewed + merged ·
 `agent_plan.md` status + Sprint board updated · docs updated.
 
+## Testing standards (test pyramid — see docs/testing.md)
+Four layers, each enforced in `.github/workflows/ci.yml`: **Unit** (Go domain/app,
+`internal/**/*_test.go`) · **Integration** (adapters via testcontainers,
+`*_integration_test.go`; Docker-gated — self-skip when Docker is absent) ·
+**Contract** (`proto/` + `buf lint` + `internal/gen` freshness) · **E2E** (Playwright,
+`web/e2e/*.spec.ts`). Frontend unit is Vitest (`web/src/**/*.test.ts[x]`).
+Coverage gate is **≥80%** both sides: Go coverprofile (total + per-package) and Vitest
+`thresholds` (80/80/80/80). Details + honest caveats: [docs/testing.md](docs/testing.md).
+
 ## Git conventions (project key CAL)
 - **TEMPORARY (stabilization phase): push directly to `main`.** While the platform
   is being stabilized, commit your own work straight to `main` rather than opening
