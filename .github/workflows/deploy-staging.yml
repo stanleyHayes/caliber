@@ -50,6 +50,11 @@ jobs:
   deploy:
     name: Trigger Render staging deploy
     runs-on: ubuntu-latest
+    # No-op until staging is wired: skip the whole pipeline (and its downstream
+    # jobs, which `needs: deploy`) when the STAGING_BASE_URL repo variable is
+    # absent, so pushes don't fail on unconfigured CD. Set the variable + the
+    # RENDER_STAGING_DEPLOY_HOOK_URL secret to activate it.
+    if: ${{ vars.STAGING_BASE_URL != '' }}
     # Publish the resolved base URL so downstream jobs interpolate it only inside
     # env:, never directly into a shell command.
     outputs:
