@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/domain/audit"
 	"github.com/xcreativs/caliber/internal/domain/authz"
 	"github.com/xcreativs/caliber/internal/domain/identity"
@@ -47,9 +48,9 @@ func (s *AuditServer) ListAuditLog(
 	// they own — their hiring decisions plus contests raised on their assessments
 	// — not another employer's decisions on a shared subject. A platform admin
 	// sees the whole trail (unscoped).
-	owner := principal.UserID
-	if principal.Role == identity.RoleAdmin.String() {
-		owner = ""
+	owner, err := auditOwnerScope(principal)
+	if err != nil {
+		return nil, errToStatus(err)
 	}
 	page := pageFromProto(req.GetPage())
 	entries, total, err := s.audit.ListForOwner(ctx, entity, entityID, owner, page)
@@ -80,9 +81,9 @@ func (s *AuditServer) ExportAuditReport(
 	// Tenant-scope the export exactly like ListAuditLog (CAL-153): a reviewer can
 	// only export their own hiring-decision trail, never another employer's
 	// decisions on a shared subject. A platform admin exports the whole trail.
-	owner := principal.UserID
-	if principal.Role == identity.RoleAdmin.String() {
-		owner = ""
+	owner, err := auditOwnerScope(principal)
+	if err != nil {
+		return nil, errToStatus(err)
 	}
 	entries, err := collectReportEntries(ctx, s.audit, filter, owner)
 	if err != nil {
@@ -93,6 +94,22 @@ func (s *AuditServer) ExportAuditReport(
 		return nil, errToStatus(err)
 	}
 	return resp, nil
+}
+
+// auditOwnerScope resolves the owner filter for a reviewer's audit read/export
+// (CAL-153). A platform admin reads unscoped (an empty owner matches every
+// tenant); every other principal is scoped to its own id. A non-admin whose
+// principal carries no user id is rejected rather than silently unscoped —
+// passing "" for a non-admin would collapse the owner predicate to TRUE and leak
+// every employer's trail, so a mis-issued/forged token must never reach it.
+func auditOwnerScope(principal app.Principal) (kernel.ID, error) {
+	if principal.Role == identity.RoleAdmin.String() {
+		return "", nil
+	}
+	if principal.UserID.IsZero() {
+		return "", kernel.Unauthorized("audit: authenticated principal has no user id")
+	}
+	return principal.UserID, nil
 }
 
 func exportFilterFromProto(req *caliberv1.ExportAuditReportRequest) (audit.ReportFilter, error) {

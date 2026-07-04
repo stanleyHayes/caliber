@@ -89,6 +89,35 @@ func TestAuditServer_AuthzAndValidation(t *testing.T) {
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
+// TestAuditServer_OwnerScope_RejectsEmptyNonAdmin is the CAL-153 fail-closed
+// guard: a non-admin principal with no user id must be rejected, never treated as
+// unscoped — an empty owner would collapse the scope predicate to every tenant.
+func TestAuditServer_OwnerScope_RejectsEmptyNonAdmin(t *testing.T) {
+	repo := memory.NewAuditRepo()
+	owner, entityID := kernel.NewID(), kernel.NewID()
+	e, _ := audit.NewAuditEntry(kernel.NewID(), audit.ActionApproveRejection, "match", entityID, "", "", time.Unix(1, 0))
+	e.OwnerID = owner
+	require.NoError(t, repo.Append(context.Background(), e))
+	srv := NewAuditServer(repo)
+
+	// A non-admin whose principal carries no user id (a mis-issued token).
+	badCtx := context.WithValue(context.Background(), principalKey{},
+		app.Principal{UserID: kernel.ID(""), Role: identity.RoleEmployer.String()})
+
+	_, err := srv.ListAuditLog(badCtx, &caliberv1.ListAuditLogRequest{
+		Entity: "match", EntityId: entityID.String(),
+		Page: &caliberv1.PageRequest{Page: 1, PageSize: 10},
+	})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err), "empty non-admin owner is rejected, not unscoped")
+
+	_, err = srv.ExportAuditReport(badCtx, &caliberv1.ExportAuditReportRequest{
+		StartTime: timestamppb.New(time.Unix(0, 0)),
+		EndTime:   timestamppb.New(time.Unix(3, 0)),
+		Format:    caliberv1.ExportFormat_EXPORT_FORMAT_JSON,
+	})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err), "empty non-admin owner cannot export unscoped")
+}
+
 func TestAuditServer_ExportAuditReport_JSON(t *testing.T) {
 	repo := memory.NewAuditRepo()
 	actor := kernel.NewID()
