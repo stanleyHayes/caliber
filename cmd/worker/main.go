@@ -15,9 +15,11 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/xcreativs/caliber/internal/adapters/inbound/jobs"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
+	"github.com/xcreativs/caliber/internal/app"
 	queueadapter "github.com/xcreativs/caliber/internal/adapters/outbound/queue"
 	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
@@ -90,21 +92,13 @@ func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger, tele *t
 	}
 	defer cleanup()
 
-	agentRunner := candidateagentapp.NewAgentRunner(
-		repos.Candidates, repos.Profiles, repos.Roles, repos.Apps, model,
-		candidateagentapp.WithAuditTrail(auditRepo, time.Now),
-		candidateagentapp.WithWakeUpInsights(repos.Interviews, repos.Matches),
-	)
-	interviewer := interviewapp.NewInterviewer(
-		repos.Roles, repos.Interviews, model,
-		interviewdom.Config{MaxQuestions: cfg.InterviewMaxQuestions, MaxDuration: cfg.InterviewMaxDuration},
-		interviewapp.WithPassportUpdater(repos.Profiles),
-	)
+	agentRunner, interviewer := buildWorkerUsecases(cfg, repos, model, auditRepo)
 
-	redisOpt, err := queueadapter.RedisOpt(cfg.RedisURL)
+	redisOpt, idempotency, closeRedis, err := newWorkerRedis(cfg)
 	if err != nil {
 		return err
 	}
+	defer closeRedis()
 
 	retentionSweeper := buildRetentionSweeper(cfg, repos, auditRepo, log)
 
@@ -113,6 +107,7 @@ func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger, tele *t
 		AgentRunner:      agentRunner,
 		Interviewer:      interviewer,
 		RetentionSweeper: retentionSweeper,
+		Idempotency:      idempotency,
 	}, log)
 
 	server := newWorkerServer(cfg, redisOpt, log)
@@ -138,6 +133,44 @@ func runWorker(ctx context.Context, cfg config.Config, log *slog.Logger, tele *t
 	server.Stop()
 	server.Shutdown()
 	return nil
+}
+
+// buildWorkerUsecases constructs the background use-cases the worker's handlers
+// run: the autonomous candidate agent and the interviewer/scorer.
+func buildWorkerUsecases(
+	cfg config.Config, repos wiring.Repositories, model app.LLMClient, auditRepo *memory.AuditRepo,
+) (*candidateagentapp.AgentRunner, *interviewapp.Interviewer) {
+	agentRunner := candidateagentapp.NewAgentRunner(
+		repos.Candidates, repos.Profiles, repos.Roles, repos.Apps, model,
+		candidateagentapp.WithAuditTrail(auditRepo, time.Now),
+		candidateagentapp.WithWakeUpInsights(repos.Interviews, repos.Matches),
+	)
+	interviewer := interviewapp.NewInterviewer(
+		repos.Roles, repos.Interviews, model,
+		interviewdom.Config{MaxQuestions: cfg.InterviewMaxQuestions, MaxDuration: cfg.InterviewMaxDuration},
+		interviewapp.WithPassportUpdater(repos.Profiles),
+	)
+	return agentRunner, interviewer
+}
+
+// newWorkerRedis builds the Asynq connection option and a Redis-backed
+// idempotency store from the same Redis URL. The store gives exactly-once
+// effects across scaled worker replicas (CAL-157) — a process-local store would
+// let two replicas each run a re-delivered task. The returned closer releases
+// the idempotency client on shutdown.
+//
+//nolint:ireturn // returns the asynq/idempotency port interfaces intentionally, matching the wiring convention.
+func newWorkerRedis(cfg config.Config) (asynq.RedisConnOpt, jobs.IdempotencyStore, func(), error) {
+	redisOpt, err := queueadapter.RedisOpt(cfg.RedisURL)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	opt, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	client := redis.NewClient(opt)
+	return redisOpt, jobs.NewRedisIdempotencyStore(client), func() { _ = client.Close() }, nil
 }
 
 // newWorkerServer builds the Asynq server with Caliber's worker conventions.
