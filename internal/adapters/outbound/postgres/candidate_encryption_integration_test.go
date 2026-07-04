@@ -102,10 +102,29 @@ func TestCandidatePIIEncryptedAtRest(t *testing.T) {
 	assert.Equal(t, intake.DealBreakers, got.Intake.DealBreakers)
 	assert.Equal(t, intake.TargetTitles, got.Intake.TargetTitles)
 
-	// A repo without the key cannot recover the PII: the wrapped ciphertext passes
-	// straight through the keyless cipher and then fails to parse back into the
-	// intake JSON, so the read fails closed rather than returning garbage.
+	// A repo without the key cannot recover the PII: the wrapped intake ciphertext
+	// passes straight through the keyless cipher and then fails to parse back into
+	// the intake JSON, so the read fails closed rather than returning garbage.
 	opaque, err := pgrepo.NewCandidateRepo(pool).ByID(ctx, cand.ID)
 	require.Error(t, err, "a keyless repo cannot recover the wrapped intake payload")
 	assert.Nil(t, opaque)
+
+	// Isolate the location TEXT column from the intake: a second candidate with an
+	// EMPTY intake still has its location encrypted at rest, so the location's
+	// at-rest encryption is proven independent of the (separately-encrypted) intake
+	// JSONB that carries the keyless-read failure above.
+	email2, err := identity.NewEmail("loc.only@example.com")
+	require.NoError(t, err)
+	u2, err := identity.NewUser(email2, identity.RoleCandidate, "Efua", "hash", time.Now())
+	require.NoError(t, err)
+	require.NoError(t, pgrepo.NewUserRepo(pool).Create(ctx, u2))
+	locOnly, err := talent.NewCandidate(u2.ID, "Takoradi, Ghana", talent.CandidateIntake{})
+	require.NoError(t, err)
+	locOnly.ID = u2.ID
+	require.NoError(t, repo.Create(ctx, locOnly))
+
+	var rawLoc2 string
+	require.NoError(t, pool.QueryRow(ctx, `SELECT location FROM candidates WHERE id=$1`, locOnly.ID.String()).Scan(&rawLoc2))
+	assert.True(t, strings.HasPrefix(rawLoc2, "enc:v1:"), "location encrypted at rest independent of intake, got %q", rawLoc2)
+	assert.NotContains(t, rawLoc2, "Takoradi", "plaintext location must not leak")
 }
