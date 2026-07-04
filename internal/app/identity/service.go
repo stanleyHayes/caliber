@@ -98,8 +98,10 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*Session, err
 	if err := s.policy.Validate(in.Password); err != nil {
 		return nil, err
 	}
-	if !in.Role.Valid() {
-		return nil, kernel.Invalid("identity: a valid role is required")
+	if !in.Role.Registerable() {
+		// Admin (and any non-self-registerable role) is provisioned out-of-band,
+		// never through public registration (CAL-154).
+		return nil, kernel.Invalid("identity: a valid, self-registerable role is required")
 	}
 	hash, err := s.hasher.Hash(in.Password)
 	if err != nil {

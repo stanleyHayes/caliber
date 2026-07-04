@@ -17,10 +17,21 @@ const (
 	RoleEmployer
 	RoleRecruiter
 	RoleCandidate
+	// RoleAdmin is a platform operator (CAL-154). It is a valid role for
+	// authentication/RBAC but is NOT self-registerable — admins are provisioned
+	// out-of-band, never through public registration (see Registerable).
+	RoleAdmin
 )
 
 // Valid reports whether the role is a known, non-zero role.
-func (r Role) Valid() bool { return r >= RoleEmployer && r <= RoleCandidate }
+func (r Role) Valid() bool { return r >= RoleEmployer && r <= RoleAdmin }
+
+// Registerable reports whether a user may self-register with this role via the
+// public Register flow. Admin is excluded (provisioned out-of-band) so a caller
+// cannot create a platform-operator account for themselves.
+func (r Role) Registerable() bool {
+	return r == RoleEmployer || r == RoleRecruiter || r == RoleCandidate
+}
 
 // String renders the role.
 func (r Role) String() string {
@@ -31,6 +42,8 @@ func (r Role) String() string {
 		return "recruiter"
 	case RoleCandidate:
 		return "candidate"
+	case RoleAdmin:
+		return "admin"
 	default:
 		return "unspecified"
 	}
@@ -45,6 +58,8 @@ func ParseRole(s string) (Role, error) {
 		return RoleRecruiter, nil
 	case "candidate":
 		return RoleCandidate, nil
+	case "admin":
+		return RoleAdmin, nil
 	default:
 		return RoleUnspecified, kernel.Invalidf("identity: unknown role %q", s)
 	}

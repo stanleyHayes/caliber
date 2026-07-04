@@ -69,6 +69,17 @@ func TestRegisterSuccess(t *testing.T) {
 	assert.Equal(t, "jti", sess.Refresh.ID)
 }
 
+func TestRegisterRejectsAdminRole(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	d := newDeps(ctrl)
+	// No hash/create/issue expectations: admin is not self-registerable, so the
+	// request is rejected before any persistence (CAL-154).
+	_, err := d.service().Register(context.Background(), identityapp.RegisterInput{
+		Email: "root@example.com", Password: "super-secret-pass", Name: "Root", Role: identitydom.RoleAdmin,
+	})
+	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
+}
+
 func TestRegisterDuplicateEmail(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	d := newDeps(ctrl)

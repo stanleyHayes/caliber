@@ -84,6 +84,10 @@ func userRoleFromProto(r caliberv1.UserRole) (identity.Role, error) {
 		return identity.RoleRecruiter, nil
 	case caliberv1.UserRole_USER_ROLE_CANDIDATE:
 		return identity.RoleCandidate, nil
+	case caliberv1.UserRole_USER_ROLE_ADMIN:
+		// Mapped so the value round-trips; the Register use-case still rejects it
+		// as not self-registerable (admins are provisioned out-of-band).
+		return identity.RoleAdmin, nil
 	default:
 		return identity.RoleUnspecified, kernel.Invalid("identity: a valid role is required")
 	}
@@ -97,6 +101,8 @@ func userRoleToProto(r identity.Role) caliberv1.UserRole {
 		return caliberv1.UserRole_USER_ROLE_RECRUITER
 	case identity.RoleCandidate:
 		return caliberv1.UserRole_USER_ROLE_CANDIDATE
+	case identity.RoleAdmin:
+		return caliberv1.UserRole_USER_ROLE_ADMIN
 	default:
 		return caliberv1.UserRole_USER_ROLE_UNSPECIFIED
 	}

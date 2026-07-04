@@ -42,6 +42,9 @@ enum UserRole {
   USER_ROLE_EMPLOYER = 1;
   USER_ROLE_RECRUITER = 2;
   USER_ROLE_CANDIDATE = 3;
+  // Platform operator (CAL-154 admin). Provisioned out-of-band, not
+  // self-registerable. Additive value — backward-compatible.
+  USER_ROLE_ADMIN = 4;
 }
 
 enum Seniority {

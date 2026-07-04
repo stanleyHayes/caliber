@@ -31,6 +31,9 @@ const (
 	UserRole_USER_ROLE_EMPLOYER    UserRole = 1
 	UserRole_USER_ROLE_RECRUITER   UserRole = 2
 	UserRole_USER_ROLE_CANDIDATE   UserRole = 3
+	// Platform operator (CAL-154 admin). Provisioned out-of-band, not
+	// self-registerable. Additive value — backward-compatible.
+	UserRole_USER_ROLE_ADMIN UserRole = 4
 )
 
 // Enum value maps for UserRole.
@@ -40,12 +43,14 @@ var (
 		1: "USER_ROLE_EMPLOYER",
 		2: "USER_ROLE_RECRUITER",
 		3: "USER_ROLE_CANDIDATE",
+		4: "USER_ROLE_ADMIN",
 	}
 	UserRole_value = map[string]int32{
 		"USER_ROLE_UNSPECIFIED": 0,
 		"USER_ROLE_EMPLOYER":    1,
 		"USER_ROLE_RECRUITER":   2,
 		"USER_ROLE_CANDIDATE":   3,
+		"USER_ROLE_ADMIN":       4,
 	}
 )
 
@@ -745,12 +750,13 @@ const file_caliber_v1_common_proto_rawDesc = "" +
 	"SalaryBand\x12\x1a\n" +
 	"\bcurrency\x18\x01 \x01(\tR\bcurrency\x12\x10\n" +
 	"\x03low\x18\x02 \x01(\x01R\x03low\x12\x12\n" +
-	"\x04high\x18\x03 \x01(\x01R\x04high*o\n" +
+	"\x04high\x18\x03 \x01(\x01R\x04high*\x84\x01\n" +
 	"\bUserRole\x12\x19\n" +
 	"\x15USER_ROLE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12USER_ROLE_EMPLOYER\x10\x01\x12\x17\n" +
 	"\x13USER_ROLE_RECRUITER\x10\x02\x12\x17\n" +
-	"\x13USER_ROLE_CANDIDATE\x10\x03*y\n" +
+	"\x13USER_ROLE_CANDIDATE\x10\x03\x12\x13\n" +
+	"\x0fUSER_ROLE_ADMIN\x10\x04*y\n" +
 	"\tSeniority\x12\x19\n" +
 	"\x15SENIORITY_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10SENIORITY_JUNIOR\x10\x01\x12\x11\n" +

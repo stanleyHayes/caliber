@@ -56,5 +56,27 @@ func TestPermissionsForIsSorted(t *testing.T) {
 }
 
 func TestRolesEnumeratesTheMatrix(t *testing.T) {
-	assert.Len(t, authz.Roles(), 3)
+	assert.Len(t, authz.Roles(), 4) // employer, recruiter, candidate, admin
+}
+
+func TestAdminHoldsReviewerCapabilitiesPlusUserAdmin(t *testing.T) {
+	a := identity.RoleAdmin
+	// Admin holds every reviewer capability...
+	for _, p := range []authz.Permission{
+		authz.PermManageRoles, authz.PermViewShortlist, authz.PermRecordDecision,
+		authz.PermResolveContest, authz.PermViewDashboard, authz.PermReadAuditLog,
+		authz.PermViewReportCard, authz.PermViewProfile,
+	} {
+		assert.True(t, authz.Can(a, p), "admin should hold %s", p)
+	}
+	// ...plus user administration, which no other role has.
+	assert.True(t, authz.Can(a, authz.PermManageUsers))
+	assert.False(t, authz.Can(identity.RoleEmployer, authz.PermManageUsers))
+	assert.False(t, authz.Can(identity.RoleCandidate, authz.PermManageUsers))
+	// Admin is an operator, not a candidate: no self-scoped candidate capabilities.
+	assert.False(t, authz.Can(a, authz.PermScreenSelf))
+	assert.False(t, authz.Can(a, authz.PermRunAgent))
+	assert.False(t, authz.Can(a, authz.PermManageProfile))
+	// The matrix now enumerates four roles.
+	assert.Len(t, authz.Roles(), 4)
 }

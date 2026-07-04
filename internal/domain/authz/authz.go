@@ -35,6 +35,7 @@ const (
 	PermManageProfile  Permission = "profile:manage" // create/update one's own talent profile
 	PermManagePrivacy  Permission = "privacy:manage" // export/delete one's own data
 	PermRaiseContest   Permission = "contest:raise"  // dispute an assessment about oneself
+	PermManageUsers    Permission = "users:manage"   // platform-operator user administration (admin)
 )
 
 // matrix maps a role to the permissions it holds. It is the single source of
@@ -56,6 +57,15 @@ var matrix = map[identity.Role][]Permission{
 		PermScreenSelf, PermViewReportCard, PermRunAgent,
 		PermViewProfile, PermManageProfile, PermManagePrivacy,
 		PermRaiseContest,
+	},
+	// Admin (CAL-154 follow-on): a platform operator holds the reviewer
+	// capabilities plus user administration. It does NOT hold candidate
+	// self-capabilities (screen/run-agent/manage-own-profile), which are scoped
+	// to an actual candidate identity, not an operator.
+	identity.RoleAdmin: {
+		PermManageRoles, PermViewShortlist, PermRecordDecision,
+		PermResolveContest, PermViewDashboard, PermReadAuditLog,
+		PermViewReportCard, PermViewProfile, PermManageUsers,
 	},
 }
 

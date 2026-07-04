@@ -17,8 +17,11 @@ func TestParseRole(t *testing.T) {
 	if r, err := ParseRole(" candidate "); err != nil || r != RoleCandidate {
 		t.Errorf("ParseRole should trim/normalize: %v %v", r, err)
 	}
-	if _, err := ParseRole("admin"); err == nil {
-		t.Error("ParseRole(admin) should error")
+	if r, err := ParseRole("Admin"); err != nil || r != RoleAdmin {
+		t.Errorf("ParseRole(admin) = %v, %v; want RoleAdmin (CAL-154)", r, err)
+	}
+	if _, err := ParseRole("superuser"); err == nil {
+		t.Error("ParseRole(superuser) should error")
 	}
 }
 
@@ -26,13 +29,29 @@ func TestRoleValidString(t *testing.T) {
 	if RoleUnspecified.Valid() {
 		t.Error("unspecified should be invalid")
 	}
-	if !RoleEmployer.Valid() || !RoleCandidate.Valid() {
-		t.Error("employer/candidate should be valid")
+	if !RoleEmployer.Valid() || !RoleCandidate.Valid() || !RoleAdmin.Valid() {
+		t.Error("employer/candidate/admin should be valid")
 	}
-	for r, want := range map[Role]string{RoleEmployer: "employer", RoleRecruiter: "recruiter", RoleCandidate: "candidate", RoleUnspecified: "unspecified"} {
+	for r, want := range map[Role]string{RoleEmployer: "employer", RoleRecruiter: "recruiter", RoleCandidate: "candidate", RoleAdmin: "admin", RoleUnspecified: "unspecified"} {
 		if r.String() != want {
 			t.Errorf("String(%d) = %q, want %q", r, r.String(), want)
 		}
+	}
+}
+
+func TestRoleRegisterable(t *testing.T) {
+	// Public registration allows the three POC roles but never admin (CAL-154):
+	// an operator account cannot be self-created.
+	for _, r := range []Role{RoleEmployer, RoleRecruiter, RoleCandidate} {
+		if !r.Registerable() {
+			t.Errorf("%s should be self-registerable", r)
+		}
+	}
+	if RoleAdmin.Registerable() {
+		t.Error("admin must NOT be self-registerable — provisioned out-of-band")
+	}
+	if RoleUnspecified.Registerable() {
+		t.Error("unspecified is not registerable")
 	}
 }
 

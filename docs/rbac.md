@@ -42,11 +42,13 @@ call sites/tests, but new guards should use `RequirePermission`.
 
 - **New capability:** add a `Permission` constant, grant it to the appropriate
   roles in `matrix`, and call `RequirePermission` (or `Can`) at the guard point.
-- **New role (e.g. `admin`):** add the value to the `identity.Role` enum (and its
-  `UserRole` proto peer — an *additive* enum value, backward-compatible) and a
-  `matrix` row. An admin would hold a superset (e.g. all reviewer permissions
-  plus `users:manage`). This is the one part that touches the locked proto, so it
-  is a deliberate additive follow-on rather than folded into this change.
+- **New role:** add the value to the `identity.Role` enum (and its `UserRole`
+  proto peer — an *additive* enum value, backward-compatible) and a `matrix` row.
+  This is the pattern the **`admin` role** now follows (CAL-154): `RoleAdmin` /
+  `USER_ROLE_ADMIN` holds every reviewer capability plus `users:manage`, and is
+  **not self-registerable** (`Role.Registerable()` excludes it — admins are
+  provisioned out-of-band, never through public `Register`). It holds no
+  candidate self-capabilities (an operator is not a candidate).
 
 ## Admin tooling
 
