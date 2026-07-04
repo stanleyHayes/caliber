@@ -66,7 +66,7 @@ func TestCandidatePIIEncryptedAtRest(t *testing.T) {
 	repo := pgrepo.NewCandidateRepo(pool, pgrepo.WithCandidateCipher(cipher))
 
 	const (
-		location   = "Kumasi, Ghana"
+		location    = "Kumasi, Ghana"
 		dealBreaker = "no-relocation"
 	)
 	intake := talent.CandidateIntake{
