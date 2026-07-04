@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -15,8 +14,9 @@ import (
 )
 
 // TalentProfileRepo is a Postgres-backed talent.TalentProfileRepository. The
-// free-text summary is candidate PII, so it is encrypted at rest when a field
-// cipher is configured (CAL-117).
+// free-text summary AND the evidenced competencies — which carry verbatim CV
+// excerpts (evidence quotes, source spans) — are candidate PII, so both are
+// encrypted at rest when a field cipher is configured (CAL-117).
 type TalentProfileRepo struct {
 	q      *sqlcdb.Queries
 	cipher *fieldcrypto.FieldCipher
@@ -47,7 +47,7 @@ func NewTalentProfileRepo(db sqlcdb.DBTX, opts ...TalentProfileOption) *TalentPr
 
 // Create inserts a new talent profile.
 func (r *TalentProfileRepo) Create(ctx context.Context, p *talent.TalentProfile) error {
-	comps, err := json.Marshal(p.Competencies)
+	comps, err := encodeEncryptedJSON(r.cipher, p.Competencies)
 	if err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (r *TalentProfileRepo) ByCandidateID(ctx context.Context, candidateID kerne
 
 // Update persists changes to an existing talent profile.
 func (r *TalentProfileRepo) Update(ctx context.Context, p *talent.TalentProfile) error {
-	comps, err := json.Marshal(p.Competencies)
+	comps, err := encodeEncryptedJSON(r.cipher, p.Competencies)
 	if err != nil {
 		return err
 	}
@@ -175,10 +175,8 @@ func (r *TalentProfileRepo) toDomainTalentProfile(
 	id, candidateID string, summary pgtype.Text, profile []byte, passport string,
 ) (*talent.TalentProfile, error) {
 	var comps []talent.ProfileCompetency
-	if len(profile) > 0 {
-		if err := json.Unmarshal(profile, &comps); err != nil {
-			return nil, err
-		}
+	if err := decodeEncryptedJSON(r.cipher, profile, &comps); err != nil {
+		return nil, err
 	}
 	plainSummary, err := r.cipher.Decrypt(summary.String)
 	if err != nil {

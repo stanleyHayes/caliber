@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -61,7 +60,7 @@ func NewInterviewRepo(db sqlcdb.DBTX, opts ...InterviewOption) *InterviewRepo {
 // Create inserts a new interview and its turns atomically.
 func (r *InterviewRepo) Create(ctx context.Context, iv *interview.Interview) error {
 	return r.withTx(ctx, func(q *sqlcdb.Queries) error {
-		params, err := interviewParams(iv)
+		params, err := r.interviewParams(iv)
 		if err != nil {
 			return err
 		}
@@ -77,7 +76,7 @@ func (r *InterviewRepo) Create(ctx context.Context, iv *interview.Interview) err
 // question and any new answered turns converge on the aggregate's current state.
 func (r *InterviewRepo) Update(ctx context.Context, iv *interview.Interview) error {
 	return r.withTx(ctx, func(q *sqlcdb.Queries) error {
-		report, confidence, err := marshalReport(iv.Report)
+		report, confidence, err := r.marshalReport(iv.Report)
 		if err != nil {
 			return err
 		}
@@ -147,6 +146,28 @@ func (r *InterviewRepo) DeleteByCandidate(ctx context.Context, candidateID kerne
 	return r.q.DeleteInterviewsByCandidate(ctx, candidateID.String())
 }
 
+// interviewParams builds the create params, encrypting the report card at rest.
+func (r *InterviewRepo) interviewParams(iv *interview.Interview) (sqlcdb.CreateInterviewParams, error) {
+	report, confidence, err := r.marshalReport(iv.Report)
+	if err != nil {
+		return sqlcdb.CreateInterviewParams{}, err
+	}
+	created := iv.StartedAt
+	if created.IsZero() {
+		created = time.Now().UTC()
+	}
+	return sqlcdb.CreateInterviewParams{
+		ID:          iv.ID.String(),
+		RoleID:      iv.RoleID.String(),
+		CandidateID: iv.CandidateID.String(),
+		Mode:        iv.Mode.String(),
+		Status:      iv.State.String(),
+		ReportCard:  report,
+		Confidence:  confidence,
+		CreatedAt:   pgtype.Timestamptz{Time: created, Valid: true},
+	}, nil
+}
+
 func (r *InterviewRepo) withTx(ctx context.Context, fn func(*sqlcdb.Queries) error) error {
 	if r.tx == nil {
 		return fn(r.q)
@@ -173,7 +194,7 @@ func (r *InterviewRepo) hydrate(ctx context.Context, row sqlcdb.TalentInterview)
 	}
 	if len(row.ReportCard) > 0 {
 		var card interview.ReportCard
-		if err := json.Unmarshal(row.ReportCard, &card); err != nil {
+		if err := decodeEncryptedJSON(r.cipher, row.ReportCard, &card); err != nil {
 			return nil, err
 		}
 		iv.Report = &card
@@ -208,27 +229,6 @@ func (r *InterviewRepo) hydrate(ctx context.Context, row sqlcdb.TalentInterview)
 		}
 	}
 	return iv, nil
-}
-
-func interviewParams(iv *interview.Interview) (sqlcdb.CreateInterviewParams, error) {
-	report, confidence, err := marshalReport(iv.Report)
-	if err != nil {
-		return sqlcdb.CreateInterviewParams{}, err
-	}
-	created := iv.StartedAt
-	if created.IsZero() {
-		created = time.Now().UTC()
-	}
-	return sqlcdb.CreateInterviewParams{
-		ID:          iv.ID.String(),
-		RoleID:      iv.RoleID.String(),
-		CandidateID: iv.CandidateID.String(),
-		Mode:        iv.Mode.String(),
-		Status:      iv.State.String(),
-		ReportCard:  report,
-		Confidence:  confidence,
-		CreatedAt:   pgtype.Timestamptz{Time: created, Valid: true},
-	}, nil
 }
 
 // insertTurns writes the answered turns (non-NULL answer) then, if present, the
@@ -272,11 +272,15 @@ func (r *InterviewRepo) insertTurns(ctx context.Context, q *sqlcdb.Queries, iv *
 	})
 }
 
-func marshalReport(card *interview.ReportCard) ([]byte, pgtype.Text, error) {
+// marshalReport renders the report card for the report_card JSONB column. The
+// card carries transcript-quote evidence (candidate PII), so it is encrypted at
+// rest through the shared field-cipher JSONB helper (CAL-117); the sibling
+// confidence value is denormalized as plaintext for queryability.
+func (r *InterviewRepo) marshalReport(card *interview.ReportCard) ([]byte, pgtype.Text, error) {
 	if card == nil {
 		return nil, pgtype.Text{Valid: false}, nil
 	}
-	b, err := json.Marshal(card)
+	b, err := encodeEncryptedJSON(r.cipher, card)
 	if err != nil {
 		return nil, pgtype.Text{}, err
 	}

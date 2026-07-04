@@ -69,25 +69,38 @@ func TestTalentProfileSummaryEncryptedAtRest(t *testing.T) {
 	require.NoError(t, err)
 	repo := pgrepo.NewTalentProfileRepo(pool, pgrepo.WithFieldCipher(cipher))
 
-	const summary = "Ama built and shipped a payments API in Go, cutting latency 40%."
-	prof, err := talent.NewTalentProfile(cand.ID, summary, nil)
+	const (
+		summary  = "Ama built and shipped a payments API in Go, cutting latency 40%."
+		evidence = "Led the payments platform team at Kuvora from 2020-2024"
+	)
+	comps := []talent.ProfileCompetency{
+		{Name: "backend", Level: 4, EvidenceQuote: evidence, SourceSpan: "experience#2"},
+	}
+	prof, err := talent.NewTalentProfile(cand.ID, summary, comps)
 	require.NoError(t, err)
 	require.NoError(t, repo.Create(ctx, prof))
 
-	// The raw column is ciphertext, not the plaintext summary.
-	var raw string
+	// The raw summary column AND the profile (competencies) column are ciphertext —
+	// the verbatim CV evidence quote must not sit in cleartext (CAL-117).
+	var rawSummary, rawProfile string
 	require.NoError(t, pool.QueryRow(ctx,
-		`SELECT summary FROM talent_profiles WHERE id=$1`, prof.ID.String()).Scan(&raw))
-	assert.NotEqual(t, summary, raw, "the stored summary must not be plaintext")
-	assert.True(t, strings.HasPrefix(raw, "enc:v1:"), "the stored summary is versioned ciphertext, got %q", raw)
+		`SELECT summary, profile::text FROM talent_profiles WHERE id=$1`, prof.ID.String()).
+		Scan(&rawSummary, &rawProfile))
+	assert.NotEqual(t, summary, rawSummary, "the stored summary must not be plaintext")
+	assert.True(t, strings.HasPrefix(rawSummary, "enc:v1:"), "the stored summary is versioned ciphertext, got %q", rawSummary)
+	assert.Contains(t, rawProfile, "enc:v1:", "the competencies are stored as wrapped ciphertext")
+	assert.NotContains(t, rawProfile, "Kuvora", "the verbatim CV evidence quote must not leak")
 
-	// Reading through the cipher-backed repo returns the plaintext.
+	// Reading through the cipher-backed repo returns the plaintext competencies.
 	got, err := repo.ByCandidateID(ctx, cand.ID)
 	require.NoError(t, err)
 	assert.Equal(t, summary, got.Summary)
+	require.Len(t, got.Competencies, 1)
+	assert.Equal(t, evidence, got.Competencies[0].EvidenceQuote)
 
-	// A repo without the key cannot recover the plaintext — the ciphertext is opaque.
+	// A repo without the key cannot recover the profile — the encrypted competencies
+	// cannot be parsed back, so the read fails closed rather than leaking anything.
 	opaque, err := pgrepo.NewTalentProfileRepo(pool).ByCandidateID(ctx, cand.ID)
-	require.NoError(t, err)
-	assert.True(t, strings.HasPrefix(opaque.Summary, "enc:v1:"), "without the key the summary stays opaque")
+	require.Error(t, err, "a keyless repo cannot recover the encrypted profile")
+	assert.Nil(t, opaque)
 }

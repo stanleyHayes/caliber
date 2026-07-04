@@ -122,10 +122,48 @@ func TestInterviewQAEncryptedAtRest(t *testing.T) {
 	require.NotNil(t, got.Pending)
 	assert.Equal(t, q2, got.Pending.Text)
 
-	// A repo without the key cannot recover the plaintext — the Q&A stays opaque.
+	// A repo without the key cannot recover the plaintext Q&A while there is no
+	// report card yet — the turns are TEXT fields, so they stay opaque without error.
 	opaque, err := pgrepo.NewInterviewRepo(pool).ByID(ctx, iv.ID)
 	require.NoError(t, err)
 	require.Len(t, opaque.Turns, 1)
 	assert.True(t, strings.HasPrefix(opaque.Turns[0].Question, "enc:v1:"), "without the key the question stays opaque")
 	assert.True(t, strings.HasPrefix(opaque.Turns[0].Answer, "enc:v1:"), "without the key the answer stays opaque")
+
+	// Complete the interview: the report card carries transcript-quote evidence
+	// (candidate PII), which must be encrypted at rest like the turns.
+	const cardEvidence = "candidate described contract-testing the payments API"
+	require.NoError(t, iv.Answer("With contract tests."))
+	require.NoError(t, iv.Transition(interviewdom.StateScoring))
+	require.NoError(t, iv.Complete(interviewdom.ReportCard{
+		InterviewID: iv.ID, RoleID: rl.ID, CandidateID: cand.ID,
+		Verdict:    interviewdom.VerdictAdvance,
+		Confidence: kernel.ConfidenceHigh,
+		Scores: []interviewdom.CompetencyScore{
+			{Competency: "testing", Score: 4, Evidence: cardEvidence},
+		},
+		RecommendedNextStep: "onsite loop",
+	}))
+	require.NoError(t, repo.Update(ctx, iv))
+
+	// The report_card column is ciphertext; the denormalized confidence stays plain.
+	var rawCard, rawConfidence string
+	require.NoError(t, pool.QueryRow(ctx,
+		`SELECT report_card::text, confidence FROM talent_interviews WHERE id=$1`, iv.ID.String()).
+		Scan(&rawCard, &rawConfidence))
+	assert.Contains(t, rawCard, "enc:v1:", "the report card is stored as wrapped ciphertext")
+	assert.NotContains(t, rawCard, "contract-testing", "the report-card evidence must not leak")
+	assert.Equal(t, "high", rawConfidence, "confidence is denormalized in plaintext for queryability")
+
+	// The cipher-backed repo returns the plaintext report card.
+	done, err := repo.ByID(ctx, iv.ID)
+	require.NoError(t, err)
+	require.NotNil(t, done.Report)
+	require.Len(t, done.Report.Scores, 1)
+	assert.Equal(t, cardEvidence, done.Report.Scores[0].Evidence)
+
+	// Now that an encrypted report card exists, a keyless repo cannot load the
+	// interview at all — it fails closed on the undecryptable report card.
+	_, err = pgrepo.NewInterviewRepo(pool).ByID(ctx, iv.ID)
+	require.Error(t, err, "a keyless repo cannot recover the encrypted report card")
 }

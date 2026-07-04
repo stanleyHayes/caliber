@@ -101,7 +101,7 @@ func openRepositories(
 	repos.Candidates = postgres.NewCandidateRepo(pool, postgres.WithCandidateCipher(fieldCipher))
 	repos.Profiles = postgres.NewTalentProfileRepo(pool, postgres.WithFieldCipher(fieldCipher))
 	repos.Apps = postgres.NewApplicationRepo(pool)
-	repos.Matches = postgres.NewMatchRepo(pool)
+	repos.Matches = postgres.NewMatchRepo(pool, postgres.WithMatchCipher(fieldCipher))
 	repos.Interviews = postgres.NewInterviewRepo(pool, postgres.WithInterviewCipher(fieldCipher))
 	repos.Pool = pool
 	log.Info("persistence selected", "provider", "postgres")
