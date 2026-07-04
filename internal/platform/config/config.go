@@ -39,22 +39,27 @@ type Config struct {
 	// small latency cost. Applied per pooled connection.
 	HNSWEfSearch int
 
-	AnthropicAPIKey      string // Claude
-	AnthropicModel       string // Claude model id (default claude-opus-4-8)
+	AnthropicAPIKey string // Claude
+	AnthropicModel  string // Claude model id (default claude-opus-4-8)
 	// LLMCheapModel optionally routes mechanical operations (e.g. CV extraction)
 	// to a cheaper model (CAL-159 model-tier routing). Empty = all ops use the
 	// default model.
-	LLMCheapModel string
+	LLMCheapModel        string
 	OpenAIAPIKey         string // embeddings
 	OpenAIEmbeddingModel string // embedding model (default text-embedding-3-small)
 	JWTSecret            string // access/refresh token signing
 	// FieldEncryptionKey is a base64-encoded 32-byte AES-256 key for encrypting
 	// PII fields at rest (CAL-117). Empty = no encryption (dev/plaintext).
 	FieldEncryptionKey string
-	JWTIssuer            string // token "iss" claim
-	JWTAudience          string // token "aud" claim
-	AccessTokenTTL       time.Duration
-	RefreshTokenTTL      time.Duration
+	// FieldEncryptionKeyPrevious holds retiring base64 keys that Decrypt still
+	// accepts during a key rotation (comma-separated in the env). New writes use
+	// FieldEncryptionKey; the reencrypt command rewrites old rows so these can be
+	// dropped afterward. See docs/runbooks/key-rotation.md.
+	FieldEncryptionKeyPrevious []string
+	JWTIssuer                  string // token "iss" claim
+	JWTAudience                string // token "aud" claim
+	AccessTokenTTL             time.Duration
+	RefreshTokenTTL            time.Duration
 
 	SeedDemo      bool // load the hand-curated demo dataset into the in-memory dev stack
 	SeedGenerated bool // generate a larger demo dataset through the real parsers
@@ -122,46 +127,47 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	c := Config{
-		Env:                  env,
-		LogLevel:             getenv("CALIBER_LOG_LEVEL", "info"),
-		HTTPAddr:             getenv("CALIBER_HTTP_ADDR", ":8080"),
-		GRPCAddr:             getenv("CALIBER_GRPC_ADDR", ":9090"),
-		AllowedOrigins:       allowedOrigins,
-		DatabaseURL:          os.Getenv("CALIBER_DATABASE_URL"),
-		RedisURL:             os.Getenv("CALIBER_REDIS_URL"),
-		HNSWEfSearch:         getint("CALIBER_HNSW_EF_SEARCH", 0),
-		AnthropicAPIKey:      os.Getenv("ANTHROPIC_API_KEY"),
-		AnthropicModel:       getenv("CALIBER_ANTHROPIC_MODEL", "claude-opus-4-8"),
-		LLMCheapModel:        getenv("CALIBER_LLM_CHEAP_MODEL", ""),
-		OpenAIAPIKey:         os.Getenv("OPENAI_API_KEY"),
-		OpenAIEmbeddingModel: getenv("CALIBER_OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
-		JWTSecret:            os.Getenv("CALIBER_JWT_SECRET"),
-		FieldEncryptionKey:   os.Getenv(fieldEncryptionKeyEnv),
-		JWTIssuer:            getenv("CALIBER_JWT_ISSUER", "caliber"),
-		JWTAudience:          getenv("CALIBER_JWT_AUDIENCE", "caliber-api"),
-		AccessTokenTTL:       getdur("CALIBER_ACCESS_TOKEN_TTL", 15*time.Minute),
-		RefreshTokenTTL:      getdur("CALIBER_REFRESH_TOKEN_TTL", 7*24*time.Hour),
-		SeedDemo:             getbool("CALIBER_SEED_DEMO", true),
-		SeedGenerated:        getbool("CALIBER_SEED_GENERATED", false),
+		Env:                        env,
+		LogLevel:                   getenv("CALIBER_LOG_LEVEL", "info"),
+		HTTPAddr:                   getenv("CALIBER_HTTP_ADDR", ":8080"),
+		GRPCAddr:                   getenv("CALIBER_GRPC_ADDR", ":9090"),
+		AllowedOrigins:             allowedOrigins,
+		DatabaseURL:                os.Getenv("CALIBER_DATABASE_URL"),
+		RedisURL:                   os.Getenv("CALIBER_REDIS_URL"),
+		HNSWEfSearch:               getint("CALIBER_HNSW_EF_SEARCH", 0),
+		AnthropicAPIKey:            os.Getenv("ANTHROPIC_API_KEY"),
+		AnthropicModel:             getenv("CALIBER_ANTHROPIC_MODEL", "claude-opus-4-8"),
+		LLMCheapModel:              getenv("CALIBER_LLM_CHEAP_MODEL", ""),
+		OpenAIAPIKey:               os.Getenv("OPENAI_API_KEY"),
+		OpenAIEmbeddingModel:       getenv("CALIBER_OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
+		JWTSecret:                  os.Getenv("CALIBER_JWT_SECRET"),
+		FieldEncryptionKey:         os.Getenv(fieldEncryptionKeyEnv),
+		FieldEncryptionKeyPrevious: splitList(os.Getenv(fieldEncryptionKeyEnv + "_PREVIOUS")),
+		JWTIssuer:                  getenv("CALIBER_JWT_ISSUER", "caliber"),
+		JWTAudience:                getenv("CALIBER_JWT_AUDIENCE", "caliber-api"),
+		AccessTokenTTL:             getdur("CALIBER_ACCESS_TOKEN_TTL", 15*time.Minute),
+		RefreshTokenTTL:            getdur("CALIBER_REFRESH_TOKEN_TTL", 7*24*time.Hour),
+		SeedDemo:                   getbool("CALIBER_SEED_DEMO", true),
+		SeedGenerated:              getbool("CALIBER_SEED_GENERATED", false),
 		// Generous rate-limit defaults cap floods on the expensive AI endpoints; only loopback proxies are trusted unless extended (CAL-112/120).
-		RateLimitRPS:      getfloat("CALIBER_RATE_LIMIT_RPS", 30),
-		RateLimitBurst:    getfloat("CALIBER_RATE_LIMIT_BURST", 60),
-		TrustedProxies:    splitList(os.Getenv("CALIBER_TRUSTED_PROXIES")),
+		RateLimitRPS:   getfloat("CALIBER_RATE_LIMIT_RPS", 30),
+		RateLimitBurst: getfloat("CALIBER_RATE_LIMIT_BURST", 60),
+		TrustedProxies: splitList(os.Getenv("CALIBER_TRUSTED_PROXIES")),
 		// LLM guardrail defaults (CAL-035). Keep them conservative in production;
 		// raise via env vars for load/performance testing (CAL-142).
-		LLMMaxConcurrency: getint("CALIBER_LLM_MAX_CONCURRENCY", 8),
-		LLMRatePerSecond:  getfloat("CALIBER_LLM_RATE_PER_SECOND", 20),
-		LLMRateBurst:      getint("CALIBER_LLM_RATE_BURST", 40),
-		LLMMaxTokens:      getint("CALIBER_LLM_MAX_TOKENS", 2048),
-		LLMBudgetUSD:      getfloat("CALIBER_LLM_BUDGET_USD", 0),
-		RetentionWindow:   getdur("CALIBER_RETENTION_WINDOW", 0),
-		RetentionCron:     getenv("CALIBER_RETENTION_CRON", "@daily"),
-		DashboardCacheTTL: getdur("CALIBER_DASHBOARD_CACHE_TTL", 30*time.Second),
+		LLMMaxConcurrency:     getint("CALIBER_LLM_MAX_CONCURRENCY", 8),
+		LLMRatePerSecond:      getfloat("CALIBER_LLM_RATE_PER_SECOND", 20),
+		LLMRateBurst:          getint("CALIBER_LLM_RATE_BURST", 40),
+		LLMMaxTokens:          getint("CALIBER_LLM_MAX_TOKENS", 2048),
+		LLMBudgetUSD:          getfloat("CALIBER_LLM_BUDGET_USD", 0),
+		RetentionWindow:       getdur("CALIBER_RETENTION_WINDOW", 0),
+		RetentionCron:         getenv("CALIBER_RETENTION_CRON", "@daily"),
+		DashboardCacheTTL:     getdur("CALIBER_DASHBOARD_CACHE_TTL", 30*time.Second),
 		InterviewMaxQuestions: getint("CALIBER_INTERVIEW_MAX_QUESTIONS", 4),
 		InterviewMaxDuration:  getdur("CALIBER_INTERVIEW_MAX_DURATION", 10*time.Minute),
-		WorkerConcurrency: getint("CALIBER_WORKER_CONCURRENCY", 4),
-		TaskMaxRetry:      getint("CALIBER_TASK_MAX_RETRY", 3),
-		TaskRetention:     getdur("CALIBER_TASK_RETENTION", 24*time.Hour),
+		WorkerConcurrency:     getint("CALIBER_WORKER_CONCURRENCY", 4),
+		TaskMaxRetry:          getint("CALIBER_TASK_MAX_RETRY", 3),
+		TaskRetention:         getdur("CALIBER_TASK_RETENTION", 24*time.Hour),
 	}
 	loadObservabilityConfig(&c)
 	loadLokiConfig(&c)

@@ -126,9 +126,15 @@ cleartext.
 - **Key:** a base64-encoded 32-byte key in `CALIBER_FIELD_ENCRYPTION_KEY`, from
   the secret store (never the repo — see [secret-rotation.md](runbooks/secret-rotation.md)).
   Empty ⇒ passthrough (dev/local stores plaintext), so the feature is opt-in and
-  backward-compatible. **Do not remove the key once data is encrypted** — reads
-  would then return opaque ciphertext; rotate by re-encrypting under a new
-  version prefix.
+  backward-compatible; it is **required in production** (`Config.Validate`).
+- **Rotation:** the cipher accepts previous keys for decrypt-only via
+  `CALIBER_FIELD_ENCRYPTION_KEY_PREVIOUS` (comma-separated), so a new key can be
+  rolled out with zero downtime (new writes use the new key; reads still open
+  old-key rows). The `reencrypt` command then rewrites every stored row under the
+  new key so the old key can be retired. **Do not remove or change the key on a
+  store that holds encrypted data without running `reencrypt` first** — the old
+  rows would become unreadable. Full procedure:
+  [runbooks/key-rotation.md](runbooks/key-rotation.md).
 - **Scope:** the `TalentProfileRepo` encrypts on write and decrypts on read,
   transparently to callers. The summary is display-only and never used in
   embeddings or queries (CAL-045 derives recall text from evidenced

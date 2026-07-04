@@ -90,7 +90,7 @@ func openRepositories(
 		pool.Close()
 		return repos, cleanup, nil, err
 	}
-	fieldCipher, cerr := fieldcrypto.NewFieldCipher(cfg.FieldEncryptionKey)
+	fieldCipher, cerr := fieldcrypto.NewFieldCipher(cfg.FieldEncryptionKey, cfg.FieldEncryptionKeyPrevious...)
 	if cerr != nil {
 		pool.Close()
 		return repos, cleanup, nil, cerr
