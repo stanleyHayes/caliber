@@ -107,6 +107,12 @@ type AuditRepository interface { //nolint:revive // domain name is fixed by the 
 	// platform admin), returning every entry for the entity like List.
 	ListForOwner(ctx context.Context, entity string, entityID, ownerID kernel.ID, page kernel.Page) ([]*AuditEntry, int64, error)
 	// Search returns a page of audit entries matching the report filter,
-	// newest first, along with the total count of matching entries.
+	// newest first, along with the total count of matching entries. It is
+	// unscoped by owner — for internal/erasure use, not reviewer-facing exports.
 	Search(ctx context.Context, filter ReportFilter, page kernel.Page) ([]*AuditEntry, int64, error)
+	// SearchForOwner is Search scoped to an owning employer (CAL-153): only
+	// entries whose OwnerID matches are returned, so a reviewer's compliance
+	// export cannot reach another employer's decisions on a shared subject. A
+	// zero ownerID means unscoped (e.g. a platform admin), behaving like Search.
+	SearchForOwner(ctx context.Context, filter ReportFilter, ownerID kernel.ID, page kernel.Page) ([]*AuditEntry, int64, error)
 }

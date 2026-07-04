@@ -61,6 +61,14 @@ func (r *AuditRepo) List(ctx context.Context, entity string, entityID kernel.ID,
 
 // Search returns audit entries matching the report filter, newest first.
 func (r *AuditRepo) Search(ctx context.Context, filter audit.ReportFilter, page kernel.Page) ([]*audit.AuditEntry, int64, error) {
+	return r.SearchForOwner(ctx, filter, kernel.ID(""), page)
+}
+
+// SearchForOwner returns audit entries matching the report filter, scoped to an
+// owning employer (CAL-153). A zero ownerID is unscoped (behaves like Search).
+func (r *AuditRepo) SearchForOwner(
+	ctx context.Context, filter audit.ReportFilter, ownerID kernel.ID, page kernel.Page,
+) ([]*audit.AuditEntry, int64, error) {
 	actions := filter.Actions
 	if actions == nil {
 		actions = []string{}
@@ -69,11 +77,12 @@ func (r *AuditRepo) Search(ctx context.Context, filter audit.ReportFilter, page 
 	if entities == nil {
 		entities = []string{}
 	}
-	rows, err := r.q.SearchAuditLog(ctx, sqlcdb.SearchAuditLogParams{
+	rows, err := r.q.SearchAuditLogForOwner(ctx, sqlcdb.SearchAuditLogForOwnerParams{
 		CreatedAt:   pgtype.Timestamptz{Time: filter.Start, Valid: true},
 		CreatedAt_2: pgtype.Timestamptz{Time: filter.End, Valid: true},
 		Column3:     actions,
 		Column4:     entities,
+		Column5:     ownerID.String(),
 		Limit:       clampInt32(page.Limit()),
 		Offset:      clampInt32(page.Offset()),
 	})
@@ -84,11 +93,12 @@ func (r *AuditRepo) Search(ctx context.Context, filter audit.ReportFilter, page 
 	for _, row := range rows {
 		out = append(out, toDomainAuditEntry(row))
 	}
-	total, err := r.q.CountAuditLogForReport(ctx, sqlcdb.CountAuditLogForReportParams{
+	total, err := r.q.CountAuditLogForOwnerReport(ctx, sqlcdb.CountAuditLogForOwnerReportParams{
 		CreatedAt:   pgtype.Timestamptz{Time: filter.Start, Valid: true},
 		CreatedAt_2: pgtype.Timestamptz{Time: filter.End, Valid: true},
 		Column3:     actions,
 		Column4:     entities,
+		Column5:     ownerID.String(),
 	})
 	if err != nil {
 		return nil, 0, err

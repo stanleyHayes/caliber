@@ -103,3 +103,19 @@ func (mr *MockAuditRepositoryMockRecorder) Search(ctx, filter, page any) *gomock
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockAuditRepository)(nil).Search), ctx, filter, page)
 }
+
+// SearchForOwner mocks base method.
+func (m *MockAuditRepository) SearchForOwner(ctx context.Context, filter audit.ReportFilter, ownerID kernel.ID, page kernel.Page) ([]*audit.AuditEntry, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchForOwner", ctx, filter, ownerID, page)
+	ret0, _ := ret[0].([]*audit.AuditEntry)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SearchForOwner indicates an expected call of SearchForOwner.
+func (mr *MockAuditRepositoryMockRecorder) SearchForOwner(ctx, filter, ownerID, page any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchForOwner", reflect.TypeOf((*MockAuditRepository)(nil).SearchForOwner), ctx, filter, ownerID, page)
+}

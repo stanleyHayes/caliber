@@ -69,25 +69,41 @@ func (r *AuditRepo) ListForOwner(
 }
 
 // Search returns audit entries matching the report filter, newest first.
-func (r *AuditRepo) Search(_ context.Context, filter audit.ReportFilter, page kernel.Page) ([]*audit.AuditEntry, int64, error) {
+func (r *AuditRepo) Search(ctx context.Context, filter audit.ReportFilter, page kernel.Page) ([]*audit.AuditEntry, int64, error) {
+	return r.SearchForOwner(ctx, filter, kernel.ID(""), page)
+}
+
+// SearchForOwner is Search scoped to an owning employer (CAL-153). A zero
+// ownerID is unscoped (behaves like Search).
+func (r *AuditRepo) SearchForOwner(
+	_ context.Context, filter audit.ReportFilter, ownerID kernel.ID, page kernel.Page,
+) ([]*audit.AuditEntry, int64, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var matched []*audit.AuditEntry
 	for _, e := range slices.Backward(r.entries) {
-		if !e.Timestamp.IsZero() && (e.Timestamp.Before(filter.Start) || e.Timestamp.After(filter.End)) {
-			continue
+		if searchMatches(e, filter, ownerID) {
+			cp := e
+			matched = append(matched, &cp)
 		}
-		if len(filter.Actions) > 0 && !slices.Contains(filter.Actions, e.Action) {
-			continue
-		}
-		if len(filter.Entities) > 0 && !slices.Contains(filter.Entities, e.Entity) {
-			continue
-		}
-		cp := e
-		matched = append(matched, &cp)
 	}
 	out, total := paginate(matched, page)
 	return out, total, nil
+}
+
+// searchMatches reports whether an entry satisfies the report filter and the
+// optional owner scope (a zero ownerID matches any owner).
+func searchMatches(e audit.AuditEntry, filter audit.ReportFilter, ownerID kernel.ID) bool {
+	if !e.Timestamp.IsZero() && (e.Timestamp.Before(filter.Start) || e.Timestamp.After(filter.End)) {
+		return false
+	}
+	if len(filter.Actions) > 0 && !slices.Contains(filter.Actions, e.Action) {
+		return false
+	}
+	if len(filter.Entities) > 0 && !slices.Contains(filter.Entities, e.Entity) {
+		return false
+	}
+	return ownerID.IsZero() || e.OwnerID == ownerID
 }
 
 func paginate(matched []*audit.AuditEntry, page kernel.Page) ([]*audit.AuditEntry, int64) {

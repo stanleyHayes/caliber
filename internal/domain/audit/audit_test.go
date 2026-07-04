@@ -199,11 +199,16 @@ func (s *stubRepo) ListForOwner(_ context.Context, entity string, entityID, owne
 	return matched[start:end], total, nil
 }
 
-func (s *stubRepo) Search(_ context.Context, filter ReportFilter, page kernel.Page) ([]*AuditEntry, int64, error) {
+func (s *stubRepo) Search(ctx context.Context, filter ReportFilter, page kernel.Page) ([]*AuditEntry, int64, error) {
+	return s.SearchForOwner(ctx, filter, kernel.ID(""), page)
+}
+
+func (s *stubRepo) SearchForOwner(_ context.Context, filter ReportFilter, ownerID kernel.ID, page kernel.Page) ([]*AuditEntry, int64, error) {
 	var matched []*AuditEntry
 	for _, e := range s.entries {
 		if (e.Timestamp.Equal(filter.Start) || e.Timestamp.After(filter.Start)) &&
-			(e.Timestamp.Equal(filter.End) || e.Timestamp.Before(filter.End)) {
+			(e.Timestamp.Equal(filter.End) || e.Timestamp.Before(filter.End)) &&
+			(ownerID.IsZero() || e.OwnerID == ownerID) {
 			matched = append(matched, e)
 		}
 	}

@@ -34,3 +34,21 @@ FROM audit_log
 WHERE created_at >= $1 AND created_at <= $2
   AND (cardinality($3::text[]) = 0 OR action = any($3::text[]))
   AND (cardinality($4::text[]) = 0 OR entity = any($4::text[]));
+
+-- name: SearchAuditLogForOwner :many
+SELECT id, actor_user_id, action, entity, entity_id, before_json, after_json, created_at, owner_id
+FROM audit_log
+WHERE created_at >= $1 AND created_at <= $2
+  AND (cardinality($3::text[]) = 0 OR action = any($3::text[]))
+  AND (cardinality($4::text[]) = 0 OR entity = any($4::text[]))
+  AND ($5 = '' OR owner_id = $5)
+ORDER BY created_at DESC
+LIMIT $6 OFFSET $7;
+
+-- name: CountAuditLogForOwnerReport :one
+SELECT count(*)
+FROM audit_log
+WHERE created_at >= $1 AND created_at <= $2
+  AND (cardinality($3::text[]) = 0 OR action = any($3::text[]))
+  AND (cardinality($4::text[]) = 0 OR entity = any($4::text[]))
+  AND ($5 = '' OR owner_id = $5);

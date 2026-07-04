@@ -69,14 +69,22 @@ func (s *AuditServer) ListAuditLog(
 func (s *AuditServer) ExportAuditReport(
 	ctx context.Context, req *caliberv1.ExportAuditReportRequest,
 ) (*caliberv1.ExportAuditReportResponse, error) {
-	if _, err := RequirePermission(ctx, authz.PermReadAuditLog); err != nil {
+	principal, err := RequirePermission(ctx, authz.PermReadAuditLog)
+	if err != nil {
 		return nil, errToStatus(err)
 	}
 	filter, err := exportFilterFromProto(req)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
-	entries, err := collectReportEntries(ctx, s.audit, filter)
+	// Tenant-scope the export exactly like ListAuditLog (CAL-153): a reviewer can
+	// only export their own hiring-decision trail, never another employer's
+	// decisions on a shared subject. A platform admin exports the whole trail.
+	owner := principal.UserID
+	if principal.Role == identity.RoleAdmin.String() {
+		owner = ""
+	}
+	entries, err := collectReportEntries(ctx, s.audit, filter, owner)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -137,12 +145,12 @@ const (
 )
 
 func collectReportEntries(
-	ctx context.Context, repo audit.AuditRepository, filter audit.ReportFilter,
+	ctx context.Context, repo audit.AuditRepository, filter audit.ReportFilter, ownerID kernel.ID,
 ) ([]*audit.AuditEntry, error) {
 	var all []*audit.AuditEntry
 	for pageNum := 1; ; pageNum++ {
 		page := kernel.NewPage(pageNum, reportPageSize)
-		batch, total, err := repo.Search(ctx, filter, page)
+		batch, total, err := repo.SearchForOwner(ctx, filter, ownerID, page)
 		if err != nil {
 			return nil, err
 		}

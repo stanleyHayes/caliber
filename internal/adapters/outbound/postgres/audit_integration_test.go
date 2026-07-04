@@ -94,6 +94,20 @@ func TestAuditRepoSearchAndList(t *testing.T) {
 	assert.Equal(t, int64(2), totalBoth, "a zero owner (admin) is unscoped")
 	require.Len(t, both, 2)
 
+	// SearchForOwner (CAL-153): the compliance-export path is owner-scoped too, so
+	// an employer's report cannot reach another employer's decisions on the subject.
+	ownerFilter := audit.ReportFilter{Start: time.Unix(4000, 0).UTC(), End: time.Unix(7000, 0).UTC()}
+	searchA, searchTotalA, err := repo.SearchForOwner(ctx, ownerFilter, ownerA, kernel.NewPage(1, 10))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), searchTotalA)
+	require.Len(t, searchA, 1)
+	assert.Equal(t, ownerA, searchA[0].OwnerID, "owner A's export sees only their own entry")
+
+	searchBoth, searchTotalBoth, err := repo.SearchForOwner(ctx, ownerFilter, kernel.ID(""), kernel.NewPage(1, 10))
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), searchTotalBoth, "a zero owner (admin) export is unscoped")
+	require.Len(t, searchBoth, 2)
+
 	// Search across all actions/entities in the time range.
 	filter := audit.ReportFilter{
 		Start: time.Unix(0, 0).UTC(),
