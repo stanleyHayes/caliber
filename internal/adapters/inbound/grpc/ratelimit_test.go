@@ -3,6 +3,7 @@ package grpcadapter
 import (
 	"context"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -90,6 +91,25 @@ func TestRateLimiter_EvictsIdleBuckets(t *testing.T) {
 	// Eviction is behavior-preserving: a swept key is admitted again with a full
 	// burst, exactly as a never-seen key would be.
 	assert.True(t, limiter.Allow("anon:1.1.1.1:/m"))
+}
+
+// TestRateLimiter_HardCapsBucketMap proves CAL-120 L7: even when every bucket is
+// hot (so idle eviction frees nothing), a flood of distinct keys — e.g. spoofed
+// X-Forwarded-For IPs — cannot grow the map past the hard ceiling.
+func TestRateLimiter_HardCapsBucketMap(t *testing.T) {
+	clk := &fakeClock{t: time.Unix(1700000000, 0)}
+	limiter := NewRateLimiter(1, 1, clk.now)
+
+	// Admit far more distinct keys than the cap, all at the same instant so none
+	// is ever idle-evictable — the pure spoofed-flood scenario.
+	for i := range maxBuckets + 5000 {
+		limiter.Allow("anon:" + strconv.Itoa(i) + ":/m")
+	}
+
+	limiter.mu.Lock()
+	size := len(limiter.buckets)
+	limiter.mu.Unlock()
+	assert.LessOrEqual(t, size, maxBuckets, "the bucket map is bounded by the hard cap under a hot-key flood")
 }
 
 func TestRateLimiter_ClampsNonPositiveConfig(t *testing.T) {

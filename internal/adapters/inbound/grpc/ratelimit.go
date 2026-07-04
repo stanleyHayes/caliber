@@ -47,6 +47,18 @@ const sweepThreshold = 10_000
 // preserving: the next request for that key re-creates an identical full bucket.
 const idleEvictAfter = 10 * time.Minute
 
+// maxBuckets is the hard ceiling on tracked buckets. Idle eviction is best-effort
+// — it frees nothing when every bucket is hot — so under a spoofed-IP flood
+// (X-Forwarded-For is client-influenced) the map could still grow without bound.
+// This cap makes the bound absolute: at the ceiling, admitting a new key first
+// reclaims headroom via evictBatch (CAL-120 L7).
+const maxBuckets = 2 * sweepThreshold
+
+// evictLowWater is the size evictBatch reclaims down to when the hard cap is hit,
+// leaving ~10% headroom so the batch runs once per ~maxBuckets/10 new keys — an
+// amortized O(1) cost per admitted key, versus an O(maxBuckets) scan every time.
+const evictLowWater = maxBuckets - maxBuckets/10
+
 // NewRateLimiter builds a limiter allowing ratePerSec sustained requests with a
 // burst ceiling, using now as its clock (injectable for tests). A non-positive
 // rate or burst is clamped to a small positive value so the limiter always
@@ -79,6 +91,11 @@ func (r *RateLimiter) Allow(key string) bool {
 		if len(r.buckets) >= sweepThreshold {
 			r.evictIdle(t)
 		}
+		// Idle eviction frees nothing when every bucket is hot; the hard cap then
+		// batch-reclaims headroom so the map can never exceed it.
+		if len(r.buckets) >= maxBuckets {
+			r.evictBatch()
+		}
 		// A fresh key starts full, then immediately spends one token below.
 		b = &tokenBucket{tokens: r.burst, last: t}
 		r.buckets[key] = b
@@ -106,6 +123,22 @@ func (r *RateLimiter) evictIdle(now time.Time) {
 		if now.Sub(b.last) > idleEvictAfter {
 			delete(r.buckets, key)
 		}
+	}
+}
+
+// evictBatch reclaims headroom when the map is at its hard cap and idle eviction
+// freed nothing (every bucket is hot). It drops buckets down to evictLowWater in
+// a single partial pass, so the amortized cost per admitted key stays O(1) under
+// a sustained flood rather than an O(maxBuckets) scan on every new key. Which
+// specific buckets go is immaterial: a re-created bucket starts full, so a
+// legitimate key is at worst granted a limit reset, never locked out. The caller
+// holds the lock.
+func (r *RateLimiter) evictBatch() {
+	for key := range r.buckets {
+		if len(r.buckets) <= evictLowWater {
+			return
+		}
+		delete(r.buckets, key)
 	}
 }
 
