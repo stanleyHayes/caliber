@@ -138,6 +138,25 @@ func TestRateLimitInterceptor_RejectsOverLimit(t *testing.T) {
 	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
 
+func streamOK(_ any, _ grpc.ServerStream) error { return nil }
+
+func TestRateLimitStreamInterceptor_RejectsOverLimit(t *testing.T) {
+	clk := &fakeClock{t: time.Unix(1700000000, 0)}
+	limiter := NewRateLimiter(1, 1, clk.now) // burst 1
+	interceptor := NewRateLimitStreamInterceptor(limiter)
+	info := &grpc.StreamServerInfo{FullMethod: "/caliber.v1.InterviewService/StartInterview"}
+	ctx := context.WithValue(context.Background(), principalKey{},
+		app.Principal{UserID: kernel.NewID(), Role: identity.RoleCandidate.String()})
+	ss := &fakeServerStream{ctx: ctx}
+
+	require.NoError(t, interceptor(nil, ss, info, streamOK))
+
+	// The same principal's next stream open is over the burst -> ResourceExhausted,
+	// and the streaming handler is never reached (the LLM loop never starts).
+	err := interceptor(nil, ss, info, streamOK)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+}
+
 func TestRateLimitInterceptor_KeysAnonByMethod(t *testing.T) {
 	clk := &fakeClock{t: time.Unix(1700000000, 0)}
 	limiter := NewRateLimiter(1, 1, clk.now)

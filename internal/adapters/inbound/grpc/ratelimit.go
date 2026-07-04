@@ -167,6 +167,21 @@ func NewRateLimitInterceptor(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 	}
 }
 
+// NewRateLimitStreamInterceptor is NewRateLimitInterceptor for streaming RPCs.
+// Unary interceptors never run for streams, so without this the one streaming
+// RPC (StartInterview) — which drives an LLM-backed interview loop — would bypass
+// the limiter entirely, an LLM cost / goroutine amplification vector (CAL-112).
+// It checks the bucket once at stream open, before the handler runs. Place it
+// after the auth stream interceptor so the principal is available for keying.
+func NewRateLimitStreamInterceptor(limiter *RateLimiter) grpc.StreamServerInterceptor {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		if !limiter.Allow(rateLimitKey(ss.Context(), info.FullMethod)) {
+			return status.Error(codes.ResourceExhausted, "rate limit exceeded; please slow down")
+		}
+		return handler(srv, ss)
+	}
+}
+
 // rateLimitKey derives the limiter bucket key for a request. Authenticated calls
 // key by principal. Anonymous calls (login, register, refresh — the flood-prone
 // pre-auth surface) key by *client IP and method*: keying by method alone would

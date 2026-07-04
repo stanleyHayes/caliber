@@ -63,6 +63,9 @@ func NewGRPCServer(svc Services) *grpc.Server {
 	}
 	if svc.RateLimiter != nil {
 		unary = append(unary, NewRateLimitInterceptor(svc.RateLimiter))
+		// Streaming RPCs need their own rate-limit interceptor — unary ones don't
+		// run for streams — so StartInterview's LLM loop cannot bypass the limiter.
+		stream = append(stream, NewRateLimitStreamInterceptor(svc.RateLimiter))
 	}
 	// Error tracking is installed innermost so it captures every handler error,
 	// including failures surfaced by auth/rate-limit interceptors.
