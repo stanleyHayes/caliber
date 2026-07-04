@@ -124,6 +124,25 @@ func TestFieldCipher_RotationReadsBothGenerations(t *testing.T) {
 	assert.Equal(t, "sealed with the new key", dec3)
 }
 
+// TestFieldCipher_PreviousOnlyStillDecrypts guards against a botched rotation: a
+// cipher with NO primary key but a previous key set must still decrypt old-key
+// data rather than hand back ciphertext as if it were plaintext.
+func TestFieldCipher_PreviousOnlyStillDecrypts(t *testing.T) {
+	oldKey := testKey(t)
+	oldCipher, err := fieldcrypto.NewFieldCipher(oldKey)
+	require.NoError(t, err)
+	ct, err := oldCipher.Encrypt("candidate PII")
+	require.NoError(t, err)
+
+	// Primary cleared, old key left as previous (an operator slip).
+	misconfigured, err := fieldcrypto.NewFieldCipher("", oldKey)
+	require.NoError(t, err)
+	assert.False(t, misconfigured.Enabled(), "no primary => writes are passthrough")
+	dec, err := misconfigured.Decrypt(ct)
+	require.NoError(t, err)
+	assert.Equal(t, "candidate PII", dec, "a previous key still decrypts even without a primary")
+}
+
 // TestFieldCipher_RetiredKeyCannotDecrypt: once the old key is dropped from the
 // config, data still sealed with it can no longer be read — which is exactly why
 // the reencrypt command must rewrite every row before retiring a key.

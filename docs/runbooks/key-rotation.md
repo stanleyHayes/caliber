@@ -61,6 +61,13 @@ Rotating from OLD → NEW while the app stays up:
    It logs a count per entity type when done. Re-run if it is interrupted — it is
    idempotent (rows already on the new key re-seal to the same key).
 
+   It is safe to run with the app up: rows written during the pass already use the
+   new primary key, so missing them is harmless; deleted rows need no work. For a
+   clean, deterministic count, prefer a quiet window. **Always run it to
+   completion (exit 0) before step 3** — the pass covers the whole dataset
+   (paginated with a stable `id` tiebreaker), so a successful run leaves nothing on
+   the old key.
+
 3. **Retire the old key.** Once `reencrypt` has completed successfully, remove
    `CALIBER_FIELD_ENCRYPTION_KEY_PREVIOUS` from the secret store and redeploy. The
    old key is now fully out of rotation; verify a candidate profile still loads.

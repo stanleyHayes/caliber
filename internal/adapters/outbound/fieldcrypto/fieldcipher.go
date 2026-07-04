@@ -107,15 +107,25 @@ func (c *FieldCipher) Encrypt(plaintext string) (string, error) {
 // then each previous key; a value that no configured key can open (tampered, or
 // sealed by a retired key) returns an error.
 func (c *FieldCipher) Decrypt(stored string) (string, error) {
-	if c.primary == nil || !strings.HasPrefix(stored, prefix) {
+	if !strings.HasPrefix(stored, prefix) {
+		return stored, nil // legacy plaintext (or passthrough)
+	}
+	if c.primary == nil && len(c.previous) == 0 {
+		// Pure passthrough: no key to try, so a prefixed value is treated as legacy
+		// plaintext (the documented passthrough behavior).
 		return stored, nil
 	}
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(stored, prefix))
 	if err != nil {
 		return "", fmt.Errorf("crypto: ciphertext is not valid base64: %w", err)
 	}
-	if pt, ok := open(c.primary, raw); ok {
-		return pt, nil
+	// Try every configured key (primary first, then previous). This still recovers
+	// data when the primary is absent but a previous key is set — a misconfigured
+	// rotation must not silently hand back ciphertext as if it were plaintext.
+	if c.primary != nil {
+		if pt, ok := open(c.primary, raw); ok {
+			return pt, nil
+		}
 	}
 	for _, aead := range c.previous {
 		if pt, ok := open(aead, raw); ok {
