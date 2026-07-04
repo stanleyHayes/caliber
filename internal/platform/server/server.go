@@ -79,16 +79,19 @@ func buildRouter(
 	runCfg runConfig,
 ) *chi.Mux {
 	r := httpserver.NewRouter(mux, cfg.IsProd(), cfg.AllowedOrigins, log, readiness...)
-	// /metrics and /debug/ai-quality expose internal operational detail (request
-	// rates, error patterns, AI-quality internals), so gate them behind the same
-	// operator authorization as the Asynqmon UI when a verifier is configured
-	// (CAL-120). Without a verifier (local dev) they stay open for convenience.
-	guard := operatorGuard(runCfg.verifier)
+	// /metrics is the Prometheus scrape target: scrapers authenticate at the
+	// network layer (a private metrics network / not exposed to public ingress),
+	// not with a user bearer token, so gating it behind operator roles would break
+	// scraping. It stays unauthenticated at the app layer — protect it in the
+	// deployment topology (CAL-120).
 	if runCfg.metrics != nil {
-		r.With(guard...).Get("/metrics", runCfg.metrics.ServeHTTP)
+		r.Get("/metrics", runCfg.metrics.ServeHTTP)
 	}
+	// /debug/ai-quality is a human debug surface with no scraper contract, so gate
+	// it behind the same operator authorization as the Asynqmon UI when a verifier
+	// is configured (CAL-120). Without a verifier (local dev) it stays open.
 	if runCfg.aiQualityMetrics != nil {
-		r.With(guard...).Get("/debug/ai-quality", runCfg.aiQualityMetrics.ServeHTTP)
+		r.With(operatorGuard(runCfg.verifier)...).Get("/debug/ai-quality", runCfg.aiQualityMetrics.ServeHTTP)
 	}
 	if runCfg.asynqmon != nil && runCfg.verifier != nil {
 		httpserver.MountAsynqmon(r, runCfg.asynqmonPath, runCfg.asynqmon, runCfg.verifier)
@@ -96,9 +99,9 @@ func buildRouter(
 	return r
 }
 
-// operatorGuard returns the middleware that restricts operator-only HTTP surfaces
-// (metrics, debug) to authenticated employer/recruiter/admin principals. With no
-// verifier configured (local dev) it returns nothing, leaving the routes open.
+// operatorGuard returns the middleware that restricts an operator-only HTTP
+// surface to authenticated employer/recruiter/admin principals. With no verifier
+// configured (local dev) it returns nothing, leaving the route open.
 func operatorGuard(verifier app.TokenService) []func(http.Handler) http.Handler {
 	if verifier == nil {
 		return nil

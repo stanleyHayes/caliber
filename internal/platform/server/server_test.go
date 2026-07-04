@@ -173,27 +173,30 @@ func TestBuildRouterWithMetricsOnly(t *testing.T) {
 }
 
 // TestBuildRouterGatesOperatorEndpoints is the CAL-120 fix: with a verifier
-// configured, /metrics and /debug/ai-quality require an authenticated operator —
-// they are no longer anonymously readable, closing the operational info leak.
+// configured, /debug/ai-quality requires an authenticated operator. /metrics
+// stays open (Prometheus scrapes it; it is protected at the network layer) so
+// gating it would not break scraping.
 func TestBuildRouterGatesOperatorEndpoints(t *testing.T) {
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r := buildRouter(runtime.NewServeMux(), config.Config{Env: "dev"}, nil, nil, runConfig{
 		metrics: ok, aiQualityMetrics: ok, verifier: &fakeTokenService{role: identity.RoleEmployer},
 	})
 
-	for _, path := range []string{"/metrics", "/debug/ai-quality"} {
-		// No bearer -> 401.
-		rec := httptest.NewRecorder()
-		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
-		assert.Equal(t, http.StatusUnauthorized, rec.Code, "%s must require auth when a verifier is set", path)
+	// /debug/ai-quality: no bearer -> 401; valid operator bearer -> 200.
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/debug/ai-quality", nil))
+	assert.Equal(t, http.StatusUnauthorized, rec.Code, "/debug/ai-quality must require auth when a verifier is set")
 
-		// A valid operator bearer -> 200.
-		req := httptest.NewRequest(http.MethodGet, path, nil)
-		req.Header.Set("Authorization", "Bearer valid")
-		rec = httptest.NewRecorder()
-		r.ServeHTTP(rec, req)
-		assert.Equal(t, http.StatusOK, rec.Code, "%s is reachable by an authenticated operator", path)
-	}
+	req := httptest.NewRequest(http.MethodGet, "/debug/ai-quality", nil)
+	req.Header.Set("Authorization", "Bearer valid")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code, "/debug/ai-quality is reachable by an authenticated operator")
+
+	// /metrics stays open for the Prometheus scraper even with a verifier set.
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	assert.Equal(t, http.StatusOK, rec.Code, "/metrics is not gated behind user auth (network-protected)")
 }
 
 type readyFunc func(context.Context) error
