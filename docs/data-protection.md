@@ -110,3 +110,28 @@ The platform targets Ghana and West Africa; the location gate is logistical
 (work location), deliberately distinct from the protected attribute
 *nationality* ([fairness.md](fairness.md)). No cross-border transfer of personal
 data occurs in the POC (single-region in-memory/Postgres).
+
+## Encryption at rest — field-level (CAL-117)
+
+Beyond transport TLS and disk encryption at the infrastructure layer, the
+free-text **talent-profile summary** — candidate PII — is encrypted at the
+application layer so a database dump or a stolen backup does not expose it in
+cleartext.
+
+- **Cipher:** AES-256-GCM (`internal/adapters/outbound/fieldcrypto`). Each value
+  gets a fresh random nonce; the ciphertext is authenticated (a tampered or
+  wrong-key value fails to decrypt). Stored as `enc:v1:<base64>` — the prefix
+  versions the scheme for future key rotation and lets reads pass through legacy
+  plaintext transparently.
+- **Key:** a base64-encoded 32-byte key in `CALIBER_FIELD_ENCRYPTION_KEY`, from
+  the secret store (never the repo — see [secret-rotation.md](runbooks/secret-rotation.md)).
+  Empty ⇒ passthrough (dev/local stores plaintext), so the feature is opt-in and
+  backward-compatible. **Do not remove the key once data is encrypted** — reads
+  would then return opaque ciphertext; rotate by re-encrypting under a new
+  version prefix.
+- **Scope:** the `TalentProfileRepo` encrypts on write and decrypts on read,
+  transparently to callers. The summary is display-only and never used in
+  embeddings or queries (CAL-045 derives recall text from evidenced
+  competencies), so encrypting it costs no search/recall capability. Verified by
+  an integration test: the stored column is ciphertext; the repo returns
+  plaintext; a repo without the key cannot recover it.

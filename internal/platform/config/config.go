@@ -43,6 +43,9 @@ type Config struct {
 	OpenAIAPIKey         string // embeddings
 	OpenAIEmbeddingModel string // embedding model (default text-embedding-3-small)
 	JWTSecret            string // access/refresh token signing
+	// FieldEncryptionKey is a base64-encoded 32-byte AES-256 key for encrypting
+	// PII fields at rest (CAL-117). Empty = no encryption (dev/plaintext).
+	FieldEncryptionKey string
 	JWTIssuer            string // token "iss" claim
 	JWTAudience          string // token "aud" claim
 	AccessTokenTTL       time.Duration
@@ -121,6 +124,7 @@ func Load() (Config, error) {
 		OpenAIAPIKey:         os.Getenv("OPENAI_API_KEY"),
 		OpenAIEmbeddingModel: getenv("CALIBER_OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
 		JWTSecret:            os.Getenv("CALIBER_JWT_SECRET"),
+		FieldEncryptionKey:   os.Getenv("CALIBER_FIELD_ENCRYPTION_KEY"),
 		JWTIssuer:            getenv("CALIBER_JWT_ISSUER", "caliber"),
 		JWTAudience:          getenv("CALIBER_JWT_AUDIENCE", "caliber-api"),
 		AccessTokenTTL:       getdur("CALIBER_ACCESS_TOKEN_TTL", 15*time.Minute),

@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	authadapter "github.com/xcreativs/caliber/internal/adapters/outbound/auth"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/fieldcrypto"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/embeddings"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
@@ -92,7 +93,12 @@ func openRepositories(
 	repos.Users = postgres.NewUserRepo(pool)
 	repos.Refresh = postgres.NewRefreshStore(pool)
 	repos.Candidates = postgres.NewCandidateRepo(pool)
-	repos.Profiles = postgres.NewTalentProfileRepo(pool)
+	fieldCipher, cerr := fieldcrypto.NewFieldCipher(cfg.FieldEncryptionKey)
+	if cerr != nil {
+		pool.Close()
+		return repos, cleanup, nil, cerr
+	}
+	repos.Profiles = postgres.NewTalentProfileRepo(pool, postgres.WithFieldCipher(fieldCipher))
 	repos.Apps = postgres.NewApplicationRepo(pool)
 	repos.Matches = postgres.NewMatchRepo(pool)
 	repos.Interviews = postgres.NewInterviewRepo(pool)

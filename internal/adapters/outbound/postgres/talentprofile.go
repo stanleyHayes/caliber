@@ -8,19 +8,41 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/xcreativs/caliber/internal/adapters/outbound/fieldcrypto"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres/sqlcdb"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 )
 
-// TalentProfileRepo is a Postgres-backed talent.TalentProfileRepository.
+// TalentProfileRepo is a Postgres-backed talent.TalentProfileRepository. The
+// free-text summary is candidate PII, so it is encrypted at rest when a field
+// cipher is configured (CAL-117).
 type TalentProfileRepo struct {
-	q *sqlcdb.Queries
+	q      *sqlcdb.Queries
+	cipher *fieldcrypto.FieldCipher
 }
 
-// NewTalentProfileRepo builds the repository from a sqlc DBTX.
-func NewTalentProfileRepo(db sqlcdb.DBTX) *TalentProfileRepo {
-	return &TalentProfileRepo{q: sqlcdb.New(db)}
+// TalentProfileOption customizes a TalentProfileRepo.
+type TalentProfileOption func(*TalentProfileRepo)
+
+// WithFieldCipher encrypts the profile summary at rest with the given cipher
+// (CAL-117). A nil cipher is ignored (the passthrough default is kept).
+func WithFieldCipher(c *fieldcrypto.FieldCipher) TalentProfileOption {
+	return func(r *TalentProfileRepo) {
+		if c != nil {
+			r.cipher = c
+		}
+	}
+}
+
+// NewTalentProfileRepo builds the repository from a sqlc DBTX. Without a cipher
+// option the summary is stored as plaintext (passthrough).
+func NewTalentProfileRepo(db sqlcdb.DBTX, opts ...TalentProfileOption) *TalentProfileRepo {
+	r := &TalentProfileRepo{q: sqlcdb.New(db), cipher: fieldcrypto.Passthrough()}
+	for _, o := range opts {
+		o(r)
+	}
+	return r
 }
 
 // Create inserts a new talent profile.
@@ -29,10 +51,14 @@ func (r *TalentProfileRepo) Create(ctx context.Context, p *talent.TalentProfile)
 	if err != nil {
 		return err
 	}
+	summary, err := r.cipher.Encrypt(p.Summary)
+	if err != nil {
+		return err
+	}
 	err = r.q.CreateTalentProfile(ctx, sqlcdb.CreateTalentProfileParams{
 		ID:             p.ID.String(),
 		CandidateID:    p.CandidateID.String(),
-		Summary:        pgtype.Text{String: p.Summary, Valid: true},
+		Summary:        pgtype.Text{String: summary, Valid: true},
 		Profile:        comps,
 		Column5:        vectorLiteralOrEmpty(p.Embedding),
 		PassportStatus: passportToDB(p.PassportStatus),
@@ -52,7 +78,7 @@ func (r *TalentProfileRepo) ByID(ctx context.Context, id kernel.ID) (*talent.Tal
 	if err != nil {
 		return nil, err
 	}
-	return toDomainTalentProfile(row.ID, row.CandidateID, row.Summary, row.Profile, row.PassportStatus)
+	return r.toDomainTalentProfile(row.ID, row.CandidateID, row.Summary, row.Profile, row.PassportStatus)
 }
 
 // ByCandidateID returns the talent profile for a candidate.
@@ -64,7 +90,7 @@ func (r *TalentProfileRepo) ByCandidateID(ctx context.Context, candidateID kerne
 	if err != nil {
 		return nil, err
 	}
-	return toDomainTalentProfile(row.ID, row.CandidateID, row.Summary, row.Profile, row.PassportStatus)
+	return r.toDomainTalentProfile(row.ID, row.CandidateID, row.Summary, row.Profile, row.PassportStatus)
 }
 
 // Update persists changes to an existing talent profile.
@@ -73,9 +99,13 @@ func (r *TalentProfileRepo) Update(ctx context.Context, p *talent.TalentProfile)
 	if err != nil {
 		return err
 	}
+	summary, err := r.cipher.Encrypt(p.Summary)
+	if err != nil {
+		return err
+	}
 	n, err := r.q.UpdateTalentProfile(ctx, sqlcdb.UpdateTalentProfileParams{
 		ID:             p.ID.String(),
-		Summary:        pgtype.Text{String: p.Summary, Valid: true},
+		Summary:        pgtype.Text{String: summary, Valid: true},
 		Profile:        comps,
 		Column4:        vectorLiteralOrEmpty(p.Embedding),
 		PassportStatus: passportToDB(p.PassportStatus),
@@ -100,7 +130,7 @@ func (r *TalentProfileRepo) List(ctx context.Context, page kernel.Page) ([]*tale
 	}
 	out := make([]*talent.TalentProfile, 0, len(rows))
 	for _, row := range rows {
-		p, derr := toDomainTalentProfile(row.ID, row.CandidateID, row.Summary, row.Profile, row.PassportStatus)
+		p, derr := r.toDomainTalentProfile(row.ID, row.CandidateID, row.Summary, row.Profile, row.PassportStatus)
 		if derr != nil {
 			return nil, 0, derr
 		}
@@ -111,22 +141,6 @@ func (r *TalentProfileRepo) List(ctx context.Context, page kernel.Page) ([]*tale
 		return nil, 0, err
 	}
 	return out, total, nil
-}
-
-func toDomainTalentProfile(id, candidateID string, summary pgtype.Text, profile []byte, passport string) (*talent.TalentProfile, error) {
-	var comps []talent.ProfileCompetency
-	if len(profile) > 0 {
-		if err := json.Unmarshal(profile, &comps); err != nil {
-			return nil, err
-		}
-	}
-	return &talent.TalentProfile{
-		ID:             kernel.ID(id),
-		CandidateID:    kernel.ID(candidateID),
-		Summary:        summary.String,
-		Competencies:   comps,
-		PassportStatus: passportFromDB(passport),
-	}, nil
 }
 
 func passportToDB(s talent.PassportStatus) string {
@@ -155,6 +169,28 @@ func passportFromDB(s string) talent.PassportStatus {
 // (CAL-118 right-to-erasure).
 func (r *TalentProfileRepo) DeleteByCandidate(ctx context.Context, candidateID kernel.ID) error {
 	return r.q.DeleteTalentProfilesByCandidate(ctx, candidateID.String())
+}
+
+func (r *TalentProfileRepo) toDomainTalentProfile(
+	id, candidateID string, summary pgtype.Text, profile []byte, passport string,
+) (*talent.TalentProfile, error) {
+	var comps []talent.ProfileCompetency
+	if len(profile) > 0 {
+		if err := json.Unmarshal(profile, &comps); err != nil {
+			return nil, err
+		}
+	}
+	plainSummary, err := r.cipher.Decrypt(summary.String)
+	if err != nil {
+		return nil, err
+	}
+	return &talent.TalentProfile{
+		ID:             kernel.ID(id),
+		CandidateID:    kernel.ID(candidateID),
+		Summary:        plainSummary,
+		Competencies:   comps,
+		PassportStatus: passportFromDB(passport),
+	}, nil
 }
 
 var _ talent.TalentProfileRepository = (*TalentProfileRepo)(nil)
