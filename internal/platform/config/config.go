@@ -32,6 +32,12 @@ type Config struct {
 	DatabaseURL string // Postgres + pgvector DSN
 	RedisURL    string // Redis (Asynq) URL
 
+	// HNSWEfSearch tunes pgvector recall (CAL-156): the HNSW ef_search runtime
+	// parameter trades recall quality for latency at query time. 0 leaves the
+	// server default; a higher value (e.g. 100) improves recall under load at a
+	// small latency cost. Applied per pooled connection.
+	HNSWEfSearch int
+
 	AnthropicAPIKey      string // Claude
 	AnthropicModel       string // Claude model id (default claude-opus-4-8)
 	OpenAIAPIKey         string // embeddings
@@ -109,6 +115,7 @@ func Load() (Config, error) {
 		AllowedOrigins:       allowedOrigins,
 		DatabaseURL:          os.Getenv("CALIBER_DATABASE_URL"),
 		RedisURL:             os.Getenv("CALIBER_REDIS_URL"),
+		HNSWEfSearch:         getint("CALIBER_HNSW_EF_SEARCH", 0),
 		AnthropicAPIKey:      os.Getenv("ANTHROPIC_API_KEY"),
 		AnthropicModel:       getenv("CALIBER_ANTHROPIC_MODEL", "claude-opus-4-8"),
 		OpenAIAPIKey:         os.Getenv("OPENAI_API_KEY"),

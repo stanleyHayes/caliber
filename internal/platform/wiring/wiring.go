@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hibiken/asynqmon"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	authadapter "github.com/xcreativs/caliber/internal/adapters/outbound/auth"
@@ -79,7 +80,7 @@ func openRepositories(
 		log.Warn("CALIBER_DATABASE_URL not set; using in-memory repositories")
 		return repos, cleanup, nil, nil
 	}
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	pool, err := newPGPool(ctx, cfg)
 	if err != nil {
 		return repos, cleanup, nil, err
 	}
@@ -99,6 +100,26 @@ func openRepositories(
 	log.Info("persistence selected", "provider", "postgres")
 	checks := []readiness.NamedCheck{{Name: "postgres", Check: readiness.Func(pool.Ping)}}
 	return repos, pool.Close, checks, nil
+}
+
+// newPGPool builds the pgvector connection pool. When HNSWEfSearch is set
+// (CAL-156), each pooled connection runs `SET hnsw.ef_search` once on connect so
+// the recall query trades a little latency for better HNSW recall under load.
+func newPGPool(ctx context.Context, cfg config.Config) (*pgxpool.Pool, error) {
+	pcfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.HNSWEfSearch > 0 {
+		ef := cfg.HNSWEfSearch
+		pcfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			// ef is a validated positive config int (never user input), and a GUC
+			// name cannot be bound as a parameter, so formatting it is safe.
+			_, execErr := conn.Exec(ctx, fmt.Sprintf("SET hnsw.ef_search = %d", ef))
+			return execErr
+		}
+	}
+	return pgxpool.NewWithConfig(ctx, pcfg)
 }
 
 // ResetRepositories wipes all data from the provided repositories. It supports

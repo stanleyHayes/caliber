@@ -128,6 +128,27 @@ func TestLoadParsesWorkerConcurrency(t *testing.T) {
 	}
 }
 
+func TestLoadParsesHNSWEfSearch(t *testing.T) {
+	t.Setenv("CALIBER_ENV", "")
+	clearCORSOriginsEnv(t)
+	// Default is 0 (server default).
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.HNSWEfSearch != 0 {
+		t.Errorf("default HNSWEfSearch = %d, want 0", cfg.HNSWEfSearch)
+	}
+	t.Setenv("CALIBER_HNSW_EF_SEARCH", "100")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.HNSWEfSearch != 100 {
+		t.Errorf("HNSWEfSearch = %d, want 100", cfg.HNSWEfSearch)
+	}
+}
+
 func TestValidateReportsMissingSecrets(t *testing.T) {
 	t.Setenv("CALIBER_ENV", "")
 	clearCORSOriginsEnv(t)
