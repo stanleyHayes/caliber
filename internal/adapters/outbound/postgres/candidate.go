@@ -183,10 +183,12 @@ func (r *CandidateRepo) encodeIntake(intake talent.CandidateIntake) ([]byte, err
 	return json.Marshal(enc)
 }
 
-// decodeIntake reverses encodeIntake. A JSONB string value is a (possibly
-// encrypted) wrapped payload; a JSONB object is the legacy/passthrough form
-// stored directly. CandidateIntake never marshals to a bare JSON string, so the
-// two are unambiguous.
+// decodeIntake reverses encodeIntake. A non-empty JSONB string value is a
+// (possibly encrypted) wrapped payload; a JSONB object is the legacy/passthrough
+// form stored directly. CandidateIntake never marshals to a bare JSON string, so
+// the two are unambiguous. A JSONB null (or empty string) also decodes into a Go
+// string but carries no payload, so it maps to an empty intake rather than being
+// mis-read as an (undecryptable) wrapped value.
 func (r *CandidateRepo) decodeIntake(prefs []byte) (talent.CandidateIntake, error) {
 	var intake talent.CandidateIntake
 	if len(prefs) == 0 {
@@ -194,6 +196,9 @@ func (r *CandidateRepo) decodeIntake(prefs []byte) (talent.CandidateIntake, erro
 	}
 	var wrapped string
 	if err := json.Unmarshal(prefs, &wrapped); err == nil {
+		if wrapped == "" {
+			return intake, nil
+		}
 		plain, derr := r.cipher.Decrypt(wrapped)
 		if derr != nil {
 			return intake, derr
