@@ -4,7 +4,7 @@ import (
 	"context"
 
 	dashboardapp "github.com/xcreativs/caliber/internal/app/dashboard"
-	"github.com/xcreativs/caliber/internal/domain/identity"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
@@ -22,11 +22,12 @@ func NewDashboardServer(agg dashboardapp.TalentRadar) *DashboardServer {
 	return &DashboardServer{agg: agg}
 }
 
-// requireReviewer gates the Talent Radar to employers/recruiters: the dashboard
-// exposes the candidate pool and hiring intelligence, so it is never anonymous or
-// candidate-facing (CAL-116).
+// requireReviewer gates the Talent Radar to holders of the dashboard-view
+// permission: the dashboard exposes the candidate pool and hiring intelligence,
+// so it is never anonymous or candidate-facing (CAL-116). Backed by the central
+// RBAC matrix (CAL-154), so which roles may view is defined in one place.
 func requireReviewer(ctx context.Context) error {
-	_, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	_, err := RequirePermission(ctx, authz.PermViewDashboard)
 	return err
 }
 

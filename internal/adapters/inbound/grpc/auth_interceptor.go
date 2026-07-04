@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/xcreativs/caliber/internal/app"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
@@ -113,6 +114,23 @@ func RequireRole(ctx context.Context, allowed ...identity.Role) (app.Principal, 
 		}
 	}
 	return app.Principal{}, kernel.Forbidden("auth: insufficient permissions for this operation")
+}
+
+// RequirePermission authenticates the caller and authorizes them for an RBAC
+// permission via the central authz matrix (CAL-154). It is the permission-based
+// counterpart to RequireRole: a handler declares the capability it needs and the
+// matrix decides which roles hold it, so adding a role or a capability is a
+// matrix edit rather than a change across handlers.
+func RequirePermission(ctx context.Context, perm authz.Permission) (app.Principal, error) {
+	p, err := RequireAuth(ctx)
+	if err != nil {
+		return app.Principal{}, err
+	}
+	role, perr := identity.ParseRole(p.Role)
+	if perr != nil || !authz.Can(role, perm) {
+		return app.Principal{}, kernel.Forbidden("auth: missing permission " + string(perm))
+	}
+	return p, nil
 }
 
 // requireSelfCandidate authorizes a candidate acting on their OWN data: the caller
