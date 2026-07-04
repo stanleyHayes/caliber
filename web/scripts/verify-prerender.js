@@ -14,7 +14,7 @@ const distDir = join(__dirname, '..', 'dist');
 const CHECKS = [
   { path: '/', file: 'index.html', title: 'Project Caliber', snippet: 'Hire on evidence' },
   { path: '/login', file: 'login/index.html', title: 'Sign in', snippet: 'Welcome back' },
-  { path: '/register', file: 'register/index.html', title: 'Create your account', snippet: 'Passwords must be at least 12 characters' },
+  { path: '/register', file: 'register/index.html', title: 'Create your account', snippet: 'Choose your workspace role' },
   { path: '/404', file: '404/index.html', title: 'Page not found', snippet: 'Not found' },
 ];
 

@@ -1,5 +1,5 @@
 import { ThemeProvider } from '@mui/material';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -63,13 +63,22 @@ describe('AppShell', () => {
     expect(screen.getByText('Caliber').closest('a')).toHaveAttribute('href', '/');
   });
 
-  it('shows the signed-in nav (radar / sign out with the user name) and points the brand to the app', () => {
+  it('shows the signed-in nav with an Aura-style account menu and points the brand to the app', () => {
     useAuthStore.setState({ accessToken: 'access', user });
     renderShell();
     expect(screen.getByRole('link', { name: 'Radar' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Sign out (Ama Mensah)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Account menu' })).toBeInTheDocument();
+    expect(screen.queryByText('Sign out')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Sign in' })).not.toBeInTheDocument();
     expect(screen.getByText('Caliber').closest('a')).toHaveAttribute('href', '/app');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+    expect(screen.getByText('Ama Mensah')).toBeInTheDocument();
+    expect(screen.getByText('ama@example.com')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Dashboard/i })).toHaveAttribute('href', '/app');
+    expect(screen.getByRole('menuitem', { name: /Talent Passport/i })).toHaveAttribute('href', '/profile');
+    fireEvent.click(screen.getByRole('menuitem', { name: /Sign out/i }));
+    expect(logoutMock).toHaveBeenCalledTimes(1);
   });
 
   it('always exposes a skip-to-main-content link for keyboard users', () => {

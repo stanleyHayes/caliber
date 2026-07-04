@@ -38,7 +38,7 @@ describe('LoginPage', () => {
 
     // MUI appends " *" to required-field labels, so match loosely.
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'ama@example.com' } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'sekret-pass' } });
+    fireEvent.change(screen.getByLabelText(/password/i, { selector: 'input' }), { target: { value: 'sekret-pass' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
     expect(mutate).toHaveBeenCalledTimes(1);

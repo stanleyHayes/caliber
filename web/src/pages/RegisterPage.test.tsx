@@ -38,7 +38,7 @@ describe('RegisterPage', () => {
 
     fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: 'Ama Mensah' } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'ama@example.com' } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'a-very-long-password' } });
+    fireEvent.change(screen.getByLabelText(/password/i, { selector: 'input' }), { target: { value: 'a-very-long-password' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
     expect(mutate).toHaveBeenCalledTimes(1);
