@@ -26,6 +26,16 @@ func TestEstimateCallCostUSD(t *testing.T) {
 	// An unknown model is priced conservatively (like Opus) rather than free.
 	unknown := app.EstimateCallCostUSD(app.AICallRecord{Model: "mystery-1", PromptChars: 4000, ResponseChars: 400})
 	assert.InDelta(t, opus, unknown, 1e-9)
+
+	// Embeddings (CAL-159) are input-only and far cheaper. 4000 chars ≈ 1000
+	// tokens; text-embedding-3-small @ $0.02/1M = 0.00002, and any output chars
+	// are ignored (embeddings have none).
+	embSmall := app.EstimateCallCostUSD(app.AICallRecord{Model: "text-embedding-3-small", PromptChars: 4000, ResponseChars: 999})
+	assert.InDelta(t, 0.00002, embSmall, 1e-12)
+	embLarge := app.EstimateCallCostUSD(app.AICallRecord{Model: "text-embedding-3-large", PromptChars: 4000})
+	assert.InDelta(t, 0.00013, embLarge, 1e-12)
+	assert.Greater(t, embLarge, embSmall, "large embedding model costs more")
+	assert.Less(t, embSmall, opus, "an embedding is far cheaper than an Opus call")
 }
 
 func TestCostTracker_AccumulatesAndGates(t *testing.T) {

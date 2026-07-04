@@ -237,7 +237,9 @@ func effectiveLLMGuard(cfg config.Config) (int, int, int, float64) {
 // (CAL-131).
 //
 //nolint:ireturn // returns the audited+guarded LLM facade as the app.LLMClient port; interface return is intentional.
-func BuildLLM(cfg config.Config, log *slog.Logger, tele *telemetry.Provider) (app.LLMClient, *llm.MemoryRecorder) {
+func BuildLLM(
+	cfg config.Config, log *slog.Logger, tele *telemetry.Provider,
+) (app.LLMClient, *llm.MemoryRecorder, *app.CostTracker) {
 	mem := llm.NewMemoryRecorder(0)
 	recorders := []app.AICallRecorder{mem, llm.NewSlogRecorder(log)}
 	if tele != nil {
@@ -280,7 +282,7 @@ func BuildLLM(cfg config.Config, log *slog.Logger, tele *telemetry.Provider) (ap
 	)
 	// Outermost: trace every call (redacted: sizes + latency, no content) for
 	// cost and explainability observability (CAL-036).
-	return llm.NewAudited(guarded, rec, modelLabel(cfg), nil), mem
+	return llm.NewAudited(guarded, rec, modelLabel(cfg), nil), mem, cost
 }
 
 func modelLabel(cfg config.Config) string {

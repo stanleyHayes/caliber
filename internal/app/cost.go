@@ -26,6 +26,11 @@ func pricingFor(model string) ModelPricing {
 	switch {
 	case model == "" || model == "dev":
 		return ModelPricing{}
+	// OpenAI embeddings are input-only (no output tokens). List prices per 1M tokens.
+	case strings.HasPrefix(model, "text-embedding-3-large"):
+		return ModelPricing{InputPerMillionUSD: 0.13}
+	case strings.HasPrefix(model, "text-embedding"):
+		return ModelPricing{InputPerMillionUSD: 0.02} // 3-small / ada-002 tier
 	case strings.HasPrefix(model, "claude-fable"), strings.HasPrefix(model, "claude-mythos"):
 		return ModelPricing{InputPerMillionUSD: 10, OutputPerMillionUSD: 50}
 	case strings.HasPrefix(model, "claude-opus"):

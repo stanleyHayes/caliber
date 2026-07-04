@@ -112,8 +112,9 @@ func run() error {
 func buildServices(
 	ctx context.Context, cfg config.Config, log *slog.Logger, tele *telemetry.Provider,
 ) (grpcadapter.Services, func(), *readiness.Aggregate, *llm.MemoryRecorder, error) {
-	model, aiRecorder := wiring.BuildLLM(cfg, log, tele)
-	embedder := wiring.BuildEmbedder(cfg, log)
+	model, aiRecorder, cost := wiring.BuildLLM(cfg, log, tele)
+	// Embedding spend counts toward the same AI budget as LLM calls (CAL-159).
+	embedder := llm.NewCostRecordingEmbedder(wiring.BuildEmbedder(cfg, log), cost, cfg.OpenAIEmbeddingModel, nil)
 	cleanup := func() {}
 	svc := grpcadapter.Services{}
 	ready := readiness.New()
