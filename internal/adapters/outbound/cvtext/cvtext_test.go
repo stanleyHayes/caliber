@@ -3,6 +3,7 @@ package cvtext_test
 import (
 	"archive/zip"
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -70,16 +71,83 @@ func TestExtract_DocxIsCaseInsensitive(t *testing.T) {
 	assert.Equal(t, "Hello", got)
 }
 
-func TestExtract_PDFUnsupported(t *testing.T) {
+func TestExtract_PDF(t *testing.T) {
+	pdf := makePDF(t, "Led a payments platform in Go.", "Designed Postgres schemas.")
+	got, err := cvtext.Extract("cv.pdf", pdf)
+	require.NoError(t, err)
+	assert.Contains(t, got, "Led a payments platform in Go.")
+	assert.Contains(t, got, "Designed Postgres schemas.")
+}
+
+func TestExtract_PDFIsCaseInsensitive(t *testing.T) {
+	pdf := makePDF(t, "Senior Go engineer")
+	got, err := cvtext.Extract("Resume.PDF", pdf)
+	require.NoError(t, err)
+	assert.Contains(t, got, "Senior Go engineer")
+}
+
+func TestExtract_CorruptPDFRejected(t *testing.T) {
 	_, err := cvtext.Extract("cv.pdf", []byte("%PDF-1.7 ..."))
 	require.Error(t, err)
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
+}
+
+func TestExtract_PDFWithoutTextRejected(t *testing.T) {
+	_, err := cvtext.Extract("cv.pdf", makePDF(t))
+	require.Error(t, err)
+	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
+	assert.Contains(t, err.Error(), "no extractable text")
 }
 
 func TestExtract_UnknownTypeRejected(t *testing.T) {
 	_, err := cvtext.Extract("cv.rtf", []byte("data"))
 	require.Error(t, err)
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
+}
+
+func makePDF(t *testing.T, lines ...string) []byte {
+	t.Helper()
+	var stream strings.Builder
+	stream.WriteString("BT\n/F1 12 Tf\n72 720 Td\n")
+	for i, line := range lines {
+		if i > 0 {
+			stream.WriteString("0 -16 Td\n")
+		}
+		stream.WriteString("(")
+		stream.WriteString(escapePDFText(line))
+		stream.WriteString(") Tj\n")
+	}
+	stream.WriteString("ET\n")
+	content := stream.String()
+	objects := []string{
+		"<< /Type /Catalog /Pages 2 0 R >>",
+		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+		"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+		fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content), content),
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-1.4\n")
+	offsets := make([]int, len(objects)+1)
+	for i, obj := range objects {
+		offsets[i+1] = buf.Len()
+		fmt.Fprintf(&buf, "%d 0 obj\n%s\nendobj\n", i+1, obj)
+	}
+	xref := buf.Len()
+	fmt.Fprintf(&buf, "xref\n0 %d\n", len(objects)+1)
+	buf.WriteString("0000000000 65535 f \n")
+	for i := 1; i <= len(objects); i++ {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", offsets[i])
+	}
+	fmt.Fprintf(&buf, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects)+1, xref)
+	return buf.Bytes()
+}
+
+func escapePDFText(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, "(", `\(`)
+	return strings.ReplaceAll(s, ")", `\)`)
 }
 
 func TestExtract_CorruptDocxRejected(t *testing.T) {

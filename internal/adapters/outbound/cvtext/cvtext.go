@@ -1,8 +1,7 @@
 // Package cvtext extracts plain text from an uploaded CV file. It supports plain
-// text and DOCX (Office Open XML) using only the standard library; other formats
-// (notably PDF) are reported as unsupported so the caller can fall back to asking
-// the candidate to paste the CV text. Treat the returned text as untrusted (it is
-// candidate-supplied and flows into the no-fabrication extraction pipeline).
+// text, DOCX (Office Open XML), and text-bearing PDFs. Treat the returned text as
+// untrusted (it is candidate-supplied and flows into the no-fabrication extraction
+// pipeline).
 package cvtext
 
 import (
@@ -13,6 +12,8 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+
+	pdf "github.com/ledongthuc/pdf"
 
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 )
@@ -26,8 +27,12 @@ const docBodyName = "word/document.xml"
 // smaller.
 const maxDocxTextBytes = 4 << 20 // 4 MiB
 
+// maxPDFTextBytes bounds the extracted PDF text. A PDF upload is already capped
+// by the gRPC handler, but the extracted text can still be surprisingly large.
+const maxPDFTextBytes = 4 << 20 // 4 MiB
+
 // Extract returns the plain text of a CV file, dispatching on the filename's
-// extension. An empty/unknown extension is treated as plain text. PDF and other
+// extension. An empty/unknown extension is treated as plain text. Unsupported
 // binary formats return a kernel.Invalid error inviting the caller to paste text.
 func Extract(filename string, data []byte) (string, error) {
 	switch ext := strings.ToLower(filepath.Ext(filename)); ext {
@@ -36,10 +41,33 @@ func Extract(filename string, data []byte) (string, error) {
 	case ".docx":
 		return extractDocx(data)
 	case ".pdf":
-		return "", kernel.Invalid("cvtext: PDF upload is not supported yet; please paste the CV text instead")
+		return extractPDF(data)
 	default:
 		return "", kernel.Invalidf("cvtext: unsupported file type %q; please paste the CV text instead", ext)
 	}
+}
+
+func extractPDF(data []byte) (string, error) {
+	r, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return "", kernel.Wrap(err, kernel.KindInvalid, "cvtext: file is not a valid PDF")
+	}
+	plain, err := r.GetPlainText()
+	if err != nil {
+		return "", kernel.Wrap(err, kernel.KindInvalid, "cvtext: could not extract text from PDF")
+	}
+	buf, err := io.ReadAll(io.LimitReader(plain, maxPDFTextBytes+1))
+	if err != nil {
+		return "", kernel.Wrap(err, kernel.KindInvalid, "cvtext: could not read extracted PDF text")
+	}
+	if len(buf) > maxPDFTextBytes {
+		return "", kernel.Invalid("cvtext: PDF extracted text is too large")
+	}
+	text := strings.TrimSpace(string(buf))
+	if text == "" {
+		return "", kernel.Invalid("cvtext: PDF contains no extractable text; please paste the CV text instead")
+	}
+	return text, nil
 }
 
 // extractDocx pulls the visible text out of a DOCX archive's document body.

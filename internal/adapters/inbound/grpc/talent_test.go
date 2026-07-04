@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -61,6 +62,50 @@ func buildDocx(t *testing.T, text string) []byte {
 	return buf.Bytes()
 }
 
+func buildPDF(t *testing.T, lines ...string) []byte {
+	t.Helper()
+	var stream strings.Builder
+	stream.WriteString("BT\n/F1 12 Tf\n72 720 Td\n")
+	for i, line := range lines {
+		if i > 0 {
+			stream.WriteString("0 -16 Td\n")
+		}
+		stream.WriteString("(")
+		stream.WriteString(escapePDFLiteral(line))
+		stream.WriteString(") Tj\n")
+	}
+	stream.WriteString("ET\n")
+	content := stream.String()
+	objects := []string{
+		"<< /Type /Catalog /Pages 2 0 R >>",
+		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+		"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+		fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content), content),
+	}
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-1.4\n")
+	offsets := make([]int, len(objects)+1)
+	for i, obj := range objects {
+		offsets[i+1] = buf.Len()
+		fmt.Fprintf(&buf, "%d 0 obj\n%s\nendobj\n", i+1, obj)
+	}
+	xref := buf.Len()
+	fmt.Fprintf(&buf, "xref\n0 %d\n", len(objects)+1)
+	buf.WriteString("0000000000 65535 f \n")
+	for i := 1; i <= len(objects); i++ {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", offsets[i])
+	}
+	fmt.Fprintf(&buf, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects)+1, xref)
+	return buf.Bytes()
+}
+
+func escapePDFLiteral(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, "(", `\(`)
+	return strings.ReplaceAll(s, ")", `\)`)
+}
+
 func TestCreateProfileFromCV_FileUpload(t *testing.T) {
 	ctx := context.Background()
 	candidates := memory.NewCandidateRepo()
@@ -84,6 +129,29 @@ func TestCreateProfileFromCV_FileUpload(t *testing.T) {
 	assert.True(t, names["Go"] && names["Postgres"], "profile extracted from the uploaded DOCX, not cv_text")
 }
 
+func TestCreateProfileFromCV_PDFUpload(t *testing.T) {
+	ctx := context.Background()
+	candidates := memory.NewCandidateRepo()
+	profiles := memory.NewTalentProfileRepo()
+	cand, err := talent.NewCandidate(kernel.NewID(), "", talent.CandidateIntake{})
+	require.NoError(t, err)
+	require.NoError(t, candidates.Create(ctx, cand))
+	srv := NewTalentServer(profilesapp.NewProfileBuilder(candidates, profiles, llm.NewDev()))
+
+	pdf := buildPDF(t, "Senior engineer in Go.", "Designed Postgres schemas for gRPC services.")
+	resp, err := srv.CreateProfileFromCV(asCandidate(ctx, cand.ID), &caliberv1.CreateProfileFromCVRequest{
+		CandidateId: cand.ID.String(),
+		CvFile:      pdf,
+		CvFilename:  "resume.pdf",
+	})
+	require.NoError(t, err)
+	names := map[string]bool{}
+	for _, c := range resp.GetProfile().GetCompetencies() {
+		names[c.GetName()] = true
+	}
+	assert.True(t, names["Go"] && names["Postgres"], "profile extracted from the uploaded PDF, not cv_text")
+}
+
 func TestCreateProfileFromCV_RejectsOversizeAndUnsupported(t *testing.T) {
 	srv := NewTalentServer(profilesapp.NewProfileBuilder(memory.NewCandidateRepo(), memory.NewTalentProfileRepo(), llm.NewDev()))
 	cid := kernel.NewID()
@@ -95,9 +163,9 @@ func TestCreateProfileFromCV_RejectsOversizeAndUnsupported(t *testing.T) {
 	})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 
-	// An unsupported format (PDF) is rejected with guidance to paste text.
+	// Unsupported formats are rejected with guidance to paste text.
 	_, err = srv.CreateProfileFromCV(self, &caliberv1.CreateProfileFromCVRequest{
-		CandidateId: cid.String(), CvFile: []byte("%PDF-1.7"), CvFilename: "cv.pdf",
+		CandidateId: cid.String(), CvFile: []byte("{\\rtf1}"), CvFilename: "cv.rtf",
 	})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }

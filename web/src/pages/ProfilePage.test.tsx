@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError, type Contest, type TalentProfile, type User } from '../api/types';
@@ -80,18 +80,45 @@ describe('ProfilePage', () => {
 
   it('submits the pasted CV to extract a profile', () => {
     render(<ProfilePage />);
-    fireEvent.change(screen.getByPlaceholderText('Paste your CV text…'), {
+    fireEvent.change(screen.getByPlaceholderText('Paste your CV text...'), {
       target: { value: 'I built payment services in Go.' },
     });
     fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'Accra' } });
+    fireEvent.change(screen.getByLabelText('Target titles'), { target: { value: 'Backend Engineer, Platform Engineer' } });
+    fireEvent.change(screen.getByLabelText('Salary floor'), { target: { value: '120000' } });
+    fireEvent.change(screen.getByLabelText('Deal-breakers'), { target: { value: 'No relocation\nNo unpaid take-home' } });
     const build = screen.getByRole('button', { name: 'Build my profile' });
     expect(build).toBeEnabled();
     fireEvent.click(build);
 
     expect(mutate).toHaveBeenCalledWith({
       cvText: 'I built payment services in Go.',
-      intake: { location: 'Accra', targetTitles: [], salaryFloor: 0 },
+      cvFile: undefined,
+      cvFilename: undefined,
+      intake: {
+        location: 'Accra',
+        targetTitles: ['Backend Engineer', 'Platform Engineer'],
+        salaryFloor: 120000,
+        dealBreakers: ['No relocation', 'No unpaid take-home'],
+      },
     });
+  });
+
+  it('submits an uploaded CV file instead of pasted text', async () => {
+    render(<ProfilePage />);
+    const file = new File(['Senior Go engineer'], 'resume.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByLabelText('Upload CV file'), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'Kumasi' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Build my profile' }));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
+    expect(mutate).toHaveBeenCalledWith({
+      cvText: '',
+      cvFile: btoa('Senior Go engineer'),
+      cvFilename: 'resume.pdf',
+      intake: { location: 'Kumasi', targetTitles: [], salaryFloor: 0, dealBreakers: [] },
+    });
+    expect(screen.getByText('resume.pdf')).toBeInTheDocument();
   });
 
   it('shows the existing passport with a re-extract action', () => {
