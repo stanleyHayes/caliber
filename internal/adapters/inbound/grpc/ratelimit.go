@@ -3,6 +3,7 @@ package grpcadapter
 import (
 	"context"
 	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,45 @@ type RateLimiter struct {
 	burst     float64 // maximum tokens a bucket can hold
 	now       func() time.Time
 	lastSweep time.Time // last time evictIdle ran, to throttle the O(n) scan
+	// trustedProxies are the source CIDRs whose X-Forwarded-For is honored when
+	// deriving the anonymous client IP. X-Forwarded-For is client-settable, so it
+	// is trusted ONLY from a known proxy/LB hop; a direct (untrusted) peer's XFF is
+	// ignored and its real connection IP used, closing rate-limit evasion by header
+	// spoofing (CAL-120). Defaults to loopback — the co-located REST gateway.
+	trustedProxies []netip.Prefix
+}
+
+// RateLimiterOption customizes a RateLimiter.
+type RateLimiterOption func(*RateLimiter)
+
+// loopbackProxies is the default trusted-proxy set: the REST gateway dials the
+// gRPC server from localhost, so its relayed X-Forwarded-For is honored.
+func loopbackProxies() []netip.Prefix {
+	return []netip.Prefix{
+		netip.MustParsePrefix("127.0.0.0/8"),
+		netip.MustParsePrefix("::1/128"),
+	}
+}
+
+// WithTrustedProxies adds proxy/LB source CIDRs (beyond loopback) whose
+// X-Forwarded-For header is honored. Unparseable entries are skipped.
+func WithTrustedProxies(cidrs []string) RateLimiterOption {
+	return func(r *RateLimiter) {
+		for _, c := range cidrs {
+			c = strings.TrimSpace(c)
+			if c == "" {
+				continue
+			}
+			if p, err := netip.ParsePrefix(c); err == nil {
+				r.trustedProxies = append(r.trustedProxies, p)
+				continue
+			}
+			// Accept a bare IP as a host route (/32 or /128).
+			if a, err := netip.ParseAddr(c); err == nil {
+				r.trustedProxies = append(r.trustedProxies, netip.PrefixFrom(a, a.BitLen()))
+			}
+		}
+	}
 }
 
 type tokenBucket struct {
@@ -71,19 +111,24 @@ const sweepInterval = time.Second
 // burst ceiling, using now as its clock (injectable for tests). A non-positive
 // rate or burst is clamped to a small positive value so the limiter always
 // admits some traffic rather than locking everyone out.
-func NewRateLimiter(ratePerSec, burst float64, now func() time.Time) *RateLimiter {
+func NewRateLimiter(ratePerSec, burst float64, now func() time.Time, opts ...RateLimiterOption) *RateLimiter {
 	if ratePerSec <= 0 {
 		ratePerSec = 1
 	}
 	if burst < 1 {
 		burst = 1
 	}
-	return &RateLimiter{
-		buckets: make(map[string]*tokenBucket),
-		rate:    ratePerSec,
-		burst:   burst,
-		now:     now,
+	r := &RateLimiter{
+		buckets:        make(map[string]*tokenBucket),
+		rate:           ratePerSec,
+		burst:          burst,
+		now:            now,
+		trustedProxies: loopbackProxies(),
 	}
+	for _, o := range opts {
+		o(r)
+	}
+	return r
 }
 
 // Allow reports whether a request for key may proceed, consuming a token if so.
@@ -160,7 +205,7 @@ func (r *RateLimiter) evictBatch() {
 // interceptor so the principal is available.
 func NewRateLimitInterceptor(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if !limiter.Allow(rateLimitKey(ctx, info.FullMethod)) {
+		if !limiter.Allow(limiter.rateLimitKey(ctx, info.FullMethod)) {
 			return nil, status.Error(codes.ResourceExhausted, "rate limit exceeded; please slow down")
 		}
 		return handler(ctx, req)
@@ -175,7 +220,7 @@ func NewRateLimitInterceptor(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 // after the auth stream interceptor so the principal is available for keying.
 func NewRateLimitStreamInterceptor(limiter *RateLimiter) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if !limiter.Allow(rateLimitKey(ss.Context(), info.FullMethod)) {
+		if !limiter.Allow(limiter.rateLimitKey(ss.Context(), info.FullMethod)) {
 			return status.Error(codes.ResourceExhausted, "rate limit exceeded; please slow down")
 		}
 		return handler(srv, ss)
@@ -188,27 +233,46 @@ func NewRateLimitStreamInterceptor(limiter *RateLimiter) grpc.StreamServerInterc
 // pool every anonymous caller into one bucket, so a single attacker could drain
 // it and lock all other users out of logging in (a self-inflicted DoS). Per-IP
 // isolation gives each source its own quota.
-func rateLimitKey(ctx context.Context, fullMethod string) string {
+func (r *RateLimiter) rateLimitKey(ctx context.Context, fullMethod string) string {
 	if p, ok := PrincipalFromContext(ctx); ok {
 		return "user:" + p.UserID.String()
 	}
-	return "anon:" + clientIP(ctx) + ":" + fullMethod
+	return "anon:" + r.clientIP(ctx) + ":" + fullMethod
 }
 
-// clientIP extracts the caller's IP, preferring the left-most X-Forwarded-For
-// entry set by a trusted proxy/load balancer (and by the REST gateway, which
-// dials the gRPC server from localhost) and falling back to the peer address.
-// Only the IP is used — never the port — so a client cannot evade its bucket by
-// opening fresh connections. Returns "unknown" when neither is available, so all
-// such requests share one conservative bucket rather than going unlimited.
-func clientIP(ctx context.Context) string {
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		for _, h := range md.Get("x-forwarded-for") {
-			if ip := strings.TrimSpace(strings.Split(h, ",")[0]); ip != "" {
-				return ip
-			}
+// clientIP extracts the caller's IP for anonymous rate-limit keying. It uses the
+// direct connection (peer) IP by default; the left-most X-Forwarded-For entry is
+// honored ONLY when the peer is a trusted proxy/LB, because XFF is client-settable
+// and would otherwise let an attacker forge a fresh source per request to evade
+// the per-IP bucket. Only the IP is used — never the port — so a client cannot
+// evade its bucket by opening fresh connections. Returns "unknown" when no IP is
+// available, so those requests share one conservative bucket.
+func (r *RateLimiter) clientIP(ctx context.Context) string {
+	peer := peerIP(ctx)
+	if r.peerIsTrusted(peer) {
+		if fwd := forwardedForClient(ctx); fwd != "" {
+			return fwd
 		}
 	}
+	return peer
+}
+
+// peerIsTrusted reports whether ip parses and falls within a trusted-proxy CIDR.
+func (r *RateLimiter) peerIsTrusted(ip string) bool {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	for _, p := range r.trustedProxies {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// peerIP returns the direct connection's IP without the port, or "unknown".
+func peerIP(ctx context.Context) string {
 	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
 		if host, _, err := net.SplitHostPort(p.Addr.String()); err == nil {
 			return host
@@ -216,4 +280,18 @@ func clientIP(ctx context.Context) string {
 		return p.Addr.String()
 	}
 	return "unknown"
+}
+
+// forwardedForClient returns the left-most X-Forwarded-For entry, or "".
+func forwardedForClient(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	for _, h := range md.Get("x-forwarded-for") {
+		if ip := strings.TrimSpace(strings.Split(h, ",")[0]); ip != "" {
+			return ip
+		}
+	}
+	return ""
 }

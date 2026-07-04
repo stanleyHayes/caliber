@@ -62,6 +62,12 @@ type Config struct {
 	RateLimitRPS   float64 // per-principal sustained request rate (token-bucket refill/sec)
 	RateLimitBurst float64 // per-principal burst ceiling (max tokens)
 
+	// TrustedProxies are extra proxy/LB source CIDRs (beyond loopback) whose
+	// X-Forwarded-For header is trusted for anonymous rate-limit keying (CAL-120).
+	// Loopback (the co-located REST gateway) is always trusted; set this only when
+	// an external LB connects to the gRPC port directly.
+	TrustedProxies []string
+
 	// LLM guardrail limits (CAL-035 / CAL-142). These defaults cap cost and
 	// concurrency for production workloads; load tests can raise them to find
 	// service limits without changing code.
@@ -137,10 +143,10 @@ func Load() (Config, error) {
 		RefreshTokenTTL:      getdur("CALIBER_REFRESH_TOKEN_TTL", 7*24*time.Hour),
 		SeedDemo:             getbool("CALIBER_SEED_DEMO", true),
 		SeedGenerated:        getbool("CALIBER_SEED_GENERATED", false),
-		// Generous defaults: no human-driven session approaches these, but they
-		// cap floods and runaway clients on the expensive AI endpoints (CAL-112).
+		// Generous rate-limit defaults cap floods on the expensive AI endpoints; only loopback proxies are trusted unless extended (CAL-112/120).
 		RateLimitRPS:      getfloat("CALIBER_RATE_LIMIT_RPS", 30),
 		RateLimitBurst:    getfloat("CALIBER_RATE_LIMIT_BURST", 60),
+		TrustedProxies:    splitList(os.Getenv("CALIBER_TRUSTED_PROXIES")),
 		// LLM guardrail defaults (CAL-035). Keep them conservative in production;
 		// raise via env vars for load/performance testing (CAL-142).
 		LLMMaxConcurrency: getint("CALIBER_LLM_MAX_CONCURRENCY", 8),
@@ -156,13 +162,8 @@ func Load() (Config, error) {
 		WorkerConcurrency: getint("CALIBER_WORKER_CONCURRENCY", 4),
 		TaskMaxRetry:      getint("CALIBER_TASK_MAX_RETRY", 3),
 		TaskRetention:     getdur("CALIBER_TASK_RETENTION", 24*time.Hour),
-
-		OTelExporter:   getenv("CALIBER_OTEL_EXPORTER", "noop"),
-		ServiceName:    getenv("CALIBER_SERVICE_NAME", "caliber-api"),
-		ServiceVersion: getenv("CALIBER_SERVICE_VERSION", "dev"),
-
-		MetricsAddr: getenv("CALIBER_WORKER_METRICS_ADDR", ":8081"),
 	}
+	loadObservabilityConfig(&c)
 	loadLokiConfig(&c)
 	if c.HTTPAddr == "" || c.GRPCAddr == "" {
 		return Config{}, errors.New("config: HTTP and gRPC addresses must be set")
@@ -174,6 +175,14 @@ func Load() (Config, error) {
 		}
 	}
 	return c, nil
+}
+
+// loadObservabilityConfig fills the tracing/metrics identity fields from the env.
+func loadObservabilityConfig(c *Config) {
+	c.OTelExporter = getenv("CALIBER_OTEL_EXPORTER", "noop")
+	c.ServiceName = getenv("CALIBER_SERVICE_NAME", "caliber-api")
+	c.ServiceVersion = getenv("CALIBER_SERVICE_VERSION", "dev")
+	c.MetricsAddr = getenv("CALIBER_WORKER_METRICS_ADDR", ":8081")
 }
 
 // loadLokiConfig fills the Loki log-shipping fields from the environment.
@@ -297,6 +306,21 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// splitList parses a comma-separated env value into trimmed, non-empty entries.
+func splitList(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func getorigins(env string) ([]string, error) {

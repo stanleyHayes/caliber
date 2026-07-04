@@ -194,14 +194,30 @@ func TestRateLimitInterceptor_IsolatesAnonByIP(t *testing.T) {
 }
 
 func TestClientIP(t *testing.T) {
-	// Peer address: host is returned without the port.
-	assert.Equal(t, "203.0.113.7", clientIP(ctxFromIP("203.0.113.7")))
+	limiter := NewRateLimiter(1, 1, (&fakeClock{t: time.Unix(1700000000, 0)}).now)
 
-	// X-Forwarded-For from a proxy wins, and only the left-most entry is used.
-	fwd := metadata.NewIncomingContext(ctxFromIP("10.0.0.1"),
+	// Peer address: host is returned without the port.
+	assert.Equal(t, "203.0.113.7", limiter.clientIP(ctxFromIP("203.0.113.7")))
+
+	// X-Forwarded-For from a TRUSTED peer (loopback = the co-located gateway) is
+	// honored, and only the left-most entry is used.
+	trustedFwd := metadata.NewIncomingContext(ctxFromIP("127.0.0.1"),
+		metadata.Pairs("x-forwarded-for", "198.51.100.9, 127.0.0.1"))
+	assert.Equal(t, "198.51.100.9", limiter.clientIP(trustedFwd))
+
+	// X-Forwarded-For from an UNtrusted peer is IGNORED — a direct gRPC client
+	// cannot spoof a fresh source IP to evade its bucket; its real peer IP is used.
+	spoofed := metadata.NewIncomingContext(ctxFromIP("203.0.113.7"),
+		metadata.Pairs("x-forwarded-for", "198.51.100.9"))
+	assert.Equal(t, "203.0.113.7", limiter.clientIP(spoofed), "untrusted peer's forwarded-for is not honored")
+
+	// A configured trusted proxy CIDR extends the trust beyond loopback.
+	withProxy := NewRateLimiter(1, 1, (&fakeClock{t: time.Unix(1700000000, 0)}).now,
+		WithTrustedProxies([]string{"10.0.0.0/8"}))
+	proxied := metadata.NewIncomingContext(ctxFromIP("10.0.0.1"),
 		metadata.Pairs("x-forwarded-for", "198.51.100.9, 10.0.0.1"))
-	assert.Equal(t, "198.51.100.9", clientIP(fwd))
+	assert.Equal(t, "198.51.100.9", withProxy.clientIP(proxied), "a configured trusted proxy's forwarded-for is honored")
 
 	// No peer and no metadata -> a single shared, conservative bucket.
-	assert.Equal(t, "unknown", clientIP(context.Background()))
+	assert.Equal(t, "unknown", limiter.clientIP(context.Background()))
 }

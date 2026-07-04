@@ -172,7 +172,8 @@ func wireApplicationServices(
 	identitySvc := identityapp.NewService(repos.Users, authadapter.NewArgon2idHasher(), tokens, repos.Refresh, time.Now, idOpts...)
 	svc.Identity = grpcadapter.NewIdentityServer(identitySvc)
 	svc.AccessVerifier = tokens
-	svc.RateLimiter = grpcadapter.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst, time.Now)
+	svc.RateLimiter = grpcadapter.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst, time.Now,
+		grpcadapter.WithTrustedProxies(cfg.TrustedProxies))
 	// Server reflection is a dev aid only — never expose the API schema in prod.
 	svc.EnableReflection = !cfg.IsProd()
 
