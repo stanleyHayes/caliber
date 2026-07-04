@@ -55,6 +55,27 @@ type TokenService interface {
 	VerifyRefresh(token string) (RefreshClaims, error)
 }
 
+// SSOIdentity is the verified identity an external IdP asserts about a user.
+type SSOIdentity struct {
+	Subject string // stable, opaque provider subject id (the "sub" claim)
+	Email   string // the user's email as asserted by the IdP
+	Name    string // display name, when the IdP provides one
+}
+
+// SSOAuthenticator verifies an external identity-provider assertion — an OIDC
+// id_token or a SAML response — and returns the identity it asserts, or a
+// kernel.Unauthorized error when the assertion is missing/invalid/expired.
+//
+// It is the pluggability seam for enterprise SSO (CAL-155, "SSO readiness"): a
+// real OIDC or SAML adapter implements this behind the auth port, and
+// identity.Service maps the asserted identity to a Caliber account and issues
+// its own session — so the rest of the platform authenticates uniformly via the
+// existing TokenService, regardless of how the user proved who they are. The POC
+// ships no live IdP adapter; wiring one enables SSO without touching callers.
+type SSOAuthenticator interface {
+	Authenticate(ctx context.Context, providerToken string) (SSOIdentity, error)
+}
+
 // RefreshRecord is a persisted refresh-token grant, keyed by its jti.
 type RefreshRecord struct {
 	ID        string // jti

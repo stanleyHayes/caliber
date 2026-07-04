@@ -44,6 +44,7 @@ type Service struct {
 	policy      identitydom.PasswordPolicy
 	provisioner Provisioner
 	throttle    app.LoginThrottle
+	sso         app.SSOAuthenticator
 }
 
 // Option customizes a Service.
@@ -57,6 +58,12 @@ func WithProvisioner(p Provisioner) Option {
 // WithThrottle installs a brute-force login throttle.
 func WithThrottle(t app.LoginThrottle) Option {
 	return func(s *Service) { s.throttle = t }
+}
+
+// WithSSO installs an external identity-provider authenticator, enabling
+// LoginWithSSO (CAL-155). Absent it, LoginWithSSO reports SSO is not configured.
+func WithSSO(a app.SSOAuthenticator) Option {
+	return func(s *Service) { s.sso = a }
 }
 
 // NewService wires the use-case. A nil clock defaults to time.Now.
@@ -137,6 +144,37 @@ func (s *Service) Login(ctx context.Context, rawEmail, password string) (*Sessio
 		return nil, err
 	}
 	s.throttleReset(ctx, key)
+	return s.issue(ctx, user)
+}
+
+// LoginWithSSO authenticates a user via an external IdP assertion (OIDC/SAML)
+// and issues a Caliber session (CAL-155). The IdP proves identity; the platform
+// still owns the session — so an SSO login and a password login converge on the
+// same TokenService-issued tokens. The account must already exist (the POC does
+// no just-in-time provisioning); an unknown or inactive account, or an
+// unconfigured SSO, all return a generic unauthorized error.
+func (s *Service) LoginWithSSO(ctx context.Context, providerToken string) (*Session, error) {
+	if s.sso == nil {
+		return nil, kernel.Unauthorized("identity: SSO is not configured")
+	}
+	asserted, err := s.sso.Authenticate(ctx, providerToken)
+	if err != nil {
+		return nil, err
+	}
+	email, err := identitydom.NewEmail(asserted.Email)
+	if err != nil {
+		return nil, kernel.Unauthorized("identity: SSO assertion carries no valid email")
+	}
+	user, err := s.users.ByEmail(ctx, email)
+	if err != nil {
+		if kernel.KindOf(err) == kernel.KindNotFound {
+			return nil, kernel.Unauthorized("identity: no account is provisioned for this SSO identity")
+		}
+		return nil, err
+	}
+	if !user.IsActive() {
+		return nil, kernel.Unauthorized("identity: account is not active")
+	}
 	return s.issue(ctx, user)
 }
 
