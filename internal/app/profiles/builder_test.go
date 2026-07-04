@@ -144,6 +144,63 @@ func TestCreateFromCVDropsUnevidencedCompetencies(t *testing.T) {
 	assert.NotEmpty(t, out.Competencies[0].EvidenceQuote, "every surviving competency carries CV evidence")
 }
 
+// TestCreateFromCVDropsFabricatedEvidence is the CAL-044 no-fabrication guard: a
+// competency whose evidence quote is non-empty but does NOT appear in the CV — the
+// model invented it — must be dropped, not admitted to the verified profile.
+func TestCreateFromCVDropsFabricatedEvidence(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	llm := mocks.NewMockLLMClient(ctrl)
+	cid := kernel.NewID()
+	cand, err := talent.NewCandidate(kernel.NewID(), "", talent.CandidateIntake{})
+	require.NoError(t, err)
+
+	// 'Go' grounds in the CV; 'Kubernetes' cites a quote the CV never contained.
+	const mixed = `{"summary":"Engineer.","competencies":[` +
+		`{"name":"Go","level":4,"evidence_quote":"built services in Go","source_span":"line 3"},` +
+		`{"name":"Kubernetes","level":5,"evidence_quote":"ran a 500-node Kubernetes fleet","source_span":"line 9"}]}`
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: mixed}, nil)
+	candidates.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(nil, kernel.NotFound("none"))
+	profiles.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+
+	out, err := profilesapp.NewProfileBuilder(candidates, profiles, llm).
+		CreateFromCV(context.Background(), cid, "I built services in Go", talent.CandidateIntake{})
+	require.NoError(t, err)
+	require.Len(t, out.Competencies, 1, "the fabricated 'Kubernetes' competency is dropped")
+	assert.Equal(t, "Go", out.Competencies[0].Name)
+}
+
+// TestCreateFromCVGroundsQuoteDespiteCaseAndWhitespace: a genuine quote that
+// differs from the CV only in case or whitespace still grounds, so extraction
+// artifacts do not cause a real competency to be dropped.
+func TestCreateFromCVGroundsQuoteDespiteCaseAndWhitespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	llm := mocks.NewMockLLMClient(ctrl)
+	cid := kernel.NewID()
+	cand, err := talent.NewCandidate(kernel.NewID(), "", talent.CandidateIntake{})
+	require.NoError(t, err)
+
+	const extract = `{"summary":"Lead.","competencies":[` +
+		`{"name":"leadership","level":4,"evidence_quote":"led the payments platform team","source_span":"exp#1"}]}`
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: extract}, nil)
+	candidates.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(nil, kernel.NotFound("none"))
+	profiles.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+
+	// CV has different case and irregular whitespace than the model's quote.
+	out, err := profilesapp.NewProfileBuilder(candidates, profiles, llm).
+		CreateFromCV(context.Background(), cid, "Led  the\nPayments Platform Team at Kuvora", talent.CandidateIntake{})
+	require.NoError(t, err)
+	require.Len(t, out.Competencies, 1, "a genuine quote grounds despite case/whitespace differences")
+	assert.Equal(t, "leadership", out.Competencies[0].Name)
+}
+
 func TestCreateFromCVUpdatesExistingProfile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	candidates := mocks.NewMockCandidateRepository(ctrl)

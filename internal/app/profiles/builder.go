@@ -83,17 +83,7 @@ func (b *ProfileBuilder) CreateFromCV(
 	if err != nil {
 		return nil, err
 	}
-	comps := make([]talent.ProfileCompetency, 0, len(parsed.Competencies))
-	for _, c := range parsed.Competencies {
-		// No-fabrication at the extraction boundary (CAL-044): only admit a
-		// competency the model backed with a CV evidence quote. An unevidenced
-		// skill is dropped — never added to the verified profile — so every
-		// competency in a Talent Passport traces to a real span of the CV.
-		if strings.TrimSpace(c.EvidenceQuote) == "" {
-			continue
-		}
-		comps = append(comps, talent.ProfileCompetency{Name: c.Name, Level: c.Level, EvidenceQuote: c.EvidenceQuote, SourceSpan: c.SourceSpan})
-	}
+	comps := groundedCompetencies(cvText, parsed)
 	fresh, err := talent.NewTalentProfile(candidateID, parsed.Summary, comps) // validates competency names + levels
 	if err != nil {
 		return nil, err
@@ -151,6 +141,33 @@ func (b *ProfileBuilder) embed(ctx context.Context, profile *talent.TalentProfil
 	}
 	profile.Embedding = cloneEmbedding(embedding)
 	return nil
+}
+
+// groundedCompetencies keeps only the competencies whose evidence quote actually
+// appears in the CV (CAL-044 no-fabrication). A merely non-empty quote is not
+// enough — the model could invent one — so the quote must ground to a real span
+// of the source (matched case-insensitively and whitespace-normalized to tolerate
+// extraction artifacts). An unevidenced or fabricated competency is dropped, never
+// added to the verified profile: a hard guardrail prefers a lost skill to an
+// invented one.
+func groundedCompetencies(cvText string, parsed llmProfile) []talent.ProfileCompetency {
+	normalizedCV := normalizeForMatch(cvText)
+	comps := make([]talent.ProfileCompetency, 0, len(parsed.Competencies))
+	for _, c := range parsed.Competencies {
+		quote := normalizeForMatch(c.EvidenceQuote)
+		if quote == "" || !strings.Contains(normalizedCV, quote) {
+			continue
+		}
+		comps = append(comps, talent.ProfileCompetency{Name: c.Name, Level: c.Level, EvidenceQuote: c.EvidenceQuote, SourceSpan: c.SourceSpan})
+	}
+	return comps
+}
+
+// normalizeForMatch lower-cases s and collapses every run of whitespace to a
+// single space (trimming the ends), so an evidence quote grounds against the CV
+// despite case and whitespace/formatting differences introduced by extraction.
+func normalizeForMatch(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
 }
 
 func cloneEmbedding(v []float32) []float32 {
