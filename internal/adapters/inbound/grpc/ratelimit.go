@@ -290,11 +290,24 @@ func (r *RateLimiter) rateLimitKey(ctx context.Context, fullMethod string) strin
 // available, so those requests share one conservative bucket.
 func (r *RateLimiter) clientIP(ctx context.Context) string {
 	peer := peerIP(ctx)
-	if r.peerIsTrusted(peer) {
-		if fwd := forwardedForClient(ctx); fwd != "" {
-			return fwd
+	if !r.peerIsTrusted(peer) {
+		// The direct peer is not a trusted proxy: use its real connection IP and
+		// ignore X-Forwarded-For entirely (any XFF it sent is attacker-controlled).
+		return peer
+	}
+	// The peer is a trusted proxy (e.g. the co-located REST gateway, which APPENDS
+	// the address it observed to the RIGHT of any client-supplied X-Forwarded-For).
+	// Walk the chain right-to-left, skipping further trusted hops, and take the
+	// right-most UNtrusted address — the real client as seen by the outermost
+	// trusted proxy. Entries to its left are client-supplied and must not be
+	// trusted, so a spoofed left-most token cannot forge a fresh bucket (CAL-120).
+	chain := forwardedForChain(ctx)
+	for i := len(chain) - 1; i >= 0; i-- {
+		if !r.peerIsTrusted(chain[i]) {
+			return chain[i]
 		}
 	}
+	// No untrusted hop found (empty/all-trusted chain): fall back to the peer.
 	return peer
 }
 
@@ -323,16 +336,21 @@ func peerIP(ctx context.Context) string {
 	return "unknown"
 }
 
-// forwardedForClient returns the left-most X-Forwarded-For entry, or "".
-func forwardedForClient(ctx context.Context) string {
+// forwardedForChain returns the ordered X-Forwarded-For hops (left = originator's
+// claim, right = the address the nearest trusted proxy observed), flattening
+// multiple header instances and comma lists and dropping blanks.
+func forwardedForChain(ctx context.Context) []string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return ""
+		return nil
 	}
+	var chain []string
 	for _, h := range md.Get("x-forwarded-for") {
-		if ip := strings.TrimSpace(strings.Split(h, ",")[0]); ip != "" {
-			return ip
+		for part := range strings.SplitSeq(h, ",") {
+			if ip := strings.TrimSpace(part); ip != "" {
+				chain = append(chain, ip)
+			}
 		}
 	}
-	return ""
+	return chain
 }

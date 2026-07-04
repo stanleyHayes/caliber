@@ -142,7 +142,11 @@ func streamOK(_ any, _ grpc.ServerStream) error { return nil }
 
 func TestRateLimitStreamInterceptor_RejectsOverLimit(t *testing.T) {
 	clk := &fakeClock{t: time.Unix(1700000000, 0)}
-	limiter := NewRateLimiter(1, 1, clk.now) // burst 1
+	// Burst = llmMethodCost + 1: a single StartInterview open (an LLM-heavy method)
+	// draws llmMethodCost, so exactly ONE open fits and the second is rejected. This
+	// also proves the LLM cost weighting is applied to the stream path — at cost 1
+	// the burst would admit 13 opens, so the second would NOT be rejected.
+	limiter := NewRateLimiter(1, llmMethodCost+1, clk.now)
 	interceptor := NewRateLimitStreamInterceptor(limiter)
 	info := &grpc.StreamServerInfo{FullMethod: "/caliber.v1.InterviewService/StartInterview"}
 	ctx := context.WithValue(context.Background(), principalKey{},
@@ -151,8 +155,8 @@ func TestRateLimitStreamInterceptor_RejectsOverLimit(t *testing.T) {
 
 	require.NoError(t, interceptor(nil, ss, info, streamOK))
 
-	// The same principal's next stream open is over the burst -> ResourceExhausted,
-	// and the streaming handler is never reached (the LLM loop never starts).
+	// The same principal's next stream open exceeds the weighted budget ->
+	// ResourceExhausted, and the streaming handler (the LLM loop) never starts.
 	err := interceptor(nil, ss, info, streamOK)
 	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
@@ -225,14 +229,22 @@ func TestClientIP(t *testing.T) {
 	// Peer address: host is returned without the port.
 	assert.Equal(t, "203.0.113.7", limiter.clientIP(ctxFromIP("203.0.113.7")))
 
-	// X-Forwarded-For from a TRUSTED peer (loopback = the co-located gateway) is
-	// honored, and only the left-most entry is used.
+	// From a TRUSTED peer (loopback = the co-located gateway), the real client is
+	// the right-most UNtrusted hop; trailing trusted hops are skipped.
 	trustedFwd := metadata.NewIncomingContext(ctxFromIP("127.0.0.1"),
 		metadata.Pairs("x-forwarded-for", "198.51.100.9, 127.0.0.1"))
 	assert.Equal(t, "198.51.100.9", limiter.clientIP(trustedFwd))
 
-	// X-Forwarded-For from an UNtrusted peer is IGNORED — a direct gRPC client
-	// cannot spoof a fresh source IP to evade its bucket; its real peer IP is used.
+	// SPOOFING DEFENSE (CAL-120): the trusted gateway APPENDS the client IP it
+	// observed to the RIGHT of any client-supplied X-Forwarded-For. The right-most
+	// untrusted hop (the gateway's observation) wins; a client-forged LEFT-most
+	// token is ignored, so it cannot forge a fresh per-request bucket.
+	spoofedXFF := metadata.NewIncomingContext(ctxFromIP("127.0.0.1"),
+		metadata.Pairs("x-forwarded-for", "6.6.6.6, 203.0.113.9")) // 6.6.6.6 forged, 203.0.113.9 gateway-observed
+	assert.Equal(t, "203.0.113.9", limiter.clientIP(spoofedXFF), "the gateway-observed right-most IP wins over a spoofed left-most")
+
+	// X-Forwarded-For from an UNtrusted peer is IGNORED entirely — a direct gRPC
+	// client cannot spoof a fresh source IP; its real peer IP is used.
 	spoofed := metadata.NewIncomingContext(ctxFromIP("203.0.113.7"),
 		metadata.Pairs("x-forwarded-for", "198.51.100.9"))
 	assert.Equal(t, "203.0.113.7", limiter.clientIP(spoofed), "untrusted peer's forwarded-for is not honored")
