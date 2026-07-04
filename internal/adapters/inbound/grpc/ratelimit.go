@@ -23,11 +23,12 @@ import (
 // and runaway clients. It is deliberately coarse and in-memory; a distributed
 // deployment would back it with Redis, but the algorithm is identical.
 type RateLimiter struct {
-	mu      sync.Mutex
-	buckets map[string]*tokenBucket
-	rate    float64 // tokens added per second
-	burst   float64 // maximum tokens a bucket can hold
-	now     func() time.Time
+	mu        sync.Mutex
+	buckets   map[string]*tokenBucket
+	rate      float64 // tokens added per second
+	burst     float64 // maximum tokens a bucket can hold
+	now       func() time.Time
+	lastSweep time.Time // last time evictIdle ran, to throttle the O(n) scan
 }
 
 type tokenBucket struct {
@@ -59,6 +60,13 @@ const maxBuckets = 2 * sweepThreshold
 // amortized O(1) cost per admitted key, versus an O(maxBuckets) scan every time.
 const evictLowWater = maxBuckets - maxBuckets/10
 
+// sweepInterval throttles idle eviction. The idle sweep is O(n), so running it on
+// every new-key admission once the map is large would let a spoofed-IP flood pin
+// every Allow() behind a full-map scan under the lock. evictBatch enforces the
+// hard cap regardless; this sweep only keeps the map tidy under normal churn, so
+// once per interval is ample and makes its amortized cost O(1) under a flood.
+const sweepInterval = time.Second
+
 // NewRateLimiter builds a limiter allowing ratePerSec sustained requests with a
 // burst ceiling, using now as its clock (injectable for tests). A non-positive
 // rate or burst is clamped to a small positive value so the limiter always
@@ -87,9 +95,11 @@ func (r *RateLimiter) Allow(key string) bool {
 	b, ok := r.buckets[key]
 	if !ok {
 		// Bound the map before admitting a brand-new key, so a flood of distinct
-		// keys (per-IP anonymous traffic) cannot grow it without limit (L7).
-		if len(r.buckets) >= sweepThreshold {
+		// keys (per-IP anonymous traffic) cannot grow it without limit (L7). The
+		// idle scan is throttled so a sustained flood does not pay it per request.
+		if len(r.buckets) >= sweepThreshold && t.Sub(r.lastSweep) >= sweepInterval {
 			r.evictIdle(t)
+			r.lastSweep = t
 		}
 		// Idle eviction frees nothing when every bucket is hot; the hard cap then
 		// batch-reclaims headroom so the map can never exceed it.
