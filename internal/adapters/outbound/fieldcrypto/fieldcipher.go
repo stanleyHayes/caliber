@@ -16,6 +16,16 @@ import (
 // prefix marks a value this package encrypted. It lets Decrypt pass through
 // legacy plaintext (rows written before a key was configured) and versions the
 // scheme so a future key rotation can distinguish generations.
+//
+// Known limitation: the marker is a plaintext sentinel, so a value written while
+// no key is configured that itself begins with "enc:v1:" is indistinguishable
+// from real ciphertext once a key is enabled — Decrypt would try (and fail) to
+// decrypt it, making that row unreadable. This only bites the passthrough->keyed
+// transition on a store that already holds untrusted plaintext (e.g. a dev DB);
+// in production the key is configured from the first write, so every stored
+// value is genuinely encrypted and round-trips. Enabling a key on a store with
+// pre-existing plaintext therefore requires a one-time re-encryption migration,
+// not a live flip.
 const prefix = "enc:v1:"
 
 // FieldCipher encrypts/decrypts individual PII fields with AES-256-GCM. With no
