@@ -90,7 +90,7 @@ func (q *Queries) GetCandidateByUserID(ctx context.Context, userID string) (GetC
 }
 
 const listCandidates = `-- name: ListCandidates :many
-SELECT id, user_id, location, preferences FROM candidates ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, user_id, location, preferences FROM candidates ORDER BY created_at DESC, id LIMIT $1 OFFSET $2
 `
 
 type ListCandidatesParams struct {

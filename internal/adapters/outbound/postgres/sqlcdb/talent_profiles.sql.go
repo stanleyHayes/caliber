@@ -99,7 +99,7 @@ func (q *Queries) GetTalentProfileByCandidateID(ctx context.Context, candidateID
 }
 
 const listTalentProfiles = `-- name: ListTalentProfiles :many
-SELECT id, candidate_id, summary, profile, passport_status FROM talent_profiles ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, candidate_id, summary, profile, passport_status FROM talent_profiles ORDER BY created_at DESC, id LIMIT $1 OFFSET $2
 `
 
 type ListTalentProfilesParams struct {

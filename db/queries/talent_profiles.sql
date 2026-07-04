@@ -17,7 +17,7 @@ SET summary = $2,
 WHERE id = $1;
 
 -- name: ListTalentProfiles :many
-SELECT id, candidate_id, summary, profile, passport_status FROM talent_profiles ORDER BY created_at DESC LIMIT $1 OFFSET $2;
+SELECT id, candidate_id, summary, profile, passport_status FROM talent_profiles ORDER BY created_at DESC, id LIMIT $1 OFFSET $2;
 
 -- name: CountTalentProfiles :one
 SELECT count(*) FROM talent_profiles;

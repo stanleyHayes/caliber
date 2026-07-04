@@ -14,8 +14,11 @@ import (
 	"github.com/xcreativs/caliber/internal/platform/config"
 )
 
-// reencryptPageSize bounds each batch read during a re-encryption pass.
-const reencryptPageSize = 200
+// reencryptPageSize bounds each batch read during a re-encryption pass. It must
+// not exceed kernel.MaxPageSize, or NewPage would clamp the page smaller than
+// requested — the termination check counts DELIVERED rows to be robust to that,
+// but keeping the request within the cap avoids wasted round-trips.
+const reencryptPageSize = kernel.MaxPageSize
 
 // ReencryptResult reports how many rows of each PII-bearing entity were rewritten.
 type ReencryptResult struct {
@@ -56,7 +59,7 @@ func Reencrypt(ctx context.Context, cfg config.Config, log *slog.Logger) (Reencr
 	if err := reencryptCandidates(ctx, repos, &res); err != nil {
 		return res, err
 	}
-	if err := eachPage(ctx, repos.Profiles.List, func(p *talent.TalentProfile) error {
+	if err := eachPage(ctx, reencryptPageSize, repos.Profiles.List, func(p *talent.TalentProfile) error {
 		res.Profiles++
 		return repos.Profiles.Update(ctx, p)
 	}); err != nil {
@@ -72,13 +75,13 @@ func Reencrypt(ctx context.Context, cfg config.Config, log *slog.Logger) (Reencr
 // reencryptCandidates rewrites every candidate and, per candidate, their
 // interviews and matches (all PII is reachable from the candidate root).
 func reencryptCandidates(ctx context.Context, repos Repositories, res *ReencryptResult) error {
-	return eachPage(ctx, repos.Candidates.List, func(c *talent.Candidate) error {
+	return eachPage(ctx, reencryptPageSize, repos.Candidates.List, func(c *talent.Candidate) error {
 		if err := repos.Candidates.Update(ctx, c); err != nil {
 			return fmt.Errorf("reencrypt: candidate %s: %w", c.ID, err)
 		}
 		res.Candidates++
 
-		if err := eachPage(ctx,
+		if err := eachPage(ctx, reencryptPageSize,
 			func(ctx context.Context, page kernel.Page) ([]*interviewdom.Interview, int64, error) {
 				return repos.Interviews.ByCandidate(ctx, c.ID, page)
 			},
@@ -89,7 +92,7 @@ func reencryptCandidates(ctx context.Context, repos Repositories, res *Reencrypt
 			return fmt.Errorf("reencrypt: interviews for candidate %s: %w", c.ID, err)
 		}
 
-		return eachPage(ctx,
+		return eachPage(ctx, reencryptPageSize,
 			func(ctx context.Context, page kernel.Page) ([]*matchingdom.Match, int64, error) {
 				return repos.Matches.ForCandidate(ctx, c.ID, page)
 			},
@@ -101,15 +104,19 @@ func reencryptCandidates(ctx context.Context, repos Repositories, res *Reencrypt
 }
 
 // eachPage invokes fn for every item across all pages of a paginated lister. It
-// stops at the reported total, so rewriting rows in place (which preserves the
-// row count and ordering) does not loop.
+// terminates on the number of rows actually DELIVERED reaching the reported total
+// (or an empty page), NOT on an assumed page size: the page layer clamps the size
+// to kernel.MaxPageSize, so counting page*pageSize would overshoot and silently
+// skip the tail of a table larger than one page. Rewriting rows in place preserves
+// the row count and ordering, so this does not loop.
 func eachPage[T any](
-	ctx context.Context,
+	ctx context.Context, pageSize int,
 	list func(context.Context, kernel.Page) ([]T, int64, error),
 	fn func(T) error,
 ) error {
+	processed := int64(0)
 	for page := 1; ; page++ {
-		items, total, err := list(ctx, kernel.NewPage(page, reencryptPageSize))
+		items, total, err := list(ctx, kernel.NewPage(page, pageSize))
 		if err != nil {
 			return err
 		}
@@ -117,8 +124,9 @@ func eachPage[T any](
 			if err := fn(item); err != nil {
 				return err
 			}
+			processed++
 		}
-		if len(items) == 0 || int64(page)*int64(reencryptPageSize) >= total {
+		if len(items) == 0 || processed >= total {
 			return nil
 		}
 	}

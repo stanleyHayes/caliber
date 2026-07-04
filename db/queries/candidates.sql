@@ -11,7 +11,7 @@ SELECT id, user_id, location, preferences FROM candidates WHERE user_id = $1;
 UPDATE candidates SET location = $2, preferences = $3 WHERE id = $1;
 
 -- name: ListCandidates :many
-SELECT id, user_id, location, preferences FROM candidates ORDER BY created_at DESC LIMIT $1 OFFSET $2;
+SELECT id, user_id, location, preferences FROM candidates ORDER BY created_at DESC, id LIMIT $1 OFFSET $2;
 
 -- name: CountCandidates :one
 SELECT count(*) FROM candidates;

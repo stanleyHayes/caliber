@@ -35,7 +35,7 @@ func (q *Queries) CountMatchesByRole(ctx context.Context, roleID string) (int64,
 
 const listMatchesByCandidate = `-- name: ListMatchesByCandidate :many
 SELECT id, role_id, candidate_id, overall_score, confidence, breakdown, rationale, watch_outs, thin_evidence_flag, created_at
-FROM matches WHERE candidate_id = $1 ORDER BY overall_score DESC LIMIT $2 OFFSET $3
+FROM matches WHERE candidate_id = $1 ORDER BY overall_score DESC, id LIMIT $2 OFFSET $3
 `
 
 type ListMatchesByCandidateParams struct {
@@ -77,7 +77,7 @@ func (q *Queries) ListMatchesByCandidate(ctx context.Context, arg ListMatchesByC
 
 const listMatchesByRole = `-- name: ListMatchesByRole :many
 SELECT id, role_id, candidate_id, overall_score, confidence, breakdown, rationale, watch_outs, thin_evidence_flag, created_at
-FROM matches WHERE role_id = $1 ORDER BY overall_score DESC LIMIT $2 OFFSET $3
+FROM matches WHERE role_id = $1 ORDER BY overall_score DESC, id LIMIT $2 OFFSET $3
 `
 
 type ListMatchesByRoleParams struct {
