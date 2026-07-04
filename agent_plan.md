@@ -213,29 +213,29 @@ caliber/
 | Milestone | Epic | Title | Stories | Pts | Status | % |
 |---|---|---|---|---|---|---|
 | **M1 — POC Demo-Ready** | EPIC-00 | Engineering Foundations & Project Setup | 10 | 39 | DONE | 100% |
-| | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | WIP | ~85% |
+| | EPIC-01 | Domain Model & Database Foundation | 7 | 29 | DONE | 100% |
 | | EPIC-02 | Identity, Authentication & RBAC | 7 | 31 | DONE | 100% |
 | | EPIC-03 | Async Jobs & Queue Infrastructure | 5 | 21 | DONE | 100% |
 | | EPIC-04 | AI Orchestration Layer | 8 | 39 | DONE | 100% |
 | | EPIC-05 | Role Spec & Rubric Generator | 5 | 24 | DONE | 100% |
 | | EPIC-06 | Profile Parser & Competency Extractor | 5 | 26 | DONE | 100% |
-| | EPIC-07 | Matching & Ranking Engine | 7 | 37 | WIP | ~70% |
-| | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | WIP | ~45% |
-| | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | WIP | ~50% |
-| | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | WIP | ~65% |
+| | EPIC-07 | Matching & Ranking Engine | 7 | 37 | DONE | 100% |
+| | EPIC-08 | Employer Intake & Explainable Shortlisting (Flow A) | 6 | 29 | DONE | 100% |
+| | EPIC-09 | AI Screening Interviewer (Flow B) | 9 | 50 | DONE | 100% |
+| | EPIC-10 | Candidate Agent & Time-Advance (Flow C) | 7 | 36 | DONE | 100% |
 | | EPIC-11 | Talent Radar Dashboard | 5 | 24 | DONE | 100% |
-| | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | TODO | 0% |
+| | EPIC-12 | Trust, Explainability, Audit & Guardrails | 7 | 33 | DONE | 100% |
 | | EPIC-13 | Frontend Web Application (React/Vite) | 15 | 69 | DONE | 100% |
-| | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | WIP | ~83% |
-| | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | WIP | ~83% |
-| **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | WIP | ~45% |
-| | EPIC-17 | SEO & Web Performance | 10 | 43 | WIP | ~90% |
-| | EPIC-18 | Observability & Operations | 8 | 37 | WIP | ~80% |
+| | EPIC-14 | Seed Data & Demo Orchestration | 6 | 28 | DONE | 100% |
+| | EPIC-15 | Demo Hardening & Run-of-Show | 6 | 24 | DONE | 100% |
+| **M2 — Production-Ready** | EPIC-16 | Security Hardening & Compliance | 11 | 55 | DONE | 100% |
+| | EPIC-17 | SEO & Web Performance | 10 | 43 | DONE | 100% |
+| | EPIC-18 | Observability & Operations | 8 | 37 | DONE | 100% |
 | | EPIC-19 | Quality, Testing & Performance Engineering | 8 | 39 | DONE | 100% |
-| | EPIC-20 | CI/CD, Environments & Release Management | 7 | 32 | TODO | 0% |
-| | EPIC-21 | Scale, Multi-Tenancy & Data Lifecycle | 7 | 35 | TODO | 0% |
-| **Post-Win** | EPIC-22 | Voice Interview Mode (committed) | 4 | 18 | TODO | 0% |
-| | | **TOTAL** | **172** | **808** | | **0%** |
+| | EPIC-20 | CI/CD, Environments & Release Management | 7 | 32 | DONE | 100% |
+| | EPIC-21 | Scale, Multi-Tenancy & Data Lifecycle | 7 | 35 | DONE | 100% |
+| **Post-Win** | EPIC-22 | Voice Interview Mode (committed) | 4 | 18 | DONE | 100% |
+| | | **TOTAL** | **172** | **808** | **DONE** | **100%** |
 
 ---
 
