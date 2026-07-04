@@ -22,6 +22,7 @@ import (
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
 	queueadapter "github.com/xcreativs/caliber/internal/adapters/outbound/queue"
 	"github.com/xcreativs/caliber/internal/app"
+	"github.com/xcreativs/caliber/internal/app/prompts"
 	candidateagentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
@@ -307,9 +308,13 @@ func BuildLLM(
 		}),
 		llm.WithRecorder(mem),
 	)
-	// Outermost: trace every call (redacted: sizes + latency, no content) for
-	// cost and explainability observability (CAL-036).
-	return llm.NewAudited(guarded, rec, modelLabel(cfg), nil), mem, cost
+	// Trace every call (redacted: sizes + latency, no content) for cost and
+	// explainability observability (CAL-036).
+	audited := llm.NewAudited(guarded, rec, modelLabel(cfg), nil)
+	// Outermost: model-tier routing (CAL-159) — route mechanical ops (CV text
+	// extraction) to a cheaper model when configured, before the audited recorder
+	// attributes spend, so cost tracks the model actually used.
+	return llm.NewTierRouter(audited, cfg.LLMCheapModel, string(prompts.IDCVExtract)), mem, cost
 }
 
 func modelLabel(cfg config.Config) string {

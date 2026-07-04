@@ -40,6 +40,10 @@ type Config struct {
 
 	AnthropicAPIKey      string // Claude
 	AnthropicModel       string // Claude model id (default claude-opus-4-8)
+	// LLMCheapModel optionally routes mechanical operations (e.g. CV extraction)
+	// to a cheaper model (CAL-159 model-tier routing). Empty = all ops use the
+	// default model.
+	LLMCheapModel string
 	OpenAIAPIKey         string // embeddings
 	OpenAIEmbeddingModel string // embedding model (default text-embedding-3-small)
 	JWTSecret            string // access/refresh token signing
@@ -121,6 +125,7 @@ func Load() (Config, error) {
 		HNSWEfSearch:         getint("CALIBER_HNSW_EF_SEARCH", 0),
 		AnthropicAPIKey:      os.Getenv("ANTHROPIC_API_KEY"),
 		AnthropicModel:       getenv("CALIBER_ANTHROPIC_MODEL", "claude-opus-4-8"),
+		LLMCheapModel:        getenv("CALIBER_LLM_CHEAP_MODEL", ""),
 		OpenAIAPIKey:         os.Getenv("OPENAI_API_KEY"),
 		OpenAIEmbeddingModel: getenv("CALIBER_OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
 		JWTSecret:            os.Getenv("CALIBER_JWT_SECRET"),

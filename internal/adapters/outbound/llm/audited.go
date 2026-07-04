@@ -49,7 +49,7 @@ func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 	}
 	span.SetAttributes(
 		attribute.String("llm.operation", operation),
-		attribute.String("llm.model", a.model),
+		attribute.String("llm.model", a.modelFor(req)),
 		attribute.Bool("llm.expect_json", req.ExpectJSON),
 	)
 
@@ -71,7 +71,7 @@ func (a *Audited) Complete(ctx context.Context, req app.LLMRequest) (app.LLMResp
 			Operation:     operation,
 			PromptID:      req.Source.ID,
 			PromptVersion: req.Source.Version,
-			Model:         a.model,
+			Model:         a.modelFor(req),
 			Latency:       a.now().Sub(start),
 			PromptChars:   len(req.Prompt),
 			ResponseChars: len(resp.Text),
@@ -103,7 +103,7 @@ func (a *Audited) Stream(ctx context.Context, req app.LLMRequest, yield app.LLMS
 	}
 	span.SetAttributes(
 		attribute.String("llm.operation", operation),
-		attribute.String("llm.model", a.model),
+		attribute.String("llm.model", a.modelFor(req)),
 		attribute.Bool("llm.expect_json", req.ExpectJSON),
 	)
 
@@ -131,7 +131,7 @@ func (a *Audited) Stream(ctx context.Context, req app.LLMRequest, yield app.LLMS
 			Operation:     operation,
 			PromptID:      req.Source.ID,
 			PromptVersion: req.Source.Version,
-			Model:         a.model,
+			Model:         a.modelFor(req),
 			Latency:       a.now().Sub(start),
 			PromptChars:   len(req.Prompt),
 			ResponseChars: len(text),
@@ -179,6 +179,17 @@ func (a *Audited) Warm(ctx context.Context) error {
 		})
 	}
 	return err
+}
+
+// modelFor returns the model actually used for a call: a per-request model-tier
+// override (CAL-159) when set, otherwise the provider's default label. Using it
+// for the trace + cost record keeps spend attribution accurate when a cheap op
+// is routed to a cheaper model.
+func (a *Audited) modelFor(req app.LLMRequest) string {
+	if req.Model != "" {
+		return req.Model
+	}
+	return a.model
 }
 
 // SlogRecorder logs each AI-call trace via slog at info level. It records only

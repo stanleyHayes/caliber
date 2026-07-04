@@ -113,8 +113,12 @@ func (c *Claude) params(req app.LLMRequest) anthropic.MessageNewParams {
 	if maxTokens <= 0 {
 		maxTokens = defaultMaxTokens
 	}
+	model := c.model
+	if req.Model != "" { // per-call model-tier override (CAL-159)
+		model = req.Model
+	}
 	params := anthropic.MessageNewParams{
-		Model:     c.model,
+		Model:     model,
 		MaxTokens: maxTokens,
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(req.Prompt)),

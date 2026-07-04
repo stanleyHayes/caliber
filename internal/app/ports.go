@@ -41,10 +41,14 @@ type PromptRef struct {
 // built through the prompt registry (prompts.Prompt.Request). ExpectJSON marks
 // structured-output calls so telemetry can track JSON failure rates (CAL-137).
 type LLMRequest struct {
-	System     string
-	Prompt     string
-	MaxTokens  int
-	Source     PromptRef
+	System    string
+	Prompt    string
+	MaxTokens int
+	Source    PromptRef
+	// Model optionally overrides the provider's default model for this one call
+	// (CAL-159 model-tier routing): a cheap/mechanical operation can be routed to
+	// a cheaper model. Empty means the provider's configured default.
+	Model      string
 	ExpectJSON bool
 }
 
