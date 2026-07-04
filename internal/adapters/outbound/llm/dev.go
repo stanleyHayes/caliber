@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/xcreativs/caliber/internal/app"
 	"github.com/xcreativs/caliber/internal/app/prompts"
@@ -211,14 +212,44 @@ func untrustedBody(prompt string) string {
 	return strings.TrimSpace(prompt[start:])
 }
 
-// cvExcerpt returns the verbatim slice of cv at term's first (case-insensitive)
-// occurrence, so the dev extractor's evidence quote grounds in the CV exactly as a
-// real extractor's must. Falls back to a leading excerpt if term is absent.
+// cvExcerpt returns a verbatim rune window of cv around term's first (case-
+// insensitive) occurrence — a real phrase, so the evidence quote both grounds in
+// the CV and clears the profile builder's minimum-length floor (CAL-044). It is
+// rune-safe (never slices mid-rune) and falls back to a leading excerpt if term is
+// absent.
 func cvExcerpt(cv, term string) string {
-	if i := strings.Index(strings.ToLower(cv), strings.ToLower(term)); i >= 0 {
-		return cv[i : i+len(term)]
+	runes := []rune(cv)
+	start := foldRuneIndex(runes, term)
+	if start < 0 {
+		return cvLead(cv)
 	}
-	return cvLead(cv)
+	const before, after = 4, 30 // widen to a phrase around the term
+	lo := max(0, start-before)
+	hi := min(len(runes), start+len([]rune(term))+after)
+	return strings.TrimSpace(string(runes[lo:hi]))
+}
+
+// foldRuneIndex returns the rune index in runes of the first case-insensitive
+// match of term, or -1. It compares rune by rune, so it is immune to the byte-
+// length changes that make a lowercased-string byte offset unsafe to slice.
+func foldRuneIndex(runes []rune, term string) int {
+	tr := []rune(strings.ToLower(term))
+	if len(tr) == 0 {
+		return 0
+	}
+	for i := 0; i+len(tr) <= len(runes); i++ {
+		matched := true
+		for j, t := range tr {
+			if unicode.ToLower(runes[i+j]) != t {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return i
+		}
+	}
+	return -1
 }
 
 // cvLead returns the CV's leading excerpt (rune-safe), a real span usable as

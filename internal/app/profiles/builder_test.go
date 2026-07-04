@@ -173,6 +173,36 @@ func TestCreateFromCVDropsFabricatedEvidence(t *testing.T) {
 	assert.Equal(t, "Go", out.Competencies[0].Name)
 }
 
+// TestCreateFromCVRejectsTrivialQuote is the CAL-044 length floor: a fabricated
+// skill riding a stopword that IS present in the CV ("the") is still dropped —
+// grounding requires a meaningful phrase, not any substring match.
+func TestCreateFromCVRejectsTrivialQuote(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	candidates := mocks.NewMockCandidateRepository(ctrl)
+	profiles := mocks.NewMockTalentProfileRepository(ctrl)
+	llm := mocks.NewMockLLMClient(ctrl)
+	cid := kernel.NewID()
+	cand, err := talent.NewCandidate(kernel.NewID(), "", talent.CandidateIntake{})
+	require.NoError(t, err)
+
+	// 'Go' cites a real phrase; 'Kubernetes' cites only "the" — a stopword that
+	// appears in the CV but proves nothing.
+	const mixed = `{"summary":"Engineer.","competencies":[` +
+		`{"name":"Go","level":4,"evidence_quote":"built services in Go","source_span":"l3"},` +
+		`{"name":"Kubernetes","level":5,"evidence_quote":"the","source_span":"l9"}]}`
+	candidates.EXPECT().ByID(gomock.Any(), cid).Return(cand, nil)
+	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{Text: mixed}, nil)
+	candidates.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	profiles.EXPECT().ByCandidateID(gomock.Any(), cid).Return(nil, kernel.NotFound("none"))
+	profiles.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+
+	out, err := profilesapp.NewProfileBuilder(candidates, profiles, llm).
+		CreateFromCV(context.Background(), cid, "I built services in Go and maintained the pipeline", talent.CandidateIntake{})
+	require.NoError(t, err)
+	require.Len(t, out.Competencies, 1, "the stopword-quoted 'Kubernetes' is dropped by the length floor")
+	assert.Equal(t, "Go", out.Competencies[0].Name)
+}
+
 // TestCreateFromCVGroundsQuoteDespiteCaseAndWhitespace: a genuine quote that
 // differs from the CV only in case or whitespace still grounds, so extraction
 // artifacts do not cause a real competency to be dropped.

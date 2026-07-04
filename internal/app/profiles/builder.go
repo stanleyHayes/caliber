@@ -83,7 +83,10 @@ func (b *ProfileBuilder) CreateFromCV(
 	if err != nil {
 		return nil, err
 	}
-	comps := groundedCompetencies(cvText, parsed)
+	// Ground against the SAME text the model saw — the sanitized, fenced CV — not
+	// the raw cvText, so sanitization (dropped format chars, collapsed blank lines)
+	// cannot make a legitimate verbatim quote fail to match (CAL-044).
+	comps := groundedCompetencies(guard.Sanitize(cvText), parsed)
 	fresh, err := talent.NewTalentProfile(candidateID, parsed.Summary, comps) // validates competency names + levels
 	if err != nil {
 		return nil, err
@@ -150,18 +153,29 @@ func (b *ProfileBuilder) embed(ctx context.Context, profile *talent.TalentProfil
 // extraction artifacts). An unevidenced or fabricated competency is dropped, never
 // added to the verified profile: a hard guardrail prefers a lost skill to an
 // invented one.
-func groundedCompetencies(cvText string, parsed llmProfile) []talent.ProfileCompetency {
-	normalizedCV := normalizeForMatch(cvText)
+func groundedCompetencies(groundText string, parsed llmProfile) []talent.ProfileCompetency {
+	normalizedCV := normalizeForMatch(groundText)
 	comps := make([]talent.ProfileCompetency, 0, len(parsed.Competencies))
 	for _, c := range parsed.Competencies {
 		quote := normalizeForMatch(c.EvidenceQuote)
-		if quote == "" || !strings.Contains(normalizedCV, quote) {
+		// Require a meaningful phrase, not just any substring: a trivial quote like
+		// "the" or "a" grounds against every CV, so a length floor stops a
+		// fabricated competency from riding a common stopword into the verified
+		// profile (CAL-044). The prompt asks for a verbatim quote — a real one is a
+		// phrase well above this floor.
+		if utf8.RuneCountInString(quote) < minEvidenceRunes || !strings.Contains(normalizedCV, quote) {
 			continue
 		}
 		comps = append(comps, talent.ProfileCompetency{Name: c.Name, Level: c.Level, EvidenceQuote: c.EvidenceQuote, SourceSpan: c.SourceSpan})
 	}
 	return comps
 }
+
+// minEvidenceRunes is the shortest normalized evidence quote accepted as grounding
+// (CAL-044). Below it a quote is a stopword/fragment that grounds against any CV
+// and proves nothing, so it is rejected — the guardrail prefers a lost skill to an
+// invented one.
+const minEvidenceRunes = 12
 
 // normalizeForMatch lower-cases s and collapses every run of whitespace to a
 // single space (trimming the ends), so an evidence quote grounds against the CV
