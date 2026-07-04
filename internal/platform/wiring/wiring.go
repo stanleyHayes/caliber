@@ -102,7 +102,7 @@ func openRepositories(
 	repos.Profiles = postgres.NewTalentProfileRepo(pool, postgres.WithFieldCipher(fieldCipher))
 	repos.Apps = postgres.NewApplicationRepo(pool)
 	repos.Matches = postgres.NewMatchRepo(pool)
-	repos.Interviews = postgres.NewInterviewRepo(pool)
+	repos.Interviews = postgres.NewInterviewRepo(pool, postgres.WithInterviewCipher(fieldCipher))
 	repos.Pool = pool
 	log.Info("persistence selected", "provider", "postgres")
 	checks := []readiness.NamedCheck{{Name: "postgres", Check: readiness.Func(pool.Ping)}}

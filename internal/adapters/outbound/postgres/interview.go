@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/xcreativs/caliber/internal/adapters/outbound/fieldcrypto"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres/sqlcdb"
 	"github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -19,18 +20,40 @@ import (
 // run in a transaction. A pending (asked-but-unanswered) question is persisted as
 // a turn row with a NULL answer; answered turns carry a non-NULL answer, so the
 // two are distinguishable on read even when an answer is the empty string.
+//
+// Interview question and answer text is candidate PII (the screening dialogue),
+// so both are encrypted at rest when a field cipher is configured (CAL-117),
+// mirroring the talent-profile summary.
 type InterviewRepo struct {
-	q  *sqlcdb.Queries
-	tx txBeginner
+	q      *sqlcdb.Queries
+	tx     txBeginner
+	cipher *fieldcrypto.FieldCipher
+}
+
+// InterviewOption customizes an InterviewRepo.
+type InterviewOption func(*InterviewRepo)
+
+// WithInterviewCipher encrypts interview question/answer text at rest with the
+// given cipher (CAL-117). A nil cipher is ignored (passthrough default kept).
+func WithInterviewCipher(c *fieldcrypto.FieldCipher) InterviewOption {
+	return func(r *InterviewRepo) {
+		if c != nil {
+			r.cipher = c
+		}
+	}
 }
 
 // NewInterviewRepo builds the repository from a sqlc DBTX. A pool handle also
 // enables the atomic multi-table writes; without one it falls back to sequential
-// statements (e.g. when the handle is already an open transaction).
-func NewInterviewRepo(db sqlcdb.DBTX) *InterviewRepo {
-	repo := &InterviewRepo{q: sqlcdb.New(db)}
+// statements (e.g. when the handle is already an open transaction). Without a
+// cipher option the Q&A is stored as plaintext (passthrough).
+func NewInterviewRepo(db sqlcdb.DBTX, opts ...InterviewOption) *InterviewRepo {
+	repo := &InterviewRepo{q: sqlcdb.New(db), cipher: fieldcrypto.Passthrough()}
 	if b, ok := db.(txBeginner); ok {
 		repo.tx = b
+	}
+	for _, o := range opts {
+		o(repo)
 	}
 	return repo
 }
@@ -45,7 +68,7 @@ func (r *InterviewRepo) Create(ctx context.Context, iv *interview.Interview) err
 		if err := q.CreateInterview(ctx, params); err != nil {
 			return err
 		}
-		return insertTurns(ctx, q, iv)
+		return r.insertTurns(ctx, q, iv)
 	})
 }
 
@@ -74,7 +97,7 @@ func (r *InterviewRepo) Update(ctx context.Context, iv *interview.Interview) err
 		if err := q.DeleteInterviewTurns(ctx, iv.ID.String()); err != nil {
 			return err
 		}
-		return insertTurns(ctx, q, iv)
+		return r.insertTurns(ctx, q, iv)
 	})
 }
 
@@ -160,19 +183,27 @@ func (r *InterviewRepo) hydrate(ctx context.Context, row sqlcdb.TalentInterview)
 		return nil, err
 	}
 	for _, t := range turns {
+		question, err := r.cipher.Decrypt(t.Question)
+		if err != nil {
+			return nil, err
+		}
 		if t.Answer.Valid {
+			answer, err := r.cipher.Decrypt(t.Answer.String)
+			if err != nil {
+				return nil, err
+			}
 			iv.Turns = append(iv.Turns, interview.InterviewTurn{
 				ID:            kernel.ID(t.ID),
 				Ordinal:       int(t.Ordinal),
-				Question:      t.Question,
-				Answer:        t.Answer.String,
+				Question:      question,
+				Answer:        answer,
 				CompetencyTag: t.CompetencyTag.String,
 			})
 			continue
 		}
 		iv.Pending = &interview.PendingQuestion{
 			Ordinal:       int(t.Ordinal),
-			Text:          t.Question,
+			Text:          question,
 			CompetencyTag: t.CompetencyTag.String,
 		}
 	}
@@ -201,15 +232,24 @@ func interviewParams(iv *interview.Interview) (sqlcdb.CreateInterviewParams, err
 }
 
 // insertTurns writes the answered turns (non-NULL answer) then, if present, the
-// pending question as a single NULL-answer row.
-func insertTurns(ctx context.Context, q *sqlcdb.Queries, iv *interview.Interview) error {
+// pending question as a single NULL-answer row. Question and answer text are
+// encrypted at rest through the field cipher (CAL-117).
+func (r *InterviewRepo) insertTurns(ctx context.Context, q *sqlcdb.Queries, iv *interview.Interview) error {
 	for _, t := range iv.Turns {
+		question, err := r.cipher.Encrypt(t.Question)
+		if err != nil {
+			return err
+		}
+		answer, err := r.cipher.Encrypt(t.Answer)
+		if err != nil {
+			return err
+		}
 		if err := q.InsertInterviewTurn(ctx, sqlcdb.InsertInterviewTurnParams{
 			ID:            t.ID.String(),
 			InterviewID:   iv.ID.String(),
 			Ordinal:       clampInt32(t.Ordinal),
-			Question:      t.Question,
-			Answer:        pgtype.Text{String: t.Answer, Valid: true},
+			Question:      question,
+			Answer:        pgtype.Text{String: answer, Valid: true},
 			CompetencyTag: optText(t.CompetencyTag),
 		}); err != nil {
 			return err
@@ -218,11 +258,15 @@ func insertTurns(ctx context.Context, q *sqlcdb.Queries, iv *interview.Interview
 	if iv.Pending == nil {
 		return nil
 	}
+	pendingQ, err := r.cipher.Encrypt(iv.Pending.Text)
+	if err != nil {
+		return err
+	}
 	return q.InsertInterviewTurn(ctx, sqlcdb.InsertInterviewTurnParams{
 		ID:            kernel.NewID().String(),
 		InterviewID:   iv.ID.String(),
 		Ordinal:       clampInt32(iv.Pending.Ordinal),
-		Question:      iv.Pending.Text,
+		Question:      pendingQ,
 		Answer:        pgtype.Text{Valid: false},
 		CompetencyTag: optText(iv.Pending.CompetencyTag),
 	})
