@@ -126,22 +126,29 @@ func RequirePermission(ctx context.Context, perm authz.Permission) (app.Principa
 	if err != nil {
 		return app.Principal{}, err
 	}
-	role, perr := identity.ParseRole(p.Role)
-	if perr != nil || !authz.Can(role, perm) {
+	if !principalHasPermission(p, perm) {
 		return app.Principal{}, kernel.Forbidden("auth: missing permission " + string(perm))
 	}
 	return p, nil
 }
 
-// requireSelfCandidate authorizes a candidate acting on their OWN data: the caller
-// must be a candidate whose id matches the target candidate id, preventing one
-// candidate from operating on another's agent/profile (IDOR). Registered
-// candidates have candidate.ID == user.ID (the provisioner), so the principal's
-// UserID is their candidate id.
-func requireSelfCandidate(ctx context.Context, candidateID string) error {
-	p, err := RequireRole(ctx, identity.RoleCandidate)
+func principalHasPermission(p app.Principal, perm authz.Permission) bool {
+	role, err := identity.ParseRole(p.Role)
+	return err == nil && authz.Can(role, perm)
+}
+
+// requireSelfCandidate authorizes a candidate with the requested capability
+// acting on their OWN data: the caller must be a candidate whose id matches the
+// target candidate id, preventing one candidate from operating on another's
+// agent/profile/interview (IDOR). Registered candidates have candidate.ID ==
+// user.ID (the provisioner), so the principal's UserID is their candidate id.
+func requireSelfCandidate(ctx context.Context, candidateID string, perm authz.Permission) error {
+	p, err := RequirePermission(ctx, perm)
 	if err != nil {
 		return err
+	}
+	if p.Role != identity.RoleCandidate.String() {
+		return kernel.Forbidden("auth: candidates may only act on their own data")
 	}
 	if p.UserID.String() != candidateID {
 		return kernel.Forbidden("auth: candidates may only act on their own data")
@@ -149,14 +156,20 @@ func requireSelfCandidate(ctx context.Context, candidateID string) error {
 	return nil
 }
 
-// requireSelfEmployer authorizes an employer/recruiter acting within their own
-// employer scope. Employers are modelled as users and a role's EmployerID is the
-// owning user's id, so the principal's UserID IS the employer id — preventing one
-// employer from creating/listing/editing another's roles (CAL-116 IDOR).
-func requireSelfEmployer(ctx context.Context, employerID string) error {
-	p, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+// requireSelfEmployer authorizes a reviewer with the requested capability acting
+// within their own employer scope. Employers are modelled as users and a role's
+// EmployerID is the owning user's id, so the principal's UserID IS the employer
+// id — preventing one employer from creating/listing/editing another's roles
+// (CAL-116 IDOR).
+func requireSelfEmployer(ctx context.Context, employerID string, perm authz.Permission) error {
+	p, err := RequirePermission(ctx, perm)
 	if err != nil {
 		return err
+	}
+	switch p.Role {
+	case identity.RoleEmployer.String(), identity.RoleRecruiter.String():
+	default:
+		return kernel.Forbidden("auth: may only act within your own employer scope")
 	}
 	if p.UserID.String() != employerID {
 		return kernel.Forbidden("auth: may only act within your own employer scope")
@@ -173,9 +186,11 @@ func requireSelfCandidateOrReviewer(ctx context.Context, candidateID string) err
 	}
 	switch p.Role {
 	case identity.RoleEmployer.String(), identity.RoleRecruiter.String():
-		return nil
+		if principalHasPermission(p, authz.PermViewProfile) {
+			return nil
+		}
 	case identity.RoleCandidate.String():
-		if p.UserID.String() == candidateID {
+		if p.UserID.String() == candidateID && principalHasPermission(p, authz.PermViewProfile) {
 			return nil
 		}
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	matchingapp "github.com/xcreativs/caliber/internal/app/matching"
-	"github.com/xcreativs/caliber/internal/domain/identity"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
@@ -42,7 +42,7 @@ func (s *MatchServer) AvailabilityCounter() *matchingapp.Shortlister {
 func (s *MatchServer) GenerateShortlist(
 	ctx context.Context, req *caliberv1.GenerateShortlistRequest,
 ) (*caliberv1.GenerateShortlistResponse, error) {
-	principal, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	principal, err := RequirePermission(ctx, authz.PermViewShortlist)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -60,7 +60,7 @@ func (s *MatchServer) GenerateShortlist(
 func (s *MatchServer) RefineShortlist(
 	ctx context.Context, req *caliberv1.RefineShortlistRequest,
 ) (*caliberv1.RefineShortlistResponse, error) {
-	principal, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	principal, err := RequirePermission(ctx, authz.PermViewShortlist)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -84,7 +84,7 @@ func (s *MatchServer) RefineShortlist(
 func (s *MatchServer) RecordRejection(
 	ctx context.Context, req *caliberv1.RecordRejectionRequest,
 ) (*caliberv1.RecordRejectionResponse, error) {
-	principal, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	principal, err := RequirePermission(ctx, authz.PermRecordDecision)
 	if err != nil {
 		return nil, errToStatus(err)
 	}

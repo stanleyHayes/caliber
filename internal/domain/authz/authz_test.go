@@ -16,17 +16,23 @@ func TestReviewersHoldHiringCapabilities(t *testing.T) {
 		assert.True(t, authz.Can(r, authz.PermResolveContest))
 		assert.True(t, authz.Can(r, authz.PermViewDashboard))
 		assert.True(t, authz.Can(r, authz.PermReadAuditLog))
+		assert.True(t, authz.Can(r, authz.PermViewProfile))
+		assert.True(t, authz.Can(r, authz.PermViewReportCard))
 		// A reviewer cannot do candidate-only things.
 		assert.False(t, authz.Can(r, authz.PermScreenSelf))
 		assert.False(t, authz.Can(r, authz.PermRunAgent))
+		assert.False(t, authz.Can(r, authz.PermManagePrivacy))
 	}
 }
 
 func TestCandidateHoldsSelfCapabilitiesOnly(t *testing.T) {
 	c := identity.RoleCandidate
 	assert.True(t, authz.Can(c, authz.PermScreenSelf))
+	assert.True(t, authz.Can(c, authz.PermViewReportCard))
 	assert.True(t, authz.Can(c, authz.PermRunAgent))
+	assert.True(t, authz.Can(c, authz.PermViewProfile))
 	assert.True(t, authz.Can(c, authz.PermManageProfile))
+	assert.True(t, authz.Can(c, authz.PermManagePrivacy))
 	assert.True(t, authz.Can(c, authz.PermRaiseContest))
 	// The core RBAC guarantee: a candidate holds no reviewer capability.
 	assert.False(t, authz.Can(c, authz.PermViewDashboard))
@@ -43,7 +49,7 @@ func TestUnknownRoleHoldsNothing(t *testing.T) {
 
 func TestPermissionsForIsSorted(t *testing.T) {
 	perms := authz.PermissionsFor(identity.RoleCandidate)
-	assert.Len(t, perms, 4)
+	assert.Len(t, perms, 7)
 	for i := 1; i < len(perms); i++ {
 		assert.Less(t, string(perms[i-1]), string(perms[i]), "permissions are sorted for stable admin display")
 	}

@@ -4,8 +4,8 @@ import (
 	"context"
 
 	contestapp "github.com/xcreativs/caliber/internal/app/contest"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	contestdom "github.com/xcreativs/caliber/internal/domain/contest"
-	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 
@@ -29,7 +29,7 @@ func NewContestServer(svc *contestapp.Service) *ContestServer { return &ContestS
 func (s *ContestServer) RaiseContest(
 	ctx context.Context, req *caliberv1.RaiseContestRequest,
 ) (*caliberv1.RaiseContestResponse, error) {
-	principal, err := RequireRole(ctx, identity.RoleCandidate)
+	principal, err := RequirePermission(ctx, authz.PermRaiseContest)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -48,7 +48,7 @@ func (s *ContestServer) RaiseContest(
 func (s *ContestServer) ListMyContests(
 	ctx context.Context, req *caliberv1.ListMyContestsRequest,
 ) (*caliberv1.ListMyContestsResponse, error) {
-	principal, err := RequireRole(ctx, identity.RoleCandidate)
+	principal, err := RequirePermission(ctx, authz.PermRaiseContest)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -73,7 +73,7 @@ func (s *ContestServer) ListMyContests(
 func (s *ContestServer) ResolveContest(
 	ctx context.Context, req *caliberv1.ResolveContestRequest,
 ) (*caliberv1.ResolveContestResponse, error) {
-	principal, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	principal, err := RequirePermission(ctx, authz.PermResolveContest)
 	if err != nil {
 		return nil, errToStatus(err)
 	}

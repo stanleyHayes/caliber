@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/xcreativs/caliber/internal/app"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
@@ -81,6 +82,24 @@ func TestRequireRole(t *testing.T) {
 	})
 	t.Run("anonymous is unauthorized", func(t *testing.T) {
 		_, err := RequireRole(base, identity.RoleEmployer)
+		assert.Equal(t, kernel.KindUnauthorized, kernel.KindOf(err))
+	})
+}
+
+func TestRequirePermission(t *testing.T) {
+	base := context.Background()
+	withCandidate := context.WithValue(base, principalKey{}, app.Principal{UserID: kernel.NewID(), Role: "candidate"})
+
+	t.Run("granted permission passes", func(t *testing.T) {
+		_, err := RequirePermission(withCandidate, authz.PermRunAgent)
+		require.NoError(t, err)
+	})
+	t.Run("missing permission is forbidden", func(t *testing.T) {
+		_, err := RequirePermission(withCandidate, authz.PermReadAuditLog)
+		assert.Equal(t, kernel.KindForbidden, kernel.KindOf(err))
+	})
+	t.Run("anonymous is unauthorized", func(t *testing.T) {
+		_, err := RequirePermission(base, authz.PermRunAgent)
 		assert.Equal(t, kernel.KindUnauthorized, kernel.KindOf(err))
 	})
 }

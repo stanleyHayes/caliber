@@ -9,15 +9,17 @@ it. Adding a role or a capability is a one-line edit in one place.
 
 - **Permission** — a granular capability named for the business action it gates
   (`roles:manage`, `shortlist:view`, `contest:resolve`, `dashboard:view`,
-  `audit:read`, `interview:screen`, `agent:run`, `profile:manage`,
-  `contest:raise`). Named for the action, not the transport, so the same
+  `audit:read`, `interview:screen`, `interview:report:view`, `agent:run`,
+  `profile:view`, `profile:manage`, `privacy:manage`, `contest:raise`). Named
+  for the action, not the transport, so the same
   permission backs a gRPC handler, a future admin UI, or a CLI.
 - **matrix** — `role → []Permission`. The single source of truth:
   - **employer / recruiter** (reviewers): manage roles, view/refine shortlists,
     record hiring decisions, resolve contests, view the Talent Radar, read the
-    audit trail.
+    audit trail, view profiles, and view report cards within tenant ownership.
   - **candidate**: screen (their own interview), run their agent, manage their
-    own profile, raise contests about themselves.
+    own profile, export/delete their own data, view their own report cards, and
+    raise contests about themselves.
 - **`Can(role, permission) bool`** — the check. **`PermissionsFor(role)`** and
   **`Roles()`** expose the matrix for admin tooling / inspection.
 
@@ -29,14 +31,12 @@ this role do X at all?"; tenancy answers "on *this* resource?".
 ## Enforcement
 
 `grpcadapter.RequirePermission(ctx, perm)` authenticates the caller and checks
-the matrix — the permission-based counterpart to `RequireRole`. The Talent Radar
-dashboard is gated this way (`requireReviewer` → `RequirePermission(...,
-PermViewDashboard)`); the same test suite (candidate → PermissionDenied, anon →
-Unauthenticated) still passes, now driven by the matrix.
-
-The remaining handlers keep their equivalent `RequireRole` guards; migrating each
-to `RequirePermission` is mechanical and behavior-preserving (the matrix encodes
-the same allow-lists), done incrementally to keep each change small and reviewed.
+the matrix — the permission-based counterpart to `RequireRole`. The gRPC surface
+is now permission-gated at the handler boundary: role/spec, shortlist/decision,
+contest, audit, privacy, interview, candidate-agent, profile, and Talent Radar
+handlers all declare the capability they need before their existing IDOR/tenant
+ownership checks run. `RequireRole` remains as a compatibility helper for legacy
+call sites/tests, but new guards should use `RequirePermission`.
 
 ## Adding a role or capability
 

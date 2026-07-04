@@ -6,6 +6,7 @@ import (
 	queueadapter "github.com/xcreativs/caliber/internal/adapters/outbound/queue"
 	candidateagentapp "github.com/xcreativs/caliber/internal/app/candidateagent"
 	appqueue "github.com/xcreativs/caliber/internal/app/queue"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	agentdom "github.com/xcreativs/caliber/internal/domain/candidateagent"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
@@ -37,7 +38,7 @@ func NewAgentServer(
 // RunAgent enqueues a candidate-agent run when a dispatcher is available and
 // returns the real task ID; in the dev path it runs synchronously.
 func (s *AgentServer) RunAgent(ctx context.Context, req *caliberv1.RunAgentRequest) (*caliberv1.RunAgentResponse, error) {
-	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId(), authz.PermRunAgent); err != nil {
 		return nil, errToStatus(err)
 	}
 	candidateID := kernel.ID(req.GetCandidateId())
@@ -59,7 +60,7 @@ func (s *AgentServer) RunAgent(ctx context.Context, req *caliberv1.RunAgentReque
 // TimeAdvance enqueues a candidate-agent run (the "overnight" demo action) and
 // returns the current wake-up view. When no dispatcher is wired it runs inline.
 func (s *AgentServer) TimeAdvance(ctx context.Context, req *caliberv1.TimeAdvanceRequest) (*caliberv1.TimeAdvanceResponse, error) {
-	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId(), authz.PermRunAgent); err != nil {
 		return nil, errToStatus(err)
 	}
 	candidateID := kernel.ID(req.GetCandidateId())
@@ -83,7 +84,7 @@ func (s *AgentServer) TimeAdvance(ctx context.Context, req *caliberv1.TimeAdvanc
 func (s *AgentServer) GetWakeUpView(
 	ctx context.Context, req *caliberv1.GetWakeUpViewRequest,
 ) (*caliberv1.GetWakeUpViewResponse, error) {
-	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId(), authz.PermRunAgent); err != nil {
 		return nil, errToStatus(err)
 	}
 	view, err := s.runner.WakeUpView(ctx, kernel.ID(req.GetCandidateId()))
@@ -97,7 +98,7 @@ func (s *AgentServer) GetWakeUpView(
 func (s *AgentServer) ListApplications(
 	ctx context.Context, req *caliberv1.ListApplicationsRequest,
 ) (*caliberv1.ListApplicationsResponse, error) {
-	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId(), authz.PermRunAgent); err != nil {
 		return nil, errToStatus(err)
 	}
 	page := pageFromProto(req.GetPage())

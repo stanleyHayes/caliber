@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/xcreativs/caliber/internal/app/roles"
-	"github.com/xcreativs/caliber/internal/domain/identity"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
@@ -40,7 +40,7 @@ func (s *RoleServer) GenerateRoleSpec(
 	req *caliberv1.GenerateRoleSpecRequest,
 ) (*caliberv1.GenerateRoleSpecResponse, error) {
 	// An employer creates roles only under their own id (CAL-116 IDOR guard).
-	if err := requireSelfEmployer(ctx, req.GetEmployerId()); err != nil {
+	if err := requireSelfEmployer(ctx, req.GetEmployerId(), authz.PermManageRoles); err != nil {
 		return nil, errToStatus(err)
 	}
 	r, err := s.gen.Generate(ctx, kernel.ID(req.GetEmployerId()), req.GetFreeText())
@@ -75,7 +75,7 @@ func (s *RoleServer) UpdateRoleSpec(
 	ctx context.Context,
 	req *caliberv1.UpdateRoleSpecRequest,
 ) (*caliberv1.UpdateRoleSpecResponse, error) {
-	principal, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter)
+	principal, err := RequirePermission(ctx, authz.PermManageRoles)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -97,7 +97,7 @@ func (s *RoleServer) UpdateRoleSpec(
 // ListRoles returns a page of an employer's roles.
 func (s *RoleServer) ListRoles(ctx context.Context, req *caliberv1.ListRolesRequest) (*caliberv1.ListRolesResponse, error) {
 	// An employer lists only their own roles (CAL-116 IDOR guard).
-	if err := requireSelfEmployer(ctx, req.GetEmployerId()); err != nil {
+	if err := requireSelfEmployer(ctx, req.GetEmployerId(), authz.PermManageRoles); err != nil {
 		return nil, errToStatus(err)
 	}
 	page := pageFromProto(req.GetPage())

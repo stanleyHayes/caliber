@@ -6,6 +6,7 @@ import (
 
 	"github.com/xcreativs/caliber/internal/app"
 	interviewapp "github.com/xcreativs/caliber/internal/app/interview"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	"github.com/xcreativs/caliber/internal/domain/identity"
 	interviewdom "github.com/xcreativs/caliber/internal/domain/interview"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
@@ -117,7 +118,7 @@ func (s *InterviewServer) StartInterview(
 ) error {
 	ctx := stream.Context()
 	// A candidate takes their own screening (CAL-116).
-	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId(), authz.PermScreenSelf); err != nil {
 		return errToStatus(err)
 	}
 	iv, question, err := s.interviewer.Start(
@@ -155,7 +156,7 @@ func (s *InterviewServer) StartInterview(
 func (s *InterviewServer) SubmitAnswer(
 	ctx context.Context, req *caliberv1.SubmitAnswerRequest,
 ) (*caliberv1.SubmitAnswerResponse, error) {
-	principal, err := RequireRole(ctx, identity.RoleCandidate)
+	principal, err := RequirePermission(ctx, authz.PermScreenSelf)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -216,10 +217,13 @@ func (s *InterviewServer) authorizeReportCardAccess(
 ) error {
 	switch principal.Role {
 	case identity.RoleCandidate.String():
-		if principal.UserID == card.CandidateID {
+		if principal.UserID == card.CandidateID && principalHasPermission(principal, authz.PermViewReportCard) {
 			return nil
 		}
 	case identity.RoleEmployer.String(), identity.RoleRecruiter.String():
+		if !principalHasPermission(principal, authz.PermViewReportCard) {
+			return kernel.Forbidden("auth: not permitted to view this report card")
+		}
 		employerID, err := s.interviewer.EmployerForInterview(ctx, interviewID)
 		if err != nil {
 			return err

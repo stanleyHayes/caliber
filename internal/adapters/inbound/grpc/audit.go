@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/xcreativs/caliber/internal/domain/audit"
-	"github.com/xcreativs/caliber/internal/domain/identity"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 
@@ -33,7 +33,7 @@ func NewAuditServer(repo audit.AuditRepository) *AuditServer { return &AuditServ
 func (s *AuditServer) ListAuditLog(
 	ctx context.Context, req *caliberv1.ListAuditLogRequest,
 ) (*caliberv1.ListAuditLogResponse, error) {
-	if _, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter); err != nil {
+	if _, err := RequirePermission(ctx, authz.PermReadAuditLog); err != nil {
 		return nil, errToStatus(err)
 	}
 	entity := req.GetEntity()
@@ -59,7 +59,7 @@ func (s *AuditServer) ListAuditLog(
 func (s *AuditServer) ExportAuditReport(
 	ctx context.Context, req *caliberv1.ExportAuditReportRequest,
 ) (*caliberv1.ExportAuditReportResponse, error) {
-	if _, err := RequireRole(ctx, identity.RoleEmployer, identity.RoleRecruiter); err != nil {
+	if _, err := RequirePermission(ctx, authz.PermReadAuditLog); err != nil {
 		return nil, errToStatus(err)
 	}
 	filter, err := exportFilterFromProto(req)

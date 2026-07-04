@@ -22,16 +22,19 @@ type Permission string
 // (ownership is still enforced per-request — a permission grants the ability to
 // act on *your own* resources, tenancy/IDOR checks do the rest, CAL-153).
 const (
-	PermManageRoles    Permission = "roles:manage"       // create/edit role specs + rubrics
-	PermViewShortlist  Permission = "shortlist:view"     // generate/refine/view a role's shortlist
-	PermRecordDecision Permission = "decision:record"    // record a hiring decision (decline)
-	PermResolveContest Permission = "contest:resolve"    // resolve a candidate's assessment contest
-	PermViewDashboard  Permission = "dashboard:view"     // the Talent Radar god-view
-	PermReadAuditLog   Permission = "audit:read"         // read the hiring-decision audit trail
-	PermScreenSelf     Permission = "interview:screen"   // start/answer one's own screening interview
-	PermRunAgent       Permission = "agent:run"          // run the autonomous candidate agent
-	PermManageProfile  Permission = "profile:manage"     // create/update one's own talent profile
-	PermRaiseContest   Permission = "contest:raise"      // dispute an assessment about oneself
+	PermManageRoles    Permission = "roles:manage"     // create/edit role specs + rubrics
+	PermViewShortlist  Permission = "shortlist:view"   // generate/refine/view a role's shortlist
+	PermRecordDecision Permission = "decision:record"  // record a hiring decision (decline)
+	PermResolveContest Permission = "contest:resolve"  // resolve a candidate's assessment contest
+	PermViewDashboard  Permission = "dashboard:view"   // the Talent Radar god-view
+	PermReadAuditLog   Permission = "audit:read"       // read the hiring-decision audit trail
+	PermScreenSelf     Permission = "interview:screen" // start/answer one's own screening interview
+	PermViewReportCard Permission = "interview:report:view"
+	PermRunAgent       Permission = "agent:run"      // run the autonomous candidate agent
+	PermViewProfile    Permission = "profile:view"   // view a talent profile/passport
+	PermManageProfile  Permission = "profile:manage" // create/update one's own talent profile
+	PermManagePrivacy  Permission = "privacy:manage" // export/delete one's own data
+	PermRaiseContest   Permission = "contest:raise"  // dispute an assessment about oneself
 )
 
 // matrix maps a role to the permissions it holds. It is the single source of
@@ -42,13 +45,17 @@ var matrix = map[identity.Role][]Permission{
 	identity.RoleEmployer: {
 		PermManageRoles, PermViewShortlist, PermRecordDecision,
 		PermResolveContest, PermViewDashboard, PermReadAuditLog,
+		PermViewReportCard, PermViewProfile,
 	},
 	identity.RoleRecruiter: {
 		PermManageRoles, PermViewShortlist, PermRecordDecision,
 		PermResolveContest, PermViewDashboard, PermReadAuditLog,
+		PermViewReportCard, PermViewProfile,
 	},
 	identity.RoleCandidate: {
-		PermScreenSelf, PermRunAgent, PermManageProfile, PermRaiseContest,
+		PermScreenSelf, PermViewReportCard, PermRunAgent,
+		PermViewProfile, PermManageProfile, PermManagePrivacy,
+		PermRaiseContest,
 	},
 }
 

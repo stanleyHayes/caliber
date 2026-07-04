@@ -15,8 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	authadapter "github.com/xcreativs/caliber/internal/adapters/outbound/auth"
-	"github.com/xcreativs/caliber/internal/adapters/outbound/fieldcrypto"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/embeddings"
+	"github.com/xcreativs/caliber/internal/adapters/outbound/fieldcrypto"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/llm"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/memory"
 	"github.com/xcreativs/caliber/internal/adapters/outbound/postgres"
@@ -263,7 +263,7 @@ func effectiveLLMGuard(cfg config.Config) (int, int, int, float64) {
 // When tele is non-nil, AI call records are also converted to Prometheus metrics
 // (CAL-131).
 //
-//nolint:ireturn // returns the audited+guarded LLM facade as the app.LLMClient port; interface return is intentional.
+//nolint:ireturn,nolintlint // port constructor intentionally returns the app.LLMClient interface.
 func BuildLLM(
 	cfg config.Config, log *slog.Logger, tele *telemetry.Provider,
 ) (app.LLMClient, *llm.MemoryRecorder, *app.CostTracker) {
@@ -319,7 +319,7 @@ func modelLabel(cfg config.Config) string {
 	return "dev"
 }
 
-//nolint:ireturn // selects a concrete LLM implementation from config; interface return is intentional.
+//nolint:ireturn,nolintlint // provider selection intentionally returns the app.LLMClient port.
 func newLLMProvider(cfg config.Config, log *slog.Logger) app.LLMClient {
 	if cfg.AnthropicAPIKey != "" {
 		log.Info("llm provider selected", "provider", "claude", "model", cfg.AnthropicModel)
@@ -331,7 +331,7 @@ func newLLMProvider(cfg config.Config, log *slog.Logger) app.LLMClient {
 
 // BuildEmbedder constructs the embedder adapter from config.
 //
-//nolint:ireturn // selects a concrete embedder implementation from config; interface return is intentional.
+//nolint:ireturn,nolintlint // embedder selection intentionally returns the app.Embedder port.
 func BuildEmbedder(cfg config.Config, log *slog.Logger) app.Embedder {
 	if cfg.OpenAIAPIKey != "" {
 		log.Info("embedder selected", "provider", "openai", "model", cfg.OpenAIEmbeddingModel)

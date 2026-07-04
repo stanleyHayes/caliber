@@ -7,7 +7,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	privacyapp "github.com/xcreativs/caliber/internal/app/privacy"
-	"github.com/xcreativs/caliber/internal/domain/identity"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
 
@@ -33,7 +33,7 @@ func NewPrivacyServer(exporter *privacyapp.Exporter, eraser *privacyapp.Eraser) 
 func (s *PrivacyServer) ExportMyData(
 	ctx context.Context, _ *caliberv1.ExportMyDataRequest,
 ) (*caliberv1.ExportMyDataResponse, error) {
-	principal, err := RequireRole(ctx, identity.RoleCandidate)
+	principal, err := RequirePermission(ctx, authz.PermManagePrivacy)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -54,7 +54,7 @@ func (s *PrivacyServer) ExportMyData(
 func (s *PrivacyServer) DeleteMyData(
 	ctx context.Context, _ *caliberv1.DeleteMyDataRequest,
 ) (*caliberv1.DeleteMyDataResponse, error) {
-	principal, err := RequireRole(ctx, identity.RoleCandidate)
+	principal, err := RequirePermission(ctx, authz.PermManagePrivacy)
 	if err != nil {
 		return nil, errToStatus(err)
 	}

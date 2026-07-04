@@ -6,6 +6,7 @@ import (
 
 	"github.com/xcreativs/caliber/internal/adapters/outbound/cvtext"
 	profilesapp "github.com/xcreativs/caliber/internal/app/profiles"
+	"github.com/xcreativs/caliber/internal/domain/authz"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/talent"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
@@ -42,7 +43,7 @@ func NewTalentServer(builder *profilesapp.ProfileBuilder) *TalentServer {
 func (s *TalentServer) CreateProfileFromCV(
 	ctx context.Context, req *caliberv1.CreateProfileFromCVRequest,
 ) (*caliberv1.CreateProfileFromCVResponse, error) {
-	if err := requireSelfCandidate(ctx, req.GetCandidateId()); err != nil {
+	if err := requireSelfCandidate(ctx, req.GetCandidateId(), authz.PermManageProfile); err != nil {
 		return nil, errToStatus(err)
 	}
 	if err := validateIntake(req.GetIntake()); err != nil {
