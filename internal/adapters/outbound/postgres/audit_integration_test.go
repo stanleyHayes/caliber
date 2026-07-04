@@ -71,6 +71,29 @@ func TestAuditRepoSearchAndList(t *testing.T) {
 	require.Len(t, list, 2)
 	assert.Equal(t, audit.ActionOverrideScore, list[0].Action)
 
+	// Owner scoping (CAL-153): two employers act on a shared subject; ListForOwner
+	// returns only the caller's entries, closing the cross-tenant read.
+	ownerA, ownerB, subj := kernel.NewID(), kernel.NewID(), kernel.NewID()
+	oa, err := audit.NewAuditEntry(actor, audit.ActionApproveRejection, "match", subj, "", "", time.Unix(5000, 0).UTC())
+	require.NoError(t, err)
+	oa.OwnerID = ownerA
+	ob, err := audit.NewAuditEntry(actor, audit.ActionApproveRejection, "match", subj, "", "", time.Unix(6000, 0).UTC())
+	require.NoError(t, err)
+	ob.OwnerID = ownerB
+	require.NoError(t, repo.Append(ctx, oa))
+	require.NoError(t, repo.Append(ctx, ob))
+
+	forA, totalA, err := repo.ListForOwner(ctx, "match", subj, ownerA, kernel.NewPage(1, 10))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), totalA)
+	require.Len(t, forA, 1)
+	assert.Equal(t, ownerA, forA[0].OwnerID, "owner A sees only their own entry")
+
+	both, totalBoth, err := repo.ListForOwner(ctx, "match", subj, kernel.ID(""), kernel.NewPage(1, 10))
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), totalBoth, "a zero owner (admin) is unscoped")
+	require.Len(t, both, 2)
+
 	// Search across all actions/entities in the time range.
 	filter := audit.ReportFilter{
 		Start: time.Unix(0, 0).UTC(),

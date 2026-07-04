@@ -38,6 +38,11 @@ type AuditEntry struct { //nolint:revive // domain name is fixed by the audit co
 	Action      string
 	Entity      string
 	EntityID    kernel.ID
+	// OwnerID is the employer (tenant) that owns the resource this entry concerns
+	// (CAL-153). It scopes reviewer-facing reads so an employer sees only their
+	// own hiring-decision trail — including a candidate's contest raise on their
+	// assessment. Zero means unowned (not surfaced to a scoped reviewer read).
+	OwnerID     kernel.ID
 	BeforeJSON  string
 	AfterJSON   string
 	Timestamp   time.Time
@@ -94,8 +99,13 @@ type AuditRepository interface { //nolint:revive // domain name is fixed by the 
 	// Append durably stores a new audit entry.
 	Append(ctx context.Context, entry *AuditEntry) error
 	// List returns a page of audit entries for a given entity and entityID,
-	// along with the total count of matching entries.
+	// along with the total count of matching entries. It is unscoped by owner —
+	// for internal/erasure use, not reviewer-facing reads.
 	List(ctx context.Context, entity string, entityID kernel.ID, page kernel.Page) ([]*AuditEntry, int64, error)
+	// ListForOwner is List scoped to an owning employer (CAL-153): only entries
+	// whose OwnerID matches are returned. A zero ownerID means unscoped (e.g. a
+	// platform admin), returning every entry for the entity like List.
+	ListForOwner(ctx context.Context, entity string, entityID, ownerID kernel.ID, page kernel.Page) ([]*AuditEntry, int64, error)
 	// Search returns a page of audit entries matching the report filter,
 	// newest first, along with the total count of matching entries.
 	Search(ctx context.Context, filter ReportFilter, page kernel.Page) ([]*AuditEntry, int64, error)

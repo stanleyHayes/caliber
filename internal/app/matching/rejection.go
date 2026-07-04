@@ -62,6 +62,10 @@ func (r *RejectionRecorder) Record(
 	if err != nil {
 		return "", err
 	}
+	// The acting employer owns the role, so they own this audit entry (CAL-153):
+	// only they see this rejection in their scoped audit read, not another
+	// employer who also rejected the same candidate.
+	entry.OwnerID = actorUserID
 	if appendErr := r.audit.Append(ctx, entry); appendErr != nil {
 		return "", appendErr
 	}

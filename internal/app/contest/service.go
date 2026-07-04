@@ -60,7 +60,12 @@ func (s *Service) Raise(
 	if err := s.contests.Create(ctx, c); err != nil {
 		return nil, err
 	}
-	s.record(ctx, candidateID, audit.ActionContestRaised, c.ID)
+	// Own the audit entry to the employer that owns the contested assessment
+	// (CAL-153), so both the candidate's raise and the reviewer's resolve are
+	// visible in that employer's scoped audit read. Best-effort: an unresolvable
+	// subject leaves the entry unowned rather than failing the raise.
+	owner, _ := s.ownerOf(ctx, c)
+	s.record(ctx, candidateID, audit.ActionContestRaised, c.ID, owner)
 	return c, nil
 }
 
@@ -103,7 +108,9 @@ func (s *Service) Resolve(
 	if uerr := s.contests.Update(ctx, c); uerr != nil {
 		return nil, uerr
 	}
-	s.record(ctx, reviewerID, audit.ActionContestResolved, c.ID)
+	// ownerID == reviewerID here (verified above), and owns the entry so the
+	// resolve joins the raise in the owner's scoped audit trail (CAL-153).
+	s.record(ctx, reviewerID, audit.ActionContestResolved, c.ID, ownerID)
 	return c, nil
 }
 
@@ -139,10 +146,11 @@ func (s *Service) ownerOf(ctx context.Context, c *contestdom.Contest) (kernel.ID
 
 // record appends an audit entry, best-effort: an audit failure never blocks the
 // contest action it describes.
-func (s *Service) record(ctx context.Context, actorID kernel.ID, action string, contestID kernel.ID) {
+func (s *Service) record(ctx context.Context, actorID kernel.ID, action string, contestID, ownerID kernel.ID) {
 	entry, err := audit.NewAuditEntry(actorID, action, "contest", contestID, "", "", s.now())
 	if err != nil {
 		return
 	}
+	entry.OwnerID = ownerID
 	_ = s.audit.Append(ctx, entry)
 }

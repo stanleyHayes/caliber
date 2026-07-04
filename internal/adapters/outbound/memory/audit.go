@@ -50,6 +50,24 @@ func (r *AuditRepo) List(
 	return out, total, nil
 }
 
+// ListForOwner is List scoped to an owning employer (CAL-153). A zero ownerID is
+// unscoped (returns all entries for the entity).
+func (r *AuditRepo) ListForOwner(
+	_ context.Context, entity string, entityID, ownerID kernel.ID, page kernel.Page,
+) ([]*audit.AuditEntry, int64, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var matched []*audit.AuditEntry
+	for _, e := range slices.Backward(r.entries) {
+		if e.Entity == entity && e.EntityID == entityID && (ownerID.IsZero() || e.OwnerID == ownerID) {
+			cp := e
+			matched = append(matched, &cp)
+		}
+	}
+	out, total := paginate(matched, page)
+	return out, total, nil
+}
+
 // Search returns audit entries matching the report filter, newest first.
 func (r *AuditRepo) Search(_ context.Context, filter audit.ReportFilter, page kernel.Page) ([]*audit.AuditEntry, int64, error) {
 	r.mu.RLock()

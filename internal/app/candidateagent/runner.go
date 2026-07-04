@@ -288,7 +288,7 @@ func (r *AgentRunner) consider(
 	if err := r.apps.Create(ctx, application); err != nil {
 		return false, "", err
 	}
-	r.recordSubmission(ctx, candidateID, application.ID, rl.ID)
+	r.recordSubmission(ctx, candidateID, application.ID, rl.ID, rl.EmployerID)
 	return true, fmt.Sprintf("Applied to %q on your behalf.", rl.Title), nil
 }
 
@@ -298,7 +298,7 @@ func (r *AgentRunner) consider(
 // the actor — the agent is their delegated proxy — and the action is recorded as
 // agent_submit so an overseer can tell autonomous applications from manual ones.
 // A no-op when no audit trail is configured.
-func (r *AgentRunner) recordSubmission(ctx context.Context, candidateID, applicationID, roleID kernel.ID) {
+func (r *AgentRunner) recordSubmission(ctx context.Context, candidateID, applicationID, roleID, ownerID kernel.ID) {
 	if r.audit == nil {
 		return
 	}
@@ -315,6 +315,8 @@ func (r *AgentRunner) recordSubmission(ctx context.Context, candidateID, applica
 	if err != nil {
 		return
 	}
+	// The role's employer owns this application audit entry (CAL-153).
+	entry.OwnerID = ownerID
 	_ = r.audit.Append(ctx, entry)
 }
 

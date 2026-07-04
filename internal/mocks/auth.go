@@ -156,6 +156,45 @@ func (mr *MockTokenServiceMockRecorder) VerifyRefresh(token any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VerifyRefresh", reflect.TypeOf((*MockTokenService)(nil).VerifyRefresh), token)
 }
 
+// MockSSOAuthenticator is a mock of SSOAuthenticator interface.
+type MockSSOAuthenticator struct {
+	ctrl     *gomock.Controller
+	recorder *MockSSOAuthenticatorMockRecorder
+	isgomock struct{}
+}
+
+// MockSSOAuthenticatorMockRecorder is the mock recorder for MockSSOAuthenticator.
+type MockSSOAuthenticatorMockRecorder struct {
+	mock *MockSSOAuthenticator
+}
+
+// NewMockSSOAuthenticator creates a new mock instance.
+func NewMockSSOAuthenticator(ctrl *gomock.Controller) *MockSSOAuthenticator {
+	mock := &MockSSOAuthenticator{ctrl: ctrl}
+	mock.recorder = &MockSSOAuthenticatorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSSOAuthenticator) EXPECT() *MockSSOAuthenticatorMockRecorder {
+	return m.recorder
+}
+
+// Authenticate mocks base method.
+func (m *MockSSOAuthenticator) Authenticate(ctx context.Context, providerToken string) (app.SSOIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Authenticate", ctx, providerToken)
+	ret0, _ := ret[0].(app.SSOIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Authenticate indicates an expected call of Authenticate.
+func (mr *MockSSOAuthenticatorMockRecorder) Authenticate(ctx, providerToken any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Authenticate", reflect.TypeOf((*MockSSOAuthenticator)(nil).Authenticate), ctx, providerToken)
+}
+
 // MockRefreshTokenStore is a mock of RefreshTokenStore interface.
 type MockRefreshTokenStore struct {
 	ctrl     *gomock.Controller

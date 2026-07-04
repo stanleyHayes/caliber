@@ -29,6 +29,7 @@ type AuditLog struct {
 	BeforeJson  []byte
 	AfterJson   []byte
 	CreatedAt   pgtype.Timestamptz
+	OwnerID     string
 }
 
 type Candidate struct {

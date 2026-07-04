@@ -12,8 +12,8 @@ import (
 )
 
 const appendAuditEntry = `-- name: AppendAuditEntry :exec
-INSERT INTO audit_log (id, actor_user_id, action, entity, entity_id, before_json, after_json, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO audit_log (id, actor_user_id, action, entity, entity_id, before_json, after_json, created_at, owner_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `
 
 type AppendAuditEntryParams struct {
@@ -25,6 +25,7 @@ type AppendAuditEntryParams struct {
 	BeforeJson  []byte
 	AfterJson   []byte
 	CreatedAt   pgtype.Timestamptz
+	OwnerID     string
 }
 
 func (q *Queries) AppendAuditEntry(ctx context.Context, arg AppendAuditEntryParams) error {
@@ -37,6 +38,7 @@ func (q *Queries) AppendAuditEntry(ctx context.Context, arg AppendAuditEntryPara
 		arg.BeforeJson,
 		arg.AfterJson,
 		arg.CreatedAt,
+		arg.OwnerID,
 	)
 	return err
 }
@@ -52,6 +54,24 @@ type CountAuditLogParams struct {
 
 func (q *Queries) CountAuditLog(ctx context.Context, arg CountAuditLogParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countAuditLog, arg.Entity, arg.EntityID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAuditLogForOwner = `-- name: CountAuditLogForOwner :one
+SELECT count(*) FROM audit_log
+WHERE entity = $1 AND entity_id = $2 AND ($3 = '' OR owner_id = $3)
+`
+
+type CountAuditLogForOwnerParams struct {
+	Entity   string
+	EntityID string
+	Column3  interface{}
+}
+
+func (q *Queries) CountAuditLogForOwner(ctx context.Context, arg CountAuditLogForOwnerParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAuditLogForOwner, arg.Entity, arg.EntityID, arg.Column3)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -85,7 +105,7 @@ func (q *Queries) CountAuditLogForReport(ctx context.Context, arg CountAuditLogF
 }
 
 const listAuditLog = `-- name: ListAuditLog :many
-SELECT id, actor_user_id, action, entity, entity_id, before_json, after_json, created_at
+SELECT id, actor_user_id, action, entity, entity_id, before_json, after_json, created_at, owner_id
 FROM audit_log WHERE entity = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4
 `
 
@@ -119,6 +139,58 @@ func (q *Queries) ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]A
 			&i.BeforeJson,
 			&i.AfterJson,
 			&i.CreatedAt,
+			&i.OwnerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuditLogForOwner = `-- name: ListAuditLogForOwner :many
+SELECT id, actor_user_id, action, entity, entity_id, before_json, after_json, created_at, owner_id
+FROM audit_log
+WHERE entity = $1 AND entity_id = $2 AND ($3 = '' OR owner_id = $3)
+ORDER BY created_at DESC LIMIT $4 OFFSET $5
+`
+
+type ListAuditLogForOwnerParams struct {
+	Entity   string
+	EntityID string
+	Column3  interface{}
+	Limit    int32
+	Offset   int32
+}
+
+func (q *Queries) ListAuditLogForOwner(ctx context.Context, arg ListAuditLogForOwnerParams) ([]AuditLog, error) {
+	rows, err := q.db.Query(ctx, listAuditLogForOwner,
+		arg.Entity,
+		arg.EntityID,
+		arg.Column3,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuditLog
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.ActorUserID,
+			&i.Action,
+			&i.Entity,
+			&i.EntityID,
+			&i.BeforeJson,
+			&i.AfterJson,
+			&i.CreatedAt,
+			&i.OwnerID,
 		); err != nil {
 			return nil, err
 		}
@@ -131,7 +203,7 @@ func (q *Queries) ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]A
 }
 
 const searchAuditLog = `-- name: SearchAuditLog :many
-SELECT id, actor_user_id, action, entity, entity_id, before_json, after_json, created_at
+SELECT id, actor_user_id, action, entity, entity_id, before_json, after_json, created_at, owner_id
 FROM audit_log
 WHERE created_at >= $1 AND created_at <= $2
   AND (cardinality($3::text[]) = 0 OR action = any($3::text[]))
@@ -174,6 +246,7 @@ func (q *Queries) SearchAuditLog(ctx context.Context, arg SearchAuditLogParams) 
 			&i.BeforeJson,
 			&i.AfterJson,
 			&i.CreatedAt,
+			&i.OwnerID,
 		); err != nil {
 			return nil, err
 		}

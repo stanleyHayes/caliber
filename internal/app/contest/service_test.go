@@ -47,11 +47,11 @@ func build(t *testing.T) (*contestapp.Service, cmocks) {
 }
 
 // deps is the slim helper for tests that never reach the ownership path
-// (Raise/List and contest-not-found), returning just the contest + audit mocks.
-func deps(t *testing.T) (*contestapp.Service, *mocks.MockContestRepository, *mocks.MockAuditRepository) {
+// (List and contest-not-found), returning just the contest mock.
+func deps(t *testing.T) (*contestapp.Service, *mocks.MockContestRepository) {
 	t.Helper()
 	svc, m := build(t)
-	return svc, m.contests, m.audit
+	return svc, m.contests
 }
 
 // expectOwner wires the match->role->employer resolution so ownerOf returns
@@ -63,15 +63,20 @@ func expectOwner(m cmocks, owner kernel.ID) {
 }
 
 func TestRaise_CreatesAndAudits(t *testing.T) {
-	svc, contests, auditRepo := deps(t)
+	svc, m := build(t)
 	cid, sid := kernel.NewID(), kernel.NewID()
+	owner := kernel.NewID()
 
-	contests.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
-	auditRepo.EXPECT().Append(gomock.Any(), gomock.Any()).DoAndReturn(
+	m.contests.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+	expectOwner(m, owner) // ownerOf resolves the contested match's owning employer
+	m.audit.EXPECT().Append(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, e *audit.AuditEntry) error {
 			assert.Equal(t, audit.ActionContestRaised, e.Action)
 			assert.Equal(t, cid, e.ActorUserID)
 			assert.Equal(t, "contest", e.Entity)
+			// CAL-153: the raise is owned by the employer, not the candidate, so
+			// it joins the owner's scoped audit trail.
+			assert.Equal(t, owner, e.OwnerID)
 			return nil
 		})
 
@@ -82,13 +87,13 @@ func TestRaise_CreatesAndAudits(t *testing.T) {
 }
 
 func TestRaise_RejectsInvalidBeforePersisting(t *testing.T) {
-	svc, _, _ := deps(t) // no Create/Append expectations: nothing must be persisted
+	svc, _ := deps(t) // no Create/Append expectations: nothing must be persisted
 	_, err := svc.Raise(context.Background(), kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "   ")
 	assert.Equal(t, kernel.KindInvalid, kernel.KindOf(err))
 }
 
 func TestListForCandidate(t *testing.T) {
-	svc, contests, _ := deps(t)
+	svc, contests := deps(t)
 	cid := kernel.NewID()
 	want := []*contestdom.Contest{{ID: kernel.NewID(), CandidateID: cid}}
 	contests.EXPECT().ByCandidate(gomock.Any(), cid, gomock.Any()).Return(want, int64(1), nil)
@@ -100,7 +105,7 @@ func TestListForCandidate(t *testing.T) {
 }
 
 func TestListForSubject(t *testing.T) {
-	svc, contests, _ := deps(t)
+	svc, contests := deps(t)
 	sid := kernel.NewID()
 	want := []*contestdom.Contest{{ID: kernel.NewID(), SubjectID: sid}}
 	contests.EXPECT().BySubject(gomock.Any(), sid, gomock.Any()).Return(want, int64(1), nil)
@@ -112,7 +117,7 @@ func TestListForSubject(t *testing.T) {
 }
 
 func TestRaise_PropagatesCreateFailure(t *testing.T) {
-	svc, contests, _ := deps(t) // no Append: a failed create logs no "raised" audit
+	svc, contests := deps(t) // no Append: a failed create logs no "raised" audit
 	contests.EXPECT().Create(gomock.Any(), gomock.Any()).Return(kernel.Conflict("dup"))
 
 	_, err := svc.Raise(context.Background(), kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "a real reason")
@@ -168,7 +173,7 @@ func TestResolve_AlreadyResolvedDoesNotUpdate(t *testing.T) {
 }
 
 func TestResolve_NotFound(t *testing.T) {
-	svc, contests, _ := deps(t)
+	svc, contests := deps(t)
 	// Contest lookup fails before ownership resolution — nothing else is consulted.
 	contests.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("nope"))
 	_, err := svc.Resolve(context.Background(), kernel.NewID(), kernel.NewID(), true, "x")

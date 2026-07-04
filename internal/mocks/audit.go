@@ -72,6 +72,22 @@ func (mr *MockAuditRepositoryMockRecorder) List(ctx, entity, entityID, page any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockAuditRepository)(nil).List), ctx, entity, entityID, page)
 }
 
+// ListForOwner mocks base method.
+func (m *MockAuditRepository) ListForOwner(ctx context.Context, entity string, entityID, ownerID kernel.ID, page kernel.Page) ([]*audit.AuditEntry, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListForOwner", ctx, entity, entityID, ownerID, page)
+	ret0, _ := ret[0].([]*audit.AuditEntry)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListForOwner indicates an expected call of ListForOwner.
+func (mr *MockAuditRepositoryMockRecorder) ListForOwner(ctx, entity, entityID, ownerID, page any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListForOwner", reflect.TypeOf((*MockAuditRepository)(nil).ListForOwner), ctx, entity, entityID, ownerID, page)
+}
+
 // Search mocks base method.
 func (m *MockAuditRepository) Search(ctx context.Context, filter audit.ReportFilter, page kernel.Page) ([]*audit.AuditEntry, int64, error) {
 	m.ctrl.T.Helper()

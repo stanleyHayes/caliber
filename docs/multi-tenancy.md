@@ -73,16 +73,23 @@ Cross-tenant isolation is proven at both the use-case and handler layers:
 - CAL-116 already carries cross-employer IDOR tests for role, shortlist,
   rejection, and report-card reads.
 
+## Audit-trail scoping (CAL-153)
+
+`ListAuditLog` is now tenant-scoped. Each audit entry carries an **`OwnerID`**
+(the owning employer), set at write time — a rejection is owned by the acting
+employer, an agent application by the role's employer, and a contest's **raise
+and resolve are both owned by the employer** who owns the contested assessment
+(resolved via `match`/`interview` → `role` → `EmployerID`). The reviewer-facing
+`ListAuditLog` (`AuditRepository.ListForOwner`) returns only entries the caller
+owns, so a shared subject (e.g. a candidate rejected by several employers) no
+longer leaks one employer's decisions to another — while the legitimate contest
+trail stays intact, because the candidate's raise is owned by the employer, not
+the candidate. A platform **admin** reads the trail unscoped. The unscoped
+`List` remains for internal/erasure use. Enforced by an owner-indexed query and
+tested at the memory, gRPC (owner vs. non-owner vs. admin), and Postgres layers.
+
 ## Known POC limitations (honest)
 
-- **`ListAuditLog` cross-tenant reads.** The audit row records only
-  `entity` + `entity_id` (e.g. a candidate or contest id), not the owning role,
-  so per-tenant scoping is not derivable from audit data alone — and naive
-  actor-scoping breaks the legitimate contest trail (a reviewer must see the
-  candidate's *raise* plus their own *resolve*). It stays **reviewer-only (RBAC)
-  and append-only** as the compensating control. Closing it needs an owner/tenant
-  column on audit rows (enrich-going-forward) or the same subject→role resolution
-  applied per entity type — tracked as a follow-up.
 - **Recruiter ↔ employer membership.** There is no junction table linking a
   recruiter to an employer, so each employer/recruiter *user* is its own tenant
   (`role.EmployerID == principal.UserID`). A shared-organization model where

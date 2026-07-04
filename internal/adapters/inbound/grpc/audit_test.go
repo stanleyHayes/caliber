@@ -25,24 +25,47 @@ import (
 
 func TestAuditServer_ListAuditLog(t *testing.T) {
 	repo := memory.NewAuditRepo()
-	actor, entityID := kernel.NewID(), kernel.NewID()
-	e1, _ := audit.NewAuditEntry(actor, audit.ActionContestRaised, "contest", entityID, "", "", time.Unix(1, 0))
-	e2, _ := audit.NewAuditEntry(actor, audit.ActionContestResolved, "contest", entityID, "", "", time.Unix(2, 0))
-	require.NoError(t, repo.Append(context.Background(), e1))
-	require.NoError(t, repo.Append(context.Background(), e2))
+	owner, candidate, entityID := kernel.NewID(), kernel.NewID(), kernel.NewID()
+	// The contest trail on the owner's assessment: a candidate's raise and the
+	// owner's resolve — BOTH owned by the employer (CAL-153) so the owner sees
+	// the full trail in their scoped read.
+	raise, _ := audit.NewAuditEntry(candidate, audit.ActionContestRaised, "contest", entityID, "", "", time.Unix(1, 0))
+	raise.OwnerID = owner
+	resolve, _ := audit.NewAuditEntry(owner, audit.ActionContestResolved, "contest", entityID, "", "", time.Unix(2, 0))
+	resolve.OwnerID = owner
+	require.NoError(t, repo.Append(context.Background(), raise))
+	require.NoError(t, repo.Append(context.Background(), resolve))
 
 	srv := NewAuditServer(repo)
-	empCtx := context.WithValue(context.Background(), principalKey{},
-		app.Principal{UserID: kernel.NewID(), Role: identity.RoleEmployer.String()})
-
-	resp, err := srv.ListAuditLog(empCtx, &caliberv1.ListAuditLogRequest{
+	req := &caliberv1.ListAuditLogRequest{
 		Entity: "contest", EntityId: entityID.String(),
 		Page: &caliberv1.PageRequest{Page: 1, PageSize: 10},
-	})
+	}
+
+	// The owning employer sees the full trail (raise + resolve), newest first.
+	ownerCtx := context.WithValue(context.Background(), principalKey{},
+		app.Principal{UserID: owner, Role: identity.RoleEmployer.String()})
+	resp, err := srv.ListAuditLog(ownerCtx, req)
 	require.NoError(t, err)
 	require.Len(t, resp.GetEntries(), 2)
 	assert.Equal(t, audit.ActionContestResolved, resp.GetEntries()[0].GetAction(), "newest first")
 	assert.Equal(t, int64(2), resp.GetPage().GetTotalItems())
+
+	// CAL-153: a DIFFERENT reviewer sharing the subject sees none of it — the
+	// cross-tenant read is closed.
+	otherCtx := context.WithValue(context.Background(), principalKey{},
+		app.Principal{UserID: kernel.NewID(), Role: identity.RoleRecruiter.String()})
+	other, err := srv.ListAuditLog(otherCtx, req)
+	require.NoError(t, err)
+	assert.Empty(t, other.GetEntries(), "a non-owning reviewer cannot read another employer's trail")
+	assert.Equal(t, int64(0), other.GetPage().GetTotalItems())
+
+	// A platform admin reads the whole trail (unscoped).
+	adminCtx := context.WithValue(context.Background(), principalKey{},
+		app.Principal{UserID: kernel.NewID(), Role: identity.RoleAdmin.String()})
+	adm, err := srv.ListAuditLog(adminCtx, req)
+	require.NoError(t, err)
+	assert.Len(t, adm.GetEntries(), 2, "an admin reads the full trail unscoped")
 }
 
 func TestAuditServer_AuthzAndValidation(t *testing.T) {

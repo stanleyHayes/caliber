@@ -26,6 +26,7 @@ func (r *AuditRepo) Append(ctx context.Context, e *audit.AuditEntry) error {
 		Action:      e.Action,
 		Entity:      e.Entity,
 		EntityID:    e.EntityID.String(),
+		OwnerID:     e.OwnerID.String(),
 		BeforeJson:  jsonOrNil(e.BeforeJSON),
 		AfterJson:   jsonOrNil(e.AfterJSON),
 		CreatedAt:   pgtype.Timestamptz{Time: e.Timestamp, Valid: true},
@@ -95,6 +96,34 @@ func (r *AuditRepo) Search(ctx context.Context, filter audit.ReportFilter, page 
 	return out, total, nil
 }
 
+// ListForOwner returns a page of audit entries for an entity, scoped to an
+// owning employer (CAL-153). A zero ownerID is unscoped (returns all).
+func (r *AuditRepo) ListForOwner(
+	ctx context.Context, entity string, entityID, ownerID kernel.ID, page kernel.Page,
+) ([]*audit.AuditEntry, int64, error) {
+	rows, err := r.q.ListAuditLogForOwner(ctx, sqlcdb.ListAuditLogForOwnerParams{
+		Entity:   entity,
+		EntityID: entityID.String(),
+		Column3:  ownerID.String(),
+		Limit:    clampInt32(page.Limit()),
+		Offset:   clampInt32(page.Offset()),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]*audit.AuditEntry, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toDomainAuditEntry(row))
+	}
+	total, err := r.q.CountAuditLogForOwner(ctx, sqlcdb.CountAuditLogForOwnerParams{
+		Entity: entity, EntityID: entityID.String(), Column3: ownerID.String(),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
 func toDomainAuditEntry(row sqlcdb.AuditLog) *audit.AuditEntry {
 	return &audit.AuditEntry{
 		ID:          kernel.ID(row.ID),
@@ -102,6 +131,7 @@ func toDomainAuditEntry(row sqlcdb.AuditLog) *audit.AuditEntry {
 		Action:      row.Action,
 		Entity:      row.Entity,
 		EntityID:    kernel.ID(row.EntityID),
+		OwnerID:     kernel.ID(row.OwnerID),
 		BeforeJSON:  string(row.BeforeJson),
 		AfterJSON:   string(row.AfterJson),
 		Timestamp:   row.CreatedAt.Time,

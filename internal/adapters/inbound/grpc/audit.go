@@ -10,6 +10,7 @@ import (
 
 	"github.com/xcreativs/caliber/internal/domain/audit"
 	"github.com/xcreativs/caliber/internal/domain/authz"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 
@@ -33,7 +34,8 @@ func NewAuditServer(repo audit.AuditRepository) *AuditServer { return &AuditServ
 func (s *AuditServer) ListAuditLog(
 	ctx context.Context, req *caliberv1.ListAuditLogRequest,
 ) (*caliberv1.ListAuditLogResponse, error) {
-	if _, err := RequirePermission(ctx, authz.PermReadAuditLog); err != nil {
+	principal, err := RequirePermission(ctx, authz.PermReadAuditLog)
+	if err != nil {
 		return nil, errToStatus(err)
 	}
 	entity := req.GetEntity()
@@ -41,8 +43,16 @@ func (s *AuditServer) ListAuditLog(
 	if entity == "" || entityID.IsZero() {
 		return nil, errToStatus(kernel.Invalid("audit: entity and entity_id are required"))
 	}
+	// Tenant-scope the trail (CAL-153): an employer/recruiter sees only entries
+	// they own — their hiring decisions plus contests raised on their assessments
+	// — not another employer's decisions on a shared subject. A platform admin
+	// sees the whole trail (unscoped).
+	owner := principal.UserID
+	if principal.Role == identity.RoleAdmin.String() {
+		owner = ""
+	}
 	page := pageFromProto(req.GetPage())
-	entries, total, err := s.audit.List(ctx, entity, entityID, page)
+	entries, total, err := s.audit.ListForOwner(ctx, entity, entityID, owner, page)
 	if err != nil {
 		return nil, errToStatus(err)
 	}
