@@ -20,10 +20,9 @@ import (
 func TestContestAuditTrailEndToEnd(t *testing.T) {
 	ctx := context.Background()
 	employer := kernel.NewID()
-	contestSrv, auditRepo, matchID := ownedContestServer(t, employer)
+	contestSrv, auditRepo, matchID, candidateID := ownedContestServer(t, employer)
 	auditSrv := NewAuditServer(auditRepo)
 
-	candidateID := kernel.NewID()
 	candidateCtx := asUser(ctx, candidateID, identity.RoleCandidate)
 	reviewerCtx := asUser(ctx, employer, identity.RoleEmployer)
 

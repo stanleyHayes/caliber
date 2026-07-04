@@ -28,20 +28,22 @@ func contestServer() *ContestServer {
 		memory.NewMatchRepo(), memory.NewInterviewRepo(), memory.NewRoleRepo(), time.Now))
 }
 
-// ownedContestServer seeds a match assessment owned by employerID and returns the
-// wired server, the seeded audit repo, and the match id to contest against. It
-// lets ResolveContest resolve a real owning employer (CAL-153 tenant isolation).
-func ownedContestServer(t *testing.T, employerID kernel.ID) (*ContestServer, *memory.AuditRepo, kernel.ID) {
+// ownedContestServer seeds a match assessment owned by employerID and belonging
+// to a candidate, returning the wired server, the seeded audit repo, the match id
+// to contest against, and that owning candidate id (only the owning candidate may
+// raise the contest — CAL-153 candidate-side IDOR guard). It also lets
+// ResolveContest resolve a real owning employer (CAL-153 tenant isolation).
+func ownedContestServer(t *testing.T, employerID kernel.ID) (*ContestServer, *memory.AuditRepo, kernel.ID, kernel.ID) {
 	t.Helper()
 	roles, matches, auditRepo := memory.NewRoleRepo(), memory.NewMatchRepo(), memory.NewAuditRepo()
-	roleID, matchID := kernel.NewID(), kernel.NewID()
+	roleID, matchID, candidateID := kernel.NewID(), kernel.NewID(), kernel.NewID()
 	require.NoError(t, roles.Create(context.Background(), &roledom.Role{ID: roleID, EmployerID: employerID}))
 	require.NoError(t, matches.Upsert(context.Background(), &matchingdom.Match{
-		ID: matchID, RoleID: roleID, CandidateID: kernel.NewID(),
+		ID: matchID, RoleID: roleID, CandidateID: candidateID,
 	}))
 	srv := NewContestServer(contestapp.NewService(
 		memory.NewContestRepo(), auditRepo, matches, memory.NewInterviewRepo(), roles, time.Now))
-	return srv, auditRepo, matchID
+	return srv, auditRepo, matchID, candidateID
 }
 
 func asRole(ctx context.Context, role identity.Role) context.Context {
@@ -53,14 +55,14 @@ func asUser(ctx context.Context, userID kernel.ID, role identity.Role) context.C
 }
 
 func TestContestServer_RaiseAndListAsCandidate(t *testing.T) {
-	srv := contestServer()
-	cid := kernel.NewID()
+	// The match belongs to cid, so cid may contest it (candidate-side ownership).
+	srv, _, matchID, cid := ownedContestServer(t, kernel.NewID())
 	ctx := context.WithValue(context.Background(), principalKey{},
 		app.Principal{UserID: cid, Role: identity.RoleCandidate.String()})
 
 	resp, err := srv.RaiseContest(ctx, &caliberv1.RaiseContestRequest{
 		Subject:   caliberv1.ContestSubject_CONTEST_SUBJECT_MATCH,
-		SubjectId: kernel.NewID().String(),
+		SubjectId: matchID.String(),
 		Reason:    "the breakdown ignored my recent Go work",
 	})
 	require.NoError(t, err)
@@ -109,10 +111,10 @@ func TestContestServer_RaiseInvalidArgument(t *testing.T) {
 
 func TestContestServer_ResolveAsReviewer(t *testing.T) {
 	employer := kernel.NewID()
-	srv, _, matchID := ownedContestServer(t, employer)
+	srv, _, matchID, candidateID := ownedContestServer(t, employer)
 
-	// A candidate raises a contest against the seeded, employer-owned match.
-	candCtx := asUser(context.Background(), kernel.NewID(), identity.RoleCandidate)
+	// The owning candidate raises a contest against the seeded, employer-owned match.
+	candCtx := asUser(context.Background(), candidateID, identity.RoleCandidate)
 	raised, err := srv.RaiseContest(candCtx, &caliberv1.RaiseContestRequest{
 		Subject: caliberv1.ContestSubject_CONTEST_SUBJECT_MATCH, SubjectId: matchID.String(), Reason: "evidence misquoted",
 	})

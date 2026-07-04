@@ -49,7 +49,12 @@ func NewService(
 	}
 }
 
-// Raise opens a contest on behalf of a candidate against an assessment.
+// Raise opens a contest on behalf of a candidate against an assessment. The
+// candidate may only contest their OWN assessment: the subject (match/report
+// card) is resolved and its candidate must equal the raiser, closing the
+// candidate-side IDOR where anyone could dispute (and audit-pollute) another
+// candidate's assessment (CAL-153). A subject_id that references no real
+// assessment surfaces NotFound rather than silently creating a dangling contest.
 func (s *Service) Raise(
 	ctx context.Context, candidateID, subjectID kernel.ID, subject contestdom.Subject, reason string,
 ) (*contestdom.Contest, error) {
@@ -57,14 +62,24 @@ func (s *Service) Raise(
 	if err != nil {
 		return nil, err
 	}
+	roleID, subjectCandidate, err := s.subjectRef(ctx, subject, subjectID)
+	if err != nil {
+		return nil, err
+	}
+	if subjectCandidate != candidateID {
+		return nil, kernel.Forbidden("contest: may only contest your own assessment")
+	}
 	if err := s.contests.Create(ctx, c); err != nil {
 		return nil, err
 	}
 	// Own the audit entry to the employer that owns the contested assessment
 	// (CAL-153), so both the candidate's raise and the reviewer's resolve are
 	// visible in that employer's scoped audit read. Best-effort: an unresolvable
-	// subject leaves the entry unowned rather than failing the raise.
-	owner, _ := s.ownerOf(ctx, c)
+	// owner leaves the entry unowned rather than failing the raise.
+	owner := kernel.ID("")
+	if rl, rerr := s.roles.ByID(ctx, roleID); rerr == nil {
+		owner = rl.EmployerID
+	}
 	s.record(ctx, candidateID, audit.ActionContestRaised, c.ID, owner)
 	return c, nil
 }
@@ -114,28 +129,37 @@ func (s *Service) Resolve(
 	return c, nil
 }
 
-// ownerOf resolves the employer (tenant) that owns the assessment a contest
-// disputes. A match and a report card both carry a role id, and the role carries
-// its owning employer id. Returns kernel.KindNotFound if the contested
-// assessment — or its role — no longer exists, which also validates that the
-// contest's subject_id references a real assessment.
-func (s *Service) ownerOf(ctx context.Context, c *contestdom.Contest) (kernel.ID, error) {
-	var roleID kernel.ID
-	switch c.Subject {
+// subjectRef resolves a contested assessment to its owning role and the candidate
+// it concerns. A match and a report card both carry a role id and a candidate id.
+// Returns kernel.KindNotFound if the assessment no longer exists, which also
+// validates that a contest's subject_id references a real assessment.
+func (s *Service) subjectRef(
+	ctx context.Context, subject contestdom.Subject, subjectID kernel.ID,
+) (kernel.ID, kernel.ID, error) {
+	switch subject {
 	case contestdom.SubjectMatch:
-		m, err := s.matches.ByID(ctx, c.SubjectID)
+		m, err := s.matches.ByID(ctx, subjectID)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
-		roleID = m.RoleID
+		return m.RoleID, m.CandidateID, nil
 	case contestdom.SubjectReportCard:
-		iv, err := s.interviews.ByID(ctx, c.SubjectID)
+		iv, err := s.interviews.ByID(ctx, subjectID)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
-		roleID = iv.RoleID
+		return iv.RoleID, iv.CandidateID, nil
 	default:
-		return "", kernel.Invalid("contest: unknown subject")
+		return "", "", kernel.Invalid("contest: unknown subject")
+	}
+}
+
+// ownerOf resolves the employer (tenant) that owns the assessment a contest
+// disputes: the assessment's role carries its owning employer id.
+func (s *Service) ownerOf(ctx context.Context, c *contestdom.Contest) (kernel.ID, error) {
+	roleID, _, err := s.subjectRef(ctx, c.Subject, c.SubjectID)
+	if err != nil {
+		return "", err
 	}
 	rl, err := s.roles.ByID(ctx, roleID)
 	if err != nil {

@@ -62,13 +62,24 @@ func expectOwner(m cmocks, owner kernel.ID) {
 	m.roles.EXPECT().ByID(gomock.Any(), roleID).Return(&roledom.Role{EmployerID: owner}, nil)
 }
 
+// expectSubjectOwnedBy wires a Raise's subject resolution: the contested match
+// belongs to candidateID (passing the candidate-side ownership check) and its
+// role to owner (the audit-scope employer).
+func expectSubjectOwnedBy(m cmocks, candidateID, owner kernel.ID) {
+	roleID := kernel.NewID()
+	m.matches.EXPECT().ByID(gomock.Any(), gomock.Any()).
+		Return(&matchingdom.Match{RoleID: roleID, CandidateID: candidateID}, nil)
+	m.roles.EXPECT().ByID(gomock.Any(), roleID).Return(&roledom.Role{EmployerID: owner}, nil)
+}
+
 func TestRaise_CreatesAndAudits(t *testing.T) {
 	svc, m := build(t)
 	cid, sid := kernel.NewID(), kernel.NewID()
 	owner := kernel.NewID()
 
 	m.contests.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
-	expectOwner(m, owner) // ownerOf resolves the contested match's owning employer
+	// The contested match belongs to the raiser (cid) and its role to owner.
+	expectSubjectOwnedBy(m, cid, owner)
 	m.audit.EXPECT().Append(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, e *audit.AuditEntry) error {
 			assert.Equal(t, audit.ActionContestRaised, e.Action)
@@ -117,11 +128,37 @@ func TestListForSubject(t *testing.T) {
 }
 
 func TestRaise_PropagatesCreateFailure(t *testing.T) {
-	svc, contests := deps(t) // no Append: a failed create logs no "raised" audit
-	contests.EXPECT().Create(gomock.Any(), gomock.Any()).Return(kernel.Conflict("dup"))
+	svc, m := build(t) // no Append/roles: a failed create logs no "raised" audit
+	cand := kernel.NewID()
+	// The subject belongs to the raiser, so the ownership check passes and Create runs.
+	m.matches.EXPECT().ByID(gomock.Any(), gomock.Any()).
+		Return(&matchingdom.Match{RoleID: kernel.NewID(), CandidateID: cand}, nil)
+	m.contests.EXPECT().Create(gomock.Any(), gomock.Any()).Return(kernel.Conflict("dup"))
+
+	_, err := svc.Raise(context.Background(), cand, kernel.NewID(), contestdom.SubjectMatch, "a real reason")
+	assert.Equal(t, kernel.KindConflict, kernel.KindOf(err))
+}
+
+// TestRaise_RejectsForeignSubject is the CAL-153 candidate-side IDOR guard: a
+// candidate cannot raise a contest over an assessment that belongs to someone
+// else — the raise is rejected with Forbidden before any Create or audit write.
+func TestRaise_RejectsForeignSubject(t *testing.T) {
+	svc, m := build(t) // no Create/Append: nothing is persisted for a foreign subject
+	m.matches.EXPECT().ByID(gomock.Any(), gomock.Any()).
+		Return(&matchingdom.Match{RoleID: kernel.NewID(), CandidateID: kernel.NewID()}, nil)
 
 	_, err := svc.Raise(context.Background(), kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "a real reason")
-	assert.Equal(t, kernel.KindConflict, kernel.KindOf(err))
+	assert.Equal(t, kernel.KindForbidden, kernel.KindOf(err))
+}
+
+// TestRaise_SubjectNotFound: a contest against an assessment that does not exist
+// surfaces NotFound and persists nothing (validates subject_id is a real assessment).
+func TestRaise_SubjectNotFound(t *testing.T) {
+	svc, m := build(t)
+	m.matches.EXPECT().ByID(gomock.Any(), gomock.Any()).Return(nil, kernel.NotFound("gone"))
+
+	_, err := svc.Raise(context.Background(), kernel.NewID(), kernel.NewID(), contestdom.SubjectMatch, "a real reason")
+	assert.Equal(t, kernel.KindNotFound, kernel.KindOf(err))
 }
 
 func TestResolve_PropagatesUpdateFailure(t *testing.T) {
