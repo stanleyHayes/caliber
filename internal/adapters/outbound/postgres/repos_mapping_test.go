@@ -12,7 +12,9 @@ import (
 )
 
 func TestUserEnumMappings(t *testing.T) {
-	for _, r := range []identity.Role{identity.RoleEmployer, identity.RoleRecruiter, identity.RoleCandidate} {
+	// RoleAdmin (CAL-154) must round-trip too: without its mapping cases a
+	// persisted admin degrades to "unspecified", silently stripping the role.
+	for _, r := range []identity.Role{identity.RoleEmployer, identity.RoleRecruiter, identity.RoleCandidate, identity.RoleAdmin} {
 		assert.Equal(t, r, userRoleFromDB(userRoleToDB(r)))
 	}
 	for _, s := range []identity.AccountStatus{identity.StatusActive, identity.StatusLocked} {

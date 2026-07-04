@@ -162,6 +162,8 @@ func userRoleToDB(r identity.Role) string {
 		return "recruiter"
 	case identity.RoleCandidate:
 		return "candidate"
+	case identity.RoleAdmin:
+		return "admin"
 	default:
 		return "unspecified"
 	}
@@ -175,6 +177,8 @@ func userRoleFromDB(s string) identity.Role {
 		return identity.RoleRecruiter
 	case "candidate":
 		return identity.RoleCandidate
+	case "admin":
+		return identity.RoleAdmin
 	default:
 		return identity.RoleUnspecified
 	}
