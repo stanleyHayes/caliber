@@ -17,30 +17,53 @@ import (
 // legacy plaintext (rows written before a key was configured) and versions the
 // scheme so a future key rotation can distinguish generations.
 //
-// Known limitation: the marker is a plaintext sentinel, so a value written while
-// no key is configured that itself begins with "enc:v1:" is indistinguishable
-// from real ciphertext once a key is enabled — Decrypt would try (and fail) to
-// decrypt it, making that row unreadable. This only bites the passthrough->keyed
-// transition on a store that already holds untrusted plaintext (e.g. a dev DB);
-// in production the key is configured from the first write, so every stored
-// value is genuinely encrypted and round-trips. Enabling a key on a store with
-// pre-existing plaintext therefore requires a one-time re-encryption migration,
-// not a live flip.
+// The marker does not encode WHICH key sealed a value, so Decrypt authenticates
+// against the primary key and then each previous key in turn (GCM's tag makes a
+// wrong key fail cleanly). Key rotation is therefore live-safe: configure the new
+// key as primary and the old key(s) as previous, and reads keep working while new
+// writes use the new key; the `reencrypt` command then rewrites every row so the
+// old key can be retired. This also resolves the passthrough->keyed transition
+// (plaintext, including a value that happens to start with "enc:v1:", is
+// re-encrypted into genuine ciphertext) — see docs/runbooks/key-rotation.md.
 const prefix = "enc:v1:"
 
 // FieldCipher encrypts/decrypts individual PII fields with AES-256-GCM. With no
-// key it is a passthrough, so local/dev runs store plaintext and pre-existing
-// data keeps working; configuring a key encrypts new writes while still reading
-// old plaintext transparently.
+// primary key it is a passthrough, so local/dev runs store plaintext and
+// pre-existing data keeps working; configuring a key encrypts new writes while
+// still reading old plaintext transparently. Optional previous keys are tried on
+// decrypt only, so a key can be rotated without downtime.
 type FieldCipher struct {
-	aead cipher.AEAD // nil = passthrough (no key configured)
+	primary  cipher.AEAD   // nil = passthrough (no key configured); used for Encrypt + Decrypt
+	previous []cipher.AEAD // prior-generation keys, tried on Decrypt only (rotation)
 }
 
-// NewFieldCipher builds a cipher from a base64-encoded 32-byte (AES-256) key.
-// An empty key yields a passthrough cipher (no encryption).
-func NewFieldCipher(base64Key string) (*FieldCipher, error) {
+// NewFieldCipher builds a cipher from a base64-encoded 32-byte (AES-256) primary
+// key, plus any base64 previous keys that Decrypt should also accept (for a
+// zero-downtime rotation). An empty primary key yields a passthrough cipher; empty
+// previous keys are ignored.
+func NewFieldCipher(base64Key string, previousKeys ...string) (*FieldCipher, error) {
+	primary, err := newAEAD(base64Key)
+	if err != nil {
+		return nil, err
+	}
+	fc := &FieldCipher{primary: primary}
+	for _, pk := range previousKeys {
+		aead, perr := newAEAD(pk)
+		if perr != nil {
+			return nil, perr
+		}
+		if aead != nil {
+			fc.previous = append(fc.previous, aead)
+		}
+	}
+	return fc, nil
+}
+
+// newAEAD builds an AES-256-GCM AEAD from a base64 key, or a nil AEAD (the
+// passthrough sentinel) for an empty key.
+func newAEAD(base64Key string) (cipher.AEAD, error) {
 	if base64Key == "" {
-		return &FieldCipher{}, nil
+		return nil, nil //nolint:nilnil // nil AEAD + nil err is the intended "no key -> passthrough" signal
 	}
 	key, err := base64.StdEncoding.DecodeString(base64Key)
 	if err != nil {
@@ -53,54 +76,65 @@ func NewFieldCipher(base64Key string) (*FieldCipher, error) {
 	if err != nil {
 		return nil, err
 	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	return &FieldCipher{aead: aead}, nil
+	return cipher.NewGCM(block)
 }
 
 // Passthrough returns a cipher that performs no encryption — the default when
 // no key is configured.
 func Passthrough() *FieldCipher { return &FieldCipher{} }
 
-// Enabled reports whether encryption is active (a key was configured).
-func (c *FieldCipher) Enabled() bool { return c.aead != nil }
+// Enabled reports whether encryption is active (a primary key was configured).
+func (c *FieldCipher) Enabled() bool { return c.primary != nil }
 
-// Encrypt returns a prefixed base64 ciphertext. A passthrough cipher or an empty
-// string is returned unchanged, so an empty PII field stays empty/NULL rather
-// than becoming ciphertext.
+// Encrypt returns a prefixed base64 ciphertext sealed with the primary key. A
+// passthrough cipher or an empty string is returned unchanged, so an empty PII
+// field stays empty/NULL rather than becoming ciphertext.
 func (c *FieldCipher) Encrypt(plaintext string) (string, error) {
-	if c.aead == nil || plaintext == "" {
+	if c.primary == nil || plaintext == "" {
 		return plaintext, nil
 	}
-	nonce := make([]byte, c.aead.NonceSize())
+	nonce := make([]byte, c.primary.NonceSize())
 	if _, err := rand.Read(nonce); err != nil {
 		return "", err
 	}
-	sealed := c.aead.Seal(nonce, nonce, []byte(plaintext), nil)
+	sealed := c.primary.Seal(nonce, nonce, []byte(plaintext), nil)
 	return prefix + base64.StdEncoding.EncodeToString(sealed), nil
 }
 
 // Decrypt reverses Encrypt. A value without the prefix is returned as-is (legacy
 // plaintext, or a passthrough cipher), so enabling encryption never breaks
-// existing rows. A tampered or wrong-key ciphertext returns an error.
+// existing rows. A prefixed value is authenticated against the primary key and
+// then each previous key; a value that no configured key can open (tampered, or
+// sealed by a retired key) returns an error.
 func (c *FieldCipher) Decrypt(stored string) (string, error) {
-	if c.aead == nil || !strings.HasPrefix(stored, prefix) {
+	if c.primary == nil || !strings.HasPrefix(stored, prefix) {
 		return stored, nil
 	}
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(stored, prefix))
 	if err != nil {
 		return "", fmt.Errorf("crypto: ciphertext is not valid base64: %w", err)
 	}
-	ns := c.aead.NonceSize()
+	if pt, ok := open(c.primary, raw); ok {
+		return pt, nil
+	}
+	for _, aead := range c.previous {
+		if pt, ok := open(aead, raw); ok {
+			return pt, nil
+		}
+	}
+	return "", errors.New("crypto: decrypt failed (tampered, or no configured key matches)")
+}
+
+// open attempts to authenticate-and-decrypt raw (nonce||ciphertext) with aead,
+// returning the plaintext and true on success, or ("", false) on any failure.
+func open(aead cipher.AEAD, raw []byte) (string, bool) {
+	ns := aead.NonceSize()
 	if len(raw) < ns {
-		return "", errors.New("crypto: ciphertext too short")
+		return "", false
 	}
-	nonce, ct := raw[:ns], raw[ns:]
-	pt, err := c.aead.Open(nil, nonce, ct, nil)
+	pt, err := aead.Open(nil, raw[:ns], raw[ns:], nil)
 	if err != nil {
-		return "", fmt.Errorf("crypto: decrypt failed (tampered or wrong key): %w", err)
+		return "", false
 	}
-	return string(pt), nil
+	return string(pt), true
 }

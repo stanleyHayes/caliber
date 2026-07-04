@@ -85,4 +85,57 @@ func TestNewFieldCipher_RejectsBadKey(t *testing.T) {
 	require.Error(t, err)
 	_, err = fieldcrypto.NewFieldCipher(base64.StdEncoding.EncodeToString([]byte("too-short")))
 	require.Error(t, err, "AES-256 needs a 32-byte key")
+	_, err = fieldcrypto.NewFieldCipher(testKey(t), "not-base64!!")
+	require.Error(t, err, "an invalid previous key is rejected too")
+}
+
+// TestFieldCipher_RotationReadsBothGenerations proves the zero-downtime rotation
+// property: a cipher configured with a new primary and the old key as previous
+// decrypts data sealed by EITHER key, while new writes use the new key (CAL-117).
+func TestFieldCipher_RotationReadsBothGenerations(t *testing.T) {
+	oldKey, newKey := testKey(t), testKey(t)
+
+	oldCipher, err := fieldcrypto.NewFieldCipher(oldKey)
+	require.NoError(t, err)
+	oldCiphertext, err := oldCipher.Encrypt("sealed with the old key")
+	require.NoError(t, err)
+
+	// Rotation config: new key is primary, old key is a decrypt-only fallback.
+	rotating, err := fieldcrypto.NewFieldCipher(newKey, oldKey)
+	require.NoError(t, err)
+
+	// It reads the old-key ciphertext...
+	dec, err := rotating.Decrypt(oldCiphertext)
+	require.NoError(t, err)
+	assert.Equal(t, "sealed with the old key", dec)
+
+	// ...and its own new-key writes.
+	newCiphertext, err := rotating.Encrypt("sealed with the new key")
+	require.NoError(t, err)
+	dec2, err := rotating.Decrypt(newCiphertext)
+	require.NoError(t, err)
+	assert.Equal(t, "sealed with the new key", dec2)
+
+	// New writes are sealed with the NEW key: a new-key-only cipher can read them.
+	newOnly, err := fieldcrypto.NewFieldCipher(newKey)
+	require.NoError(t, err)
+	dec3, err := newOnly.Decrypt(newCiphertext)
+	require.NoError(t, err)
+	assert.Equal(t, "sealed with the new key", dec3)
+}
+
+// TestFieldCipher_RetiredKeyCannotDecrypt: once the old key is dropped from the
+// config, data still sealed with it can no longer be read — which is exactly why
+// the reencrypt command must rewrite every row before retiring a key.
+func TestFieldCipher_RetiredKeyCannotDecrypt(t *testing.T) {
+	oldKey, newKey := testKey(t), testKey(t)
+	oldCipher, err := fieldcrypto.NewFieldCipher(oldKey)
+	require.NoError(t, err)
+	oldCiphertext, err := oldCipher.Encrypt("still on the old key")
+	require.NoError(t, err)
+
+	newOnly, err := fieldcrypto.NewFieldCipher(newKey) // old key retired
+	require.NoError(t, err)
+	_, err = newOnly.Decrypt(oldCiphertext)
+	require.Error(t, err, "a value sealed by a retired key is unreadable")
 }
