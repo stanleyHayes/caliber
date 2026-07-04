@@ -178,6 +178,32 @@ func TestValidateRequiresCORSOriginsInProd(t *testing.T) {
 	}
 }
 
+// TestValidateRequiresFieldEncryptionKeyInProd is the CAL-117 fail-closed guard:
+// production must not boot without the field-encryption key, or PII would be
+// silently written to Postgres in cleartext (passthrough cipher).
+func TestValidateRequiresFieldEncryptionKeyInProd(t *testing.T) {
+	t.Setenv("CALIBER_ENV", "prod")
+	t.Setenv("CALIBER_FIELD_ENCRYPTION_KEY", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !slices.Contains(cfg.Validate(), "CALIBER_FIELD_ENCRYPTION_KEY") {
+		t.Fatalf("Validate() missing = %v, want CALIBER_FIELD_ENCRYPTION_KEY", cfg.Validate())
+	}
+
+	// With the key set, it is no longer reported missing.
+	t.Setenv("CALIBER_FIELD_ENCRYPTION_KEY", "c29tZS0zMi1ieXRlLWtleS1mb3ItYWVzMjU2LXRlc3Q=")
+	cfg2, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if slices.Contains(cfg2.Validate(), "CALIBER_FIELD_ENCRYPTION_KEY") {
+		t.Fatalf("Validate() still reports the field key missing when it is set")
+	}
+}
+
 func TestLoadParsesLLMGuardrailValues(t *testing.T) {
 	t.Setenv("CALIBER_ENV", "")
 	clearCORSOriginsEnv(t)

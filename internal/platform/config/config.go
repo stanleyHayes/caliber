@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	corsOriginsEnv       = "CALIBER_CORS_ORIGINS"
-	legacyCORSOriginsEnv = "CALIBER_CORS_ALLOWED_ORIGINS"
+	corsOriginsEnv        = "CALIBER_CORS_ORIGINS"
+	legacyCORSOriginsEnv  = "CALIBER_CORS_ALLOWED_ORIGINS"
+	fieldEncryptionKeyEnv = "CALIBER_FIELD_ENCRYPTION_KEY"
 )
 
 // Config holds all runtime configuration for the API and worker processes.
@@ -129,7 +130,7 @@ func Load() (Config, error) {
 		OpenAIAPIKey:         os.Getenv("OPENAI_API_KEY"),
 		OpenAIEmbeddingModel: getenv("CALIBER_OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
 		JWTSecret:            os.Getenv("CALIBER_JWT_SECRET"),
-		FieldEncryptionKey:   os.Getenv("CALIBER_FIELD_ENCRYPTION_KEY"),
+		FieldEncryptionKey:   os.Getenv(fieldEncryptionKeyEnv),
 		JWTIssuer:            getenv("CALIBER_JWT_ISSUER", "caliber"),
 		JWTAudience:          getenv("CALIBER_JWT_AUDIENCE", "caliber-api"),
 		AccessTokenTTL:       getdur("CALIBER_ACCESS_TOKEN_TTL", 15*time.Minute),
@@ -242,6 +243,13 @@ func (c Config) Validate() []string {
 	}
 	if c.IsProd() && len(c.AllowedOrigins) == 0 {
 		missing = append(missing, corsOriginsEnv)
+	}
+	// The field-encryption key is REQUIRED in production (CAL-117): without it the
+	// cipher is a passthrough and candidate PII (CV competencies, interview Q&A,
+	// location/intake, match/report evidence) is written to Postgres in cleartext.
+	// Fail closed in prod rather than boot green and silently store plaintext.
+	if c.IsProd() && strings.TrimSpace(c.FieldEncryptionKey) == "" {
+		missing = append(missing, fieldEncryptionKeyEnv)
 	}
 	return missing
 }
