@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -164,6 +165,35 @@ func TestBuildRouterWithMetricsOnly(t *testing.T) {
 	metrics := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r := buildRouter(runtime.NewServeMux(), config.Config{Env: "dev"}, nil, nil, runConfig{metrics: metrics})
 	require.NotNil(t, r)
+
+	// Without a verifier (local dev) /metrics stays open.
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+// TestBuildRouterGatesOperatorEndpoints is the CAL-120 fix: with a verifier
+// configured, /metrics and /debug/ai-quality require an authenticated operator —
+// they are no longer anonymously readable, closing the operational info leak.
+func TestBuildRouterGatesOperatorEndpoints(t *testing.T) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	r := buildRouter(runtime.NewServeMux(), config.Config{Env: "dev"}, nil, nil, runConfig{
+		metrics: ok, aiQualityMetrics: ok, verifier: &fakeTokenService{role: identity.RoleEmployer},
+	})
+
+	for _, path := range []string{"/metrics", "/debug/ai-quality"} {
+		// No bearer -> 401.
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		assert.Equal(t, http.StatusUnauthorized, rec.Code, "%s must require auth when a verifier is set", path)
+
+		// A valid operator bearer -> 200.
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer valid")
+		rec = httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code, "%s is reachable by an authenticated operator", path)
+	}
 }
 
 type readyFunc func(context.Context) error

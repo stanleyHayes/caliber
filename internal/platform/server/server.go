@@ -15,6 +15,7 @@ import (
 	grpcadapter "github.com/xcreativs/caliber/internal/adapters/inbound/grpc"
 	"github.com/xcreativs/caliber/internal/adapters/inbound/httpserver"
 	"github.com/xcreativs/caliber/internal/app"
+	"github.com/xcreativs/caliber/internal/domain/identity"
 	"github.com/xcreativs/caliber/internal/platform/config"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -78,16 +79,33 @@ func buildRouter(
 	runCfg runConfig,
 ) *chi.Mux {
 	r := httpserver.NewRouter(mux, cfg.IsProd(), cfg.AllowedOrigins, log, readiness...)
+	// /metrics and /debug/ai-quality expose internal operational detail (request
+	// rates, error patterns, AI-quality internals), so gate them behind the same
+	// operator authorization as the Asynqmon UI when a verifier is configured
+	// (CAL-120). Without a verifier (local dev) they stay open for convenience.
+	guard := operatorGuard(runCfg.verifier)
 	if runCfg.metrics != nil {
-		r.Get("/metrics", runCfg.metrics.ServeHTTP)
+		r.With(guard...).Get("/metrics", runCfg.metrics.ServeHTTP)
 	}
 	if runCfg.aiQualityMetrics != nil {
-		r.Get("/debug/ai-quality", runCfg.aiQualityMetrics.ServeHTTP)
+		r.With(guard...).Get("/debug/ai-quality", runCfg.aiQualityMetrics.ServeHTTP)
 	}
 	if runCfg.asynqmon != nil && runCfg.verifier != nil {
 		httpserver.MountAsynqmon(r, runCfg.asynqmonPath, runCfg.asynqmon, runCfg.verifier)
 	}
 	return r
+}
+
+// operatorGuard returns the middleware that restricts operator-only HTTP surfaces
+// (metrics, debug) to authenticated employer/recruiter/admin principals. With no
+// verifier configured (local dev) it returns nothing, leaving the routes open.
+func operatorGuard(verifier app.TokenService) []func(http.Handler) http.Handler {
+	if verifier == nil {
+		return nil
+	}
+	return []func(http.Handler) http.Handler{
+		httpserver.Authorize(verifier, identity.RoleEmployer, identity.RoleRecruiter, identity.RoleAdmin),
+	}
 }
 
 // RunWithOptions starts the server with the supplied optional configuration.
