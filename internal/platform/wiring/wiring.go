@@ -90,15 +90,15 @@ func openRepositories(
 		pool.Close()
 		return repos, cleanup, nil, err
 	}
-	repos.Roles = postgres.NewRoleRepo(pool)
-	repos.Users = postgres.NewUserRepo(pool)
-	repos.Refresh = postgres.NewRefreshStore(pool)
-	repos.Candidates = postgres.NewCandidateRepo(pool)
 	fieldCipher, cerr := fieldcrypto.NewFieldCipher(cfg.FieldEncryptionKey)
 	if cerr != nil {
 		pool.Close()
 		return repos, cleanup, nil, cerr
 	}
+	repos.Roles = postgres.NewRoleRepo(pool)
+	repos.Users = postgres.NewUserRepo(pool)
+	repos.Refresh = postgres.NewRefreshStore(pool)
+	repos.Candidates = postgres.NewCandidateRepo(pool, postgres.WithCandidateCipher(fieldCipher))
 	repos.Profiles = postgres.NewTalentProfileRepo(pool, postgres.WithFieldCipher(fieldCipher))
 	repos.Apps = postgres.NewApplicationRepo(pool)
 	repos.Matches = postgres.NewMatchRepo(pool)
