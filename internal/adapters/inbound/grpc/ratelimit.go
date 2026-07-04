@@ -131,11 +131,24 @@ func NewRateLimiter(ratePerSec, burst float64, now func() time.Time, opts ...Rat
 	return r
 }
 
-// Allow reports whether a request for key may proceed, consuming a token if so.
-func (r *RateLimiter) Allow(key string) bool {
+// Allow reports whether a request for key may proceed, consuming one token if so.
+func (r *RateLimiter) Allow(key string) bool { return r.AllowN(key, 1) }
+
+// AllowN reports whether a request for key may proceed at the given token cost,
+// consuming that many tokens if so. A cost above the burst ceiling is clamped to
+// it, so an expensive class is never permanently blocked — it just consumes a
+// full bucket. Costs let pricier RPCs (LLM fan-out) drain a principal's bucket
+// faster than cheap reads, so one caller cannot burst-fire them (CAL-112).
+func (r *RateLimiter) AllowN(key string, cost float64) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if cost < 1 {
+		cost = 1
+	}
+	if cost > r.burst {
+		cost = r.burst
+	}
 	t := r.now()
 	b, ok := r.buckets[key]
 	if !ok {
@@ -151,7 +164,7 @@ func (r *RateLimiter) Allow(key string) bool {
 		if len(r.buckets) >= maxBuckets {
 			r.evictBatch()
 		}
-		// A fresh key starts full, then immediately spends one token below.
+		// A fresh key starts full, then immediately spends its cost below.
 		b = &tokenBucket{tokens: r.burst, last: t}
 		r.buckets[key] = b
 	} else {
@@ -161,8 +174,8 @@ func (r *RateLimiter) Allow(key string) bool {
 			b.last = t
 		}
 	}
-	if b.tokens >= 1 {
-		b.tokens--
+	if b.tokens >= cost {
+		b.tokens -= cost
 		return true
 	}
 	return false
@@ -197,15 +210,42 @@ func (r *RateLimiter) evictBatch() {
 	}
 }
 
+// llmMethodCost is the token cost charged for an LLM-heavy RPC — one that fans
+// out to many/expensive model calls. It is far higher than a cheap read's cost of
+// 1, so a single principal drains their bucket after only a few such calls and
+// cannot burst-fire them to monopolize the shared LLM capacity (CAL-112).
+const llmMethodCost = 12
+
+// methodCost is the rate-limit token cost for a method: the RPCs whose handlers
+// drive expensive model fan-out (shortlist scoring, the autonomous agent,
+// role-spec generation, CV extraction, the interview loop) cost llmMethodCost,
+// so they drain a caller's bucket far faster than a cheap read (cost 1).
+func methodCost(fullMethod string) float64 {
+	switch fullMethod {
+	case "/caliber.v1.MatchingService/GenerateShortlist",
+		"/caliber.v1.MatchingService/RefineShortlist",
+		"/caliber.v1.CandidateAgentService/RunAgent",
+		"/caliber.v1.RoleService/GenerateRoleSpec",
+		"/caliber.v1.RoleService/UpdateRoleSpec",
+		"/caliber.v1.TalentService/CreateProfileFromCV",
+		"/caliber.v1.InterviewService/StartInterview",
+		"/caliber.v1.InterviewService/SubmitAnswer":
+		return llmMethodCost
+	default:
+		return 1
+	}
+}
+
 // NewRateLimitInterceptor returns a unary interceptor that enforces the limiter.
 // It keys by the authenticated principal when present (so a logged-in user's
 // quota follows them across methods), falling back to a per-IP, per-method
-// anonymous bucket otherwise. Over-limit requests are rejected with
+// anonymous bucket otherwise. Expensive LLM RPCs are charged a higher token cost
+// so they cannot be burst-fired. Over-limit requests are rejected with
 // ResourceExhausted before reaching the handler. Place it after the auth
 // interceptor so the principal is available.
 func NewRateLimitInterceptor(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if !limiter.Allow(limiter.rateLimitKey(ctx, info.FullMethod)) {
+		if !limiter.AllowN(limiter.rateLimitKey(ctx, info.FullMethod), methodCost(info.FullMethod)) {
 			return nil, status.Error(codes.ResourceExhausted, "rate limit exceeded; please slow down")
 		}
 		return handler(ctx, req)
@@ -216,11 +256,12 @@ func NewRateLimitInterceptor(limiter *RateLimiter) grpc.UnaryServerInterceptor {
 // Unary interceptors never run for streams, so without this the one streaming
 // RPC (StartInterview) — which drives an LLM-backed interview loop — would bypass
 // the limiter entirely, an LLM cost / goroutine amplification vector (CAL-112).
-// It checks the bucket once at stream open, before the handler runs. Place it
-// after the auth stream interceptor so the principal is available for keying.
+// It checks the bucket once at stream open (at the LLM method cost), before the
+// handler runs. Place it after the auth stream interceptor so the principal is
+// available for keying.
 func NewRateLimitStreamInterceptor(limiter *RateLimiter) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if !limiter.Allow(limiter.rateLimitKey(ss.Context(), info.FullMethod)) {
+		if !limiter.AllowN(limiter.rateLimitKey(ss.Context(), info.FullMethod), methodCost(info.FullMethod)) {
 			return status.Error(codes.ResourceExhausted, "rate limit exceeded; please slow down")
 		}
 		return handler(srv, ss)

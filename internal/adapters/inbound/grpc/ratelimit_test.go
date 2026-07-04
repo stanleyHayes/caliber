@@ -157,6 +157,32 @@ func TestRateLimitStreamInterceptor_RejectsOverLimit(t *testing.T) {
 	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
 
+func TestMethodCost(t *testing.T) {
+	assert.InDelta(t, float64(llmMethodCost), methodCost("/caliber.v1.MatchingService/GenerateShortlist"), 0)
+	assert.InDelta(t, float64(llmMethodCost), methodCost("/caliber.v1.InterviewService/StartInterview"), 0)
+	assert.InDelta(t, float64(1), methodCost("/caliber.v1.RoleService/ListRoles"), 0)
+}
+
+// TestRateLimitInterceptor_LLMHeavyCostsMore proves the per-cost weighting: an
+// LLM fan-out RPC draws llmMethodCost tokens, so a caller can only burst a few of
+// them (here 2 of 24) before being throttled — it cannot burst-fire the expensive
+// endpoints the way it could a cheap read (CAL-112).
+func TestRateLimitInterceptor_LLMHeavyCostsMore(t *testing.T) {
+	clk := &fakeClock{t: time.Unix(1700000000, 0)}
+	limiter := NewRateLimiter(1, 2*llmMethodCost, clk.now) // burst fits exactly 2 LLM calls
+	interceptor := NewRateLimitInterceptor(limiter)
+	llm := &grpc.UnaryServerInfo{FullMethod: "/caliber.v1.MatchingService/GenerateShortlist"}
+	ctx := context.WithValue(context.Background(), principalKey{},
+		app.Principal{UserID: kernel.NewID(), Role: identity.RoleEmployer.String()})
+
+	_, err := interceptor(ctx, nil, llm, okHandler)
+	require.NoError(t, err)
+	_, err = interceptor(ctx, nil, llm, okHandler)
+	require.NoError(t, err, "the second LLM call still fits the burst")
+	_, err = interceptor(ctx, nil, llm, okHandler)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err), "the third LLM call is over the weighted budget")
+}
+
 func TestRateLimitInterceptor_KeysAnonByMethod(t *testing.T) {
 	clk := &fakeClock{t: time.Unix(1700000000, 0)}
 	limiter := NewRateLimiter(1, 1, clk.now)
