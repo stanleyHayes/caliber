@@ -161,26 +161,75 @@ func answers(prompt string) []string {
 }
 
 // devExtract builds a profile grounded in tech keywords actually present in the
-// CV text (no fabrication); evidence cites where the term appears.
-func devExtract(cv string) map[string]any {
+// CV text (no fabrication); evidence cites where the term appears. It receives the
+// full prompt, so it first isolates the fenced CV body — every evidence quote must
+// come from the CV itself, not the surrounding instructions, or the profile
+// builder's grounding check (CAL-044) would drop it.
+func devExtract(prompt string) map[string]any {
+	cv := untrustedBody(prompt)
 	known := []string{
 		"Go", "Python", "Java", "TypeScript", "React", "Postgres", "SQL",
 		"Kubernetes", "Docker", "AWS", "gRPC", "Communication", "System design",
 	}
 	lower := strings.ToLower(cv)
+	// Every evidence quote is a VERBATIM span of the CV, so the extractor's output
+	// satisfies the same no-fabrication grounding a real model must (CAL-044) — the
+	// profile builder drops any competency whose quote is not found in the CV.
 	// "Core skills" mirrors the dev role generator's must-have so the agent's
 	// must-have-coverage gate can pass on dev data; real extraction is role-aware.
 	comps := []map[string]any{
-		{keyName: "Core skills", "level": 4, "evidence_quote": "demonstrated throughout the CV", "source_span": "CV"},
+		{keyName: "Core skills", "level": 4, "evidence_quote": cvLead(cv), "source_span": "CV"},
 	}
 	for _, k := range known {
 		if strings.Contains(lower, strings.ToLower(k)) {
 			comps = append(comps, map[string]any{
-				keyName: k, "level": 4, "evidence_quote": k + " is referenced in the CV", "source_span": "CV",
+				keyName: k, "level": 4, "evidence_quote": cvExcerpt(cv, k), "source_span": "CV",
 			})
 		}
 	}
 	return map[string]any{"summary": "Profile extracted from the candidate's CV.", "competencies": comps}
+}
+
+// untrustedBody returns the fenced untrusted content of a prompt (the CV text
+// inside the [BEGIN UNTRUSTED …]/[END UNTRUSTED …] markers), so the dev extractor
+// grounds its evidence in the actual CV rather than the surrounding instructions.
+// Falls back to the whole prompt when no fence is present.
+func untrustedBody(prompt string) string {
+	const begin, end = "[BEGIN UNTRUSTED", "[END UNTRUSTED"
+	bi := strings.Index(prompt, begin)
+	if bi < 0 {
+		return prompt
+	}
+	nl := strings.IndexByte(prompt[bi:], '\n')
+	if nl < 0 {
+		return prompt
+	}
+	start := bi + nl + 1
+	if ei := strings.Index(prompt[start:], end); ei >= 0 {
+		return strings.TrimSpace(prompt[start : start+ei])
+	}
+	return strings.TrimSpace(prompt[start:])
+}
+
+// cvExcerpt returns the verbatim slice of cv at term's first (case-insensitive)
+// occurrence, so the dev extractor's evidence quote grounds in the CV exactly as a
+// real extractor's must. Falls back to a leading excerpt if term is absent.
+func cvExcerpt(cv, term string) string {
+	if i := strings.Index(strings.ToLower(cv), strings.ToLower(term)); i >= 0 {
+		return cv[i : i+len(term)]
+	}
+	return cvLead(cv)
+}
+
+// cvLead returns the CV's leading excerpt (rune-safe), a real span usable as
+// grounded evidence for the always-present "Core skills" competency.
+func cvLead(cv string) string {
+	const maxRunes = 60
+	runes := []rune(cv)
+	if len(runes) > maxRunes {
+		runes = runes[:maxRunes]
+	}
+	return strings.TrimSpace(string(runes))
 }
 
 // devAgent assesses fit and drafts a tailored summary grounded only in the
