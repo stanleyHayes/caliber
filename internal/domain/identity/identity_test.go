@@ -101,6 +101,23 @@ func TestPasswordPolicy(t *testing.T) {
 	if err := (PasswordPolicy{}).Validate("tiny"); err == nil {
 		t.Error("zero MinLength should fall back to default and reject short")
 	}
+	// CAL-120: an over-length password is rejected before hashing (Argon2id DoS).
+	if p.MaxLength != DefaultPasswordMaxLength {
+		t.Errorf("default MaxLength = %d, want %d", p.MaxLength, DefaultPasswordMaxLength)
+	}
+	if err := p.Validate(strings.Repeat("x", DefaultPasswordMaxLength+1)); err == nil {
+		t.Error("over-length password should fail")
+	}
+	if err := p.Validate(strings.Repeat("x", DefaultPasswordMaxLength)); err != nil {
+		t.Errorf("max-length password rejected: %v", err)
+	}
+	// A zero MaxLength falls back to the default cap.
+	if err := (PasswordPolicy{}).Validate(strings.Repeat("x", DefaultPasswordMaxLength+1)); err == nil {
+		t.Error("zero MaxLength should fall back to default and reject over-length")
+	}
+	if got := (PasswordPolicy{}).MaxAllowedLength(); got != DefaultPasswordMaxLength {
+		t.Errorf("MaxAllowedLength() = %d, want %d", got, DefaultPasswordMaxLength)
+	}
 }
 
 func TestNewUser(t *testing.T) {

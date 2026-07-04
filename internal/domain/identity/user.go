@@ -35,6 +35,12 @@ func (s AccountStatus) String() string {
 // DefaultPasswordMinLength is the default minimum plaintext password length.
 const DefaultPasswordMinLength = 12
 
+// DefaultPasswordMaxLength bounds the plaintext password (CAL-120): Argon2id is
+// deliberately CPU/memory-hard, so an unbounded plaintext on the unauthenticated
+// Register/Login surface is a cheap amplification DoS. 128 is well above any real
+// passphrase and matches common OWASP guidance.
+const DefaultPasswordMaxLength = 128
+
 // MaxNameLen bounds a user's display name (CAL-111): untrusted registration input
 // that is stored and rendered, so it is length-capped to prevent storage/UI abuse.
 const MaxNameLen = 200
@@ -42,11 +48,21 @@ const MaxNameLen = 200
 // PasswordPolicy validates plaintext passwords before they are hashed.
 type PasswordPolicy struct {
 	MinLength int
+	MaxLength int
 }
 
 // DefaultPasswordPolicy returns the standard password policy.
 func DefaultPasswordPolicy() PasswordPolicy {
-	return PasswordPolicy{MinLength: DefaultPasswordMinLength}
+	return PasswordPolicy{MinLength: DefaultPasswordMinLength, MaxLength: DefaultPasswordMaxLength}
+}
+
+// MaxAllowedLength returns the effective maximum plaintext password length,
+// applying the default when the policy leaves MaxLength unset.
+func (p PasswordPolicy) MaxAllowedLength() int {
+	if p.MaxLength <= 0 {
+		return DefaultPasswordMaxLength
+	}
+	return p.MaxLength
 }
 
 // Validate checks a plaintext password against the policy.
@@ -55,11 +71,18 @@ func (p PasswordPolicy) Validate(plain string) error {
 	if minLen <= 0 {
 		minLen = DefaultPasswordMinLength
 	}
+	maxLen := p.MaxLength
+	if maxLen <= 0 {
+		maxLen = DefaultPasswordMaxLength
+	}
 	if strings.TrimSpace(plain) == "" {
 		return kernel.Invalid("identity: password must not be blank")
 	}
 	if len(plain) < minLen {
 		return kernel.Invalidf("identity: password must be at least %d characters", minLen)
+	}
+	if len(plain) > maxLen {
+		return kernel.Invalidf("identity: password must be at most %d characters", maxLen)
 	}
 	return nil
 }

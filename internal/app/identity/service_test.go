@@ -2,6 +2,7 @@ package identity_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,6 +157,13 @@ func TestLoginGenericFailures(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		d := newDeps(ctrl) // no repo call: email parse fails first
 		_, err := d.service().Login(context.Background(), "bad", "whatever-secret")
+		assert.Equal(t, kernel.KindUnauthorized, kernel.KindOf(err))
+	})
+	t.Run("over-length password is rejected before hashing (CAL-120)", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		d := newDeps(ctrl) // no repo AND no hasher call: the length guard short-circuits
+		over := strings.Repeat("x", identitydom.DefaultPasswordMaxLength+1)
+		_, err := d.service().Login(context.Background(), "ama@example.com", over)
 		assert.Equal(t, kernel.KindUnauthorized, kernel.KindOf(err))
 	})
 }

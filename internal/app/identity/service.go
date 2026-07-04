@@ -134,6 +134,12 @@ func (s *Service) Login(ctx context.Context, rawEmail, password string) (*Sessio
 	if err != nil {
 		return nil, invalidCredentials()
 	}
+	// A stored password can never exceed the policy maximum, so an over-length
+	// input is never valid — reject it before the expensive Argon2id hash so the
+	// unauthenticated login surface cannot be used as a CPU/memory DoS (CAL-120).
+	if len(password) > s.policy.MaxAllowedLength() {
+		return nil, invalidCredentials()
+	}
 	key := email.String()
 	if err := s.throttleCheck(ctx, key); err != nil {
 		return nil, err
