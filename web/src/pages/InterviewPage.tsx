@@ -17,7 +17,6 @@ import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { ApiError } from '../api/types';
 import { ContestAssessment } from '../components/contest/ContestAssessment';
 import { DotsButton } from '../components/DotsButton';
 import { PageBackButton } from '../components/PageBackButton';
@@ -47,7 +46,6 @@ export function InterviewPage() {
   const roles = useOpenRoles(rolesPage, ROLE_PAGE_SIZE, canUseInterview);
   const roleList = roles.data?.roles ?? [];
   const selectedRole = roleList.find((r) => r.id === roleId);
-  const roleListDenied = roles.error instanceof ApiError && roles.error.status === 403;
 
   const begin = (nextRoleId = roleId) => {
     const id = nextRoleId.trim();
@@ -58,7 +56,7 @@ export function InterviewPage() {
     interview.start(id, user?.id ?? 'demo-candidate');
   };
 
-  if (!canUseInterview || roleListDenied) {
+  if (!canUseInterview) {
     return <PermissionRedirect />;
   }
 
@@ -92,7 +90,7 @@ export function InterviewPage() {
                 </Stack>
               ) : roles.isError ? (
                 <Alert severity="info">
-                  {roles.error instanceof Error ? roles.error.message : 'Could not load interview roles.'}
+                  Couldn&apos;t load the role list right now — you can still start with a role ID below.
                 </Alert>
               ) : roleList.length > 0 ? (
                 <Stack spacing={1.25} role="list" aria-label="Interview roles">

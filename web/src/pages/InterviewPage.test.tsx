@@ -105,11 +105,13 @@ describe('InterviewPage', () => {
     expect(screen.queryByText(/missing permission/i)).not.toBeInTheDocument();
   });
 
-  it('does not surface backend permission text if role listing is forbidden', () => {
+  it('keeps a candidate on the page with the role-id fallback when the role list is forbidden (no bounce, no raw backend text)', () => {
     openRolesResult = { isPending: false, isError: true, error: new ApiError(403, 'auth: missing permission roles:manage') };
     renderAt('/interview');
+    // a candidate is not bounced to the dashboard — the role-id fallback stays usable
+    expect(screen.getByRole('button', { name: /use a role id instead/i })).toBeInTheDocument();
+    // and the raw backend permission text is never surfaced
     expect(screen.queryByText(/auth: missing permission/i)).not.toBeInTheDocument();
-    expect(screen.queryByText('Choose a role')).not.toBeInTheDocument();
   });
 
   it('starts the interview by clicking a listed role', () => {
