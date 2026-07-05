@@ -57,14 +57,16 @@ describe('RoleEditor', () => {
 
     // Edit the title, then save.
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Senior Backend Engineer' } });
+    fireEvent.change(screen.getByLabelText('Must-haves'), { target: { value: 'Go\nPostgres' } });
     fireEvent.click(screen.getByText('Save changes'));
 
     expect(mutate).toHaveBeenCalledTimes(1);
     const [vars] = mutate.mock.calls[0];
     expect(vars.roleId).toBe('r1');
     expect(vars.spec.title).toBe('Senior Backend Engineer');
+    expect(vars.spec.mustHaves).toEqual(['Go', 'Postgres']);
     // An untouched field survives the edit (the full spec is held, not just title).
-    expect(vars.spec.mustHaves).toEqual(['Go']);
+    expect(vars.spec.responsibilities).toEqual(['Build services']);
     expect(vars.rubric.competencies).toEqual([{ name: 'Go', weight: 0.6, mustHave: true }]);
     // onSuccess routes the returned role back to the caller.
     expect(onSaved).toHaveBeenCalledWith(returnedRole);

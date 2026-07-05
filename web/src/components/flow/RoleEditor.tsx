@@ -25,6 +25,9 @@ const SENIORITIES: { value: Seniority; label: string }[] = [
   { value: 'SENIORITY_LEAD', label: 'Lead' },
 ];
 
+const toLines = (items: string[]) => items.join('\n');
+const fromLines = (value: string) => value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+
 export function RoleEditor({
   role,
   onSaved,
@@ -38,6 +41,9 @@ export function RoleEditor({
   // Hold the full spec so untouched fields (responsibilities, must-haves…) survive the save.
   const [spec, setSpec] = useState<RoleSpec>(role.spec);
   const [comps, setComps] = useState<Competency[]>(role.rubric.competencies);
+  const [responsibilitiesText, setResponsibilitiesText] = useState(toLines(role.spec.responsibilities));
+  const [mustHavesText, setMustHavesText] = useState(toLines(role.spec.mustHaves));
+  const [niceToHavesText, setNiceToHavesText] = useState(toLines(role.spec.niceToHaves));
 
   const patchSpec = (p: Partial<RoleSpec>) => setSpec((s) => ({ ...s, ...p }));
   const patchComp = (i: number, p: Partial<Competency>) =>
@@ -46,8 +52,14 @@ export function RoleEditor({
   const total = comps.reduce((sum, c) => sum + c.weight, 0);
 
   const save = () => {
+    const nextSpec = {
+      ...spec,
+      responsibilities: fromLines(responsibilitiesText),
+      mustHaves: fromLines(mustHavesText),
+      niceToHaves: fromLines(niceToHavesText),
+    };
     update.mutate(
-      { roleId: role.id, spec, rubric: { competencies: comps } },
+      { roleId: role.id, spec: nextSpec, rubric: { competencies: comps } },
       { onSuccess: (data) => onSaved(data.role) },
     );
   };
@@ -86,6 +98,12 @@ export function RoleEditor({
                 ))}
               </TextField>
             </Stack>
+            <TextField
+              label="Availability"
+              value={spec.availability}
+              onChange={(e) => patchSpec({ availability: e.target.value })}
+              fullWidth
+            />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
                 label="Currency"
@@ -108,6 +126,36 @@ export function RoleEditor({
                 fullWidth
               />
             </Stack>
+          </Stack>
+
+          <Divider />
+
+          <Stack spacing={2}>
+            <Typography variant="subtitle2" component="h3">Spec details</Typography>
+            <TextField
+              label="Responsibilities"
+              value={responsibilitiesText}
+              onChange={(e) => setResponsibilitiesText(e.target.value)}
+              multiline
+              minRows={3}
+              fullWidth
+            />
+            <TextField
+              label="Must-haves"
+              value={mustHavesText}
+              onChange={(e) => setMustHavesText(e.target.value)}
+              multiline
+              minRows={3}
+              fullWidth
+            />
+            <TextField
+              label="Nice-to-haves"
+              value={niceToHavesText}
+              onChange={(e) => setNiceToHavesText(e.target.value)}
+              multiline
+              minRows={3}
+              fullWidth
+            />
           </Stack>
 
           <Divider />

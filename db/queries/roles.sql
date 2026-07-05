@@ -17,6 +17,10 @@ SET title = $2,
     role_embedding = COALESCE(NULLIF($7, '')::vector, role_embedding)
 WHERE id = $1;
 
+-- name: DeleteRole :execrows
+DELETE FROM roles
+WHERE id = $1;
+
 -- name: ListRolesByEmployer :many
 SELECT id, employer_id, title, status, role_spec, rubric, salary_band, created_at
 FROM roles

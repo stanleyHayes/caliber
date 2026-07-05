@@ -126,6 +126,36 @@ func TestUpdateRoleSpecRejectsOtherEmployer(t *testing.T) {
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
+func TestDeleteRoleHandler(t *testing.T) {
+	srv := newServer()
+	emp := kernel.NewID()
+	role := generatedRole(t, srv, emp)
+
+	_, err := srv.DeleteRole(asEmployer(context.Background(), emp), &caliberv1.DeleteRoleRequest{RoleId: role.GetId()})
+	require.NoError(t, err)
+
+	_, err = srv.GetRole(asEmployer(context.Background(), emp), &caliberv1.GetRoleRequest{RoleId: role.GetId()})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+func TestDeleteRoleRejectsOtherEmployer(t *testing.T) {
+	srv := newServer()
+	emp := kernel.NewID()
+	role := generatedRole(t, srv, emp)
+
+	_, err := srv.DeleteRole(asEmployer(context.Background(), kernel.NewID()), &caliberv1.DeleteRoleRequest{RoleId: role.GetId()})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestDeleteRoleRequiresReviewer(t *testing.T) {
+	srv := newServer()
+	emp := kernel.NewID()
+	role := generatedRole(t, srv, emp)
+
+	_, err := srv.DeleteRole(asCandidate(context.Background(), kernel.NewID()), &caliberv1.DeleteRoleRequest{RoleId: role.GetId()})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
 func TestListRolesHandler(t *testing.T) {
 	srv := newServer()
 	emp := kernel.NewID()

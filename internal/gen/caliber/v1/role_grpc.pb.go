@@ -22,6 +22,7 @@ const (
 	RoleService_GenerateRoleSpec_FullMethodName = "/caliber.v1.RoleService/GenerateRoleSpec"
 	RoleService_GetRole_FullMethodName          = "/caliber.v1.RoleService/GetRole"
 	RoleService_UpdateRoleSpec_FullMethodName   = "/caliber.v1.RoleService/UpdateRoleSpec"
+	RoleService_DeleteRole_FullMethodName       = "/caliber.v1.RoleService/DeleteRole"
 	RoleService_ListRoles_FullMethodName        = "/caliber.v1.RoleService/ListRoles"
 )
 
@@ -38,6 +39,7 @@ type RoleServiceClient interface {
 	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*GetRoleResponse, error)
 	// Edit any field / re-weight the rubric; triggers a live re-rank (CAL-040).
 	UpdateRoleSpec(ctx context.Context, in *UpdateRoleSpecRequest, opts ...grpc.CallOption) (*UpdateRoleSpecResponse, error)
+	DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*DeleteRoleResponse, error)
 	ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error)
 }
 
@@ -79,6 +81,16 @@ func (c *roleServiceClient) UpdateRoleSpec(ctx context.Context, in *UpdateRoleSp
 	return out, nil
 }
 
+func (c *roleServiceClient) DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*DeleteRoleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteRoleResponse)
+	err := c.cc.Invoke(ctx, RoleService_DeleteRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *roleServiceClient) ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListRolesResponse)
@@ -102,6 +114,7 @@ type RoleServiceServer interface {
 	GetRole(context.Context, *GetRoleRequest) (*GetRoleResponse, error)
 	// Edit any field / re-weight the rubric; triggers a live re-rank (CAL-040).
 	UpdateRoleSpec(context.Context, *UpdateRoleSpecRequest) (*UpdateRoleSpecResponse, error)
+	DeleteRole(context.Context, *DeleteRoleRequest) (*DeleteRoleResponse, error)
 	ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error)
 	mustEmbedUnimplementedRoleServiceServer()
 }
@@ -121,6 +134,9 @@ func (UnimplementedRoleServiceServer) GetRole(context.Context, *GetRoleRequest) 
 }
 func (UnimplementedRoleServiceServer) UpdateRoleSpec(context.Context, *UpdateRoleSpecRequest) (*UpdateRoleSpecResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateRoleSpec not implemented")
+}
+func (UnimplementedRoleServiceServer) DeleteRole(context.Context, *DeleteRoleRequest) (*DeleteRoleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteRole not implemented")
 }
 func (UnimplementedRoleServiceServer) ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRoles not implemented")
@@ -200,6 +216,24 @@ func _RoleService_UpdateRoleSpec_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RoleService_DeleteRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RoleServiceServer).DeleteRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RoleService_DeleteRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RoleServiceServer).DeleteRole(ctx, req.(*DeleteRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RoleService_ListRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListRolesRequest)
 	if err := dec(in); err != nil {
@@ -236,6 +270,10 @@ var RoleService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateRoleSpec",
 			Handler:    _RoleService_UpdateRoleSpec_Handler,
+		},
+		{
+			MethodName: "DeleteRole",
+			Handler:    _RoleService_DeleteRole_Handler,
 		},
 		{
 			MethodName: "ListRoles",

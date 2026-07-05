@@ -4,11 +4,13 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { flowApi } from '../api/flow';
-import type { GenerateRoleResponse, ListRolesResponse, RecordRejectionResponse, Role, ShortlistResponse } from '../api/types';
+import type { GenerateRoleResponse, ListRolesResponse, RecordRejectionResponse, Role, RoleResponse, ShortlistResponse } from '../api/types';
 import {
+  useDeleteRole,
   useGenerateRole,
   useOpenRoles,
   useRecordRejection,
+  useRole,
   useRoles,
   useShortlist,
   useUpdateRole,
@@ -37,6 +39,8 @@ vi.mock('../api/flow', () => ({
   flowApi: {
     recordRejection: vi.fn(),
     generateRole: vi.fn(),
+    getRole: vi.fn(),
+    deleteRole: vi.fn(),
     listOpenRoles: vi.fn(),
     listRoles: vi.fn(),
     updateRole: vi.fn(),
@@ -112,6 +116,26 @@ describe('useRoles', () => {
   });
 });
 
+describe('useRole', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('fetches a role by id', async () => {
+    const response: RoleResponse = { role };
+    vi.mocked(flowApi.getRole).mockResolvedValue(response);
+
+    const { result } = renderHook(() => useRole('r1'), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(response);
+    expect(flowApi.getRole).toHaveBeenCalledWith('r1');
+  });
+
+  it('stays disabled when the role id is missing', () => {
+    const { result } = renderHook(() => useRole(undefined), { wrapper: createWrapper() });
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.fetchStatus).toBe('idle');
+  });
+});
+
 describe('useUpdateRole', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -123,6 +147,20 @@ describe('useUpdateRole', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(flowApi.updateRole).toHaveBeenCalledWith('r1', role.spec, role.rubric);
+  });
+});
+
+describe('useDeleteRole', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('deletes a role by id', async () => {
+    vi.mocked(flowApi.deleteRole).mockResolvedValue({});
+
+    const { result } = renderHook(() => useDeleteRole(), { wrapper: createWrapper() });
+    result.current.mutate('r1');
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(flowApi.deleteRole).toHaveBeenCalledWith('r1');
   });
 });
 

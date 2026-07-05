@@ -4,6 +4,7 @@ import type {
   ListRolesResponse,
   RecordRejectionResponse,
   Role,
+  RoleResponse,
   RoleSpec,
   Rubric,
   ShortlistResponse,
@@ -21,10 +22,16 @@ export const flowApi = {
     ),
   listOpenRoles: (page = 1, pageSize = 20) =>
     apiFetch<ListRolesResponse>(`/v1/roles?page.page=${page}&page.page_size=${pageSize}`),
+  getRole: (roleId: string) =>
+    apiFetch<RoleResponse>(`/v1/roles/${encodeURIComponent(roleId)}`),
   updateRole: (roleId: string, spec: RoleSpec, rubric: Rubric) =>
     apiFetch<{ role: Role }>(`/v1/roles/${encodeURIComponent(roleId)}`, {
       method: 'PATCH',
       body: { role_id: roleId, spec, rubric },
+    }),
+  deleteRole: (roleId: string) =>
+    apiFetch<Record<string, never>>(`/v1/roles/${encodeURIComponent(roleId)}`, {
+      method: 'DELETE',
     }),
   // The backend produces a ranked, explainable shortlist with page metadata.
   shortlist: (roleId: string, page: number, pageSize: number) =>

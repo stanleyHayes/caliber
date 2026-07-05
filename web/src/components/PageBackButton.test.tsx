@@ -9,7 +9,24 @@ function renderWithRoutes(initialEntries: Parameters<typeof MemoryRouter>[0]['in
     <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
       <Routes>
         <Route path="/app" element={<div>Dashboard</div>} />
-        <Route path="/roles" element={<div>Roles</div>} />
+        <Route
+          path="/roles"
+          element={
+            <div>
+              <PageBackButton fallbackTo="/app" label="Back to dashboard" alwaysFallback />
+              <div>Roles</div>
+            </div>
+          }
+        />
+        <Route
+          path="/roles/:roleId"
+          element={
+            <div>
+              <PageBackButton fallbackTo="/roles" label="Back to roles" alwaysFallback />
+              <div>Role detail</div>
+            </div>
+          }
+        />
         <Route
           path="/profile"
           element={
@@ -47,5 +64,21 @@ describe('PageBackButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
+  });
+
+  it('can pin a page back button to its fallback instead of history', () => {
+    renderWithRoutes(['/roles/role-1', '/roles'], 1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to dashboard' }));
+
+    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+  });
+
+  it('pins role detail back to the roles list', () => {
+    renderWithRoutes(['/app', '/roles/role-1'], 1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to roles' }));
+
+    expect(screen.getByText('Roles')).toBeInTheDocument();
   });
 });

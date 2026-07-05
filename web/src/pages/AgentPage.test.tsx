@@ -92,6 +92,30 @@ describe('AgentPage', () => {
     expect(screen.getByText('by your agent')).toBeInTheDocument();
   });
 
+  it('keeps rendering when an application status is newer than the client', () => {
+    applicationsResult = {
+      isPending: false,
+      isError: false,
+      error: null,
+      data: {
+        applications: [
+          {
+            id: 'a1',
+            roleId: 'role-1',
+            candidateId: 'cand-1',
+            source: 'APPLICATION_SOURCE_AGENT',
+            tailoredSummary: 'Waiting on the next workflow step.',
+            status: 'APPLICATION_STATUS_ARCHIVED' as Application['status'],
+          },
+        ],
+      },
+    };
+    render(<AgentPage />);
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.getByText('Status pending')).toBeInTheDocument();
+    expect(screen.getByText('Waiting on the next workflow step.')).toBeInTheDocument();
+  });
+
   it('requests the selected server page when paginating applications', () => {
     applicationsResult = {
       isPending: false,

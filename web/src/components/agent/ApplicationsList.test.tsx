@@ -23,7 +23,7 @@ describe('ApplicationsList', () => {
     render(<ApplicationsList applications={[agentApp]} />);
     expect(screen.getByText('Submitted')).toBeInTheDocument();
     expect(screen.getByText('Tailored to the payments platform role.')).toBeInTheDocument();
-    expect(screen.getByText('role role-abc')).toBeInTheDocument();
+    expect(screen.getByText('Role ref role-abc')).toBeInTheDocument();
   });
 
   it('marks agent-sourced applications and omits the badge for manual ones', () => {

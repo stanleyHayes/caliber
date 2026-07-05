@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { flowApi } from '../api/flow';
 import type { RoleSpec, Rubric } from '../api/types';
@@ -41,10 +41,37 @@ export function useOpenRoles(page = 1, pageSize = 20, enabled = true) {
   });
 }
 
+export function useRole(roleId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['role', roleId],
+    queryFn: () => flowApi.getRole(roleId as string),
+    enabled: enabled && Boolean(roleId),
+    retry: 0,
+  });
+}
+
 export function useUpdateRole() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ roleId, spec, rubric }: { roleId: string; spec: RoleSpec; rubric: Rubric }) =>
       flowApi.updateRole(roleId, spec, rubric),
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(['role', variables.roleId], data);
+      void queryClient.invalidateQueries({ queryKey: ['roles'] });
+      void queryClient.invalidateQueries({ queryKey: ['openRoles'] });
+    },
+  });
+}
+
+export function useDeleteRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (roleId: string) => flowApi.deleteRole(roleId),
+    onSuccess: (_data, roleId) => {
+      queryClient.removeQueries({ queryKey: ['role', roleId] });
+      void queryClient.invalidateQueries({ queryKey: ['roles'] });
+      void queryClient.invalidateQueries({ queryKey: ['openRoles'] });
+    },
   });
 }
 

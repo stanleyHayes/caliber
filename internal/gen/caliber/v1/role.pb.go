@@ -616,6 +616,86 @@ func (x *UpdateRoleSpecResponse) GetRole() *Role {
 	return nil
 }
 
+type DeleteRoleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoleId        string                 `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteRoleRequest) Reset() {
+	*x = DeleteRoleRequest{}
+	mi := &file_caliber_v1_role_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRoleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRoleRequest) ProtoMessage() {}
+
+func (x *DeleteRoleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_caliber_v1_role_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteRoleRequest.ProtoReflect.Descriptor instead.
+func (*DeleteRoleRequest) Descriptor() ([]byte, []int) {
+	return file_caliber_v1_role_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *DeleteRoleRequest) GetRoleId() string {
+	if x != nil {
+		return x.RoleId
+	}
+	return ""
+}
+
+type DeleteRoleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteRoleResponse) Reset() {
+	*x = DeleteRoleResponse{}
+	mi := &file_caliber_v1_role_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRoleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRoleResponse) ProtoMessage() {}
+
+func (x *DeleteRoleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_caliber_v1_role_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteRoleResponse.ProtoReflect.Descriptor instead.
+func (*DeleteRoleResponse) Descriptor() ([]byte, []int) {
+	return file_caliber_v1_role_proto_rawDescGZIP(), []int{11}
+}
+
 type ListRolesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	EmployerId    string                 `protobuf:"bytes,1,opt,name=employer_id,json=employerId,proto3" json:"employer_id,omitempty"`
@@ -626,7 +706,7 @@ type ListRolesRequest struct {
 
 func (x *ListRolesRequest) Reset() {
 	*x = ListRolesRequest{}
-	mi := &file_caliber_v1_role_proto_msgTypes[10]
+	mi := &file_caliber_v1_role_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -638,7 +718,7 @@ func (x *ListRolesRequest) String() string {
 func (*ListRolesRequest) ProtoMessage() {}
 
 func (x *ListRolesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_caliber_v1_role_proto_msgTypes[10]
+	mi := &file_caliber_v1_role_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -651,7 +731,7 @@ func (x *ListRolesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRolesRequest.ProtoReflect.Descriptor instead.
 func (*ListRolesRequest) Descriptor() ([]byte, []int) {
-	return file_caliber_v1_role_proto_rawDescGZIP(), []int{10}
+	return file_caliber_v1_role_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListRolesRequest) GetEmployerId() string {
@@ -678,7 +758,7 @@ type ListRolesResponse struct {
 
 func (x *ListRolesResponse) Reset() {
 	*x = ListRolesResponse{}
-	mi := &file_caliber_v1_role_proto_msgTypes[11]
+	mi := &file_caliber_v1_role_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -690,7 +770,7 @@ func (x *ListRolesResponse) String() string {
 func (*ListRolesResponse) ProtoMessage() {}
 
 func (x *ListRolesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_caliber_v1_role_proto_msgTypes[11]
+	mi := &file_caliber_v1_role_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -703,7 +783,7 @@ func (x *ListRolesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRolesResponse.ProtoReflect.Descriptor instead.
 func (*ListRolesResponse) Descriptor() ([]byte, []int) {
-	return file_caliber_v1_role_proto_rawDescGZIP(), []int{11}
+	return file_caliber_v1_role_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListRolesResponse) GetRoles() []*Role {
@@ -770,18 +850,23 @@ const file_caliber_v1_role_proto_rawDesc = "" +
 	"\x04spec\x18\x02 \x01(\v2\x14.caliber.v1.RoleSpecR\x04spec\x12*\n" +
 	"\x06rubric\x18\x03 \x01(\v2\x12.caliber.v1.RubricR\x06rubric\">\n" +
 	"\x16UpdateRoleSpecResponse\x12$\n" +
-	"\x04role\x18\x01 \x01(\v2\x10.caliber.v1.RoleR\x04role\"`\n" +
+	"\x04role\x18\x01 \x01(\v2\x10.caliber.v1.RoleR\x04role\",\n" +
+	"\x11DeleteRoleRequest\x12\x17\n" +
+	"\arole_id\x18\x01 \x01(\tR\x06roleId\"\x14\n" +
+	"\x12DeleteRoleResponse\"`\n" +
 	"\x10ListRolesRequest\x12\x1f\n" +
 	"\vemployer_id\x18\x01 \x01(\tR\n" +
 	"employerId\x12+\n" +
 	"\x04page\x18\x02 \x01(\v2\x17.caliber.v1.PageRequestR\x04page\"i\n" +
 	"\x11ListRolesResponse\x12&\n" +
 	"\x05roles\x18\x01 \x03(\v2\x10.caliber.v1.RoleR\x05roles\x12,\n" +
-	"\x04page\x18\x02 \x01(\v2\x18.caliber.v1.PageResponseR\x04page2\xc2\x03\n" +
+	"\x04page\x18\x02 \x01(\v2\x18.caliber.v1.PageResponseR\x04page2\xac\x04\n" +
 	"\vRoleService\x12|\n" +
 	"\x10GenerateRoleSpec\x12#.caliber.v1.GenerateRoleSpecRequest\x1a$.caliber.v1.GenerateRoleSpecResponse\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/roles:generate\x12_\n" +
 	"\aGetRole\x12\x1a.caliber.v1.GetRoleRequest\x1a\x1b.caliber.v1.GetRoleResponse\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/roles/{role_id}\x12w\n" +
-	"\x0eUpdateRoleSpec\x12!.caliber.v1.UpdateRoleSpecRequest\x1a\".caliber.v1.UpdateRoleSpecResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*2\x13/v1/roles/{role_id}\x12[\n" +
+	"\x0eUpdateRoleSpec\x12!.caliber.v1.UpdateRoleSpecRequest\x1a\".caliber.v1.UpdateRoleSpecResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*2\x13/v1/roles/{role_id}\x12h\n" +
+	"\n" +
+	"DeleteRole\x12\x1d.caliber.v1.DeleteRoleRequest\x1a\x1e.caliber.v1.DeleteRoleResponse\"\x1b\x82\xd3\xe4\x93\x02\x15*\x13/v1/roles/{role_id}\x12[\n" +
 	"\tListRoles\x12\x1c.caliber.v1.ListRolesRequest\x1a\x1d.caliber.v1.ListRolesResponse\"\x11\x82\xd3\xe4\x93\x02\v\x12\t/v1/rolesB\xa4\x01\n" +
 	"\x0ecom.caliber.v1B\tRoleProtoP\x01Z>github.com/xcreativs/caliber/internal/gen/caliber/v1;caliberv1\xa2\x02\x03CXX\xaa\x02\n" +
 	"Caliber.V1\xca\x02\n" +
@@ -799,7 +884,7 @@ func file_caliber_v1_role_proto_rawDescGZIP() []byte {
 	return file_caliber_v1_role_proto_rawDescData
 }
 
-var file_caliber_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_caliber_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_caliber_v1_role_proto_goTypes = []any{
 	(*Competency)(nil),               // 0: caliber.v1.Competency
 	(*Rubric)(nil),                   // 1: caliber.v1.Rubric
@@ -811,41 +896,45 @@ var file_caliber_v1_role_proto_goTypes = []any{
 	(*GetRoleResponse)(nil),          // 7: caliber.v1.GetRoleResponse
 	(*UpdateRoleSpecRequest)(nil),    // 8: caliber.v1.UpdateRoleSpecRequest
 	(*UpdateRoleSpecResponse)(nil),   // 9: caliber.v1.UpdateRoleSpecResponse
-	(*ListRolesRequest)(nil),         // 10: caliber.v1.ListRolesRequest
-	(*ListRolesResponse)(nil),        // 11: caliber.v1.ListRolesResponse
-	(Seniority)(0),                   // 12: caliber.v1.Seniority
-	(*SalaryBand)(nil),               // 13: caliber.v1.SalaryBand
-	(RoleStatus)(0),                  // 14: caliber.v1.RoleStatus
-	(*timestamppb.Timestamp)(nil),    // 15: google.protobuf.Timestamp
-	(*PageRequest)(nil),              // 16: caliber.v1.PageRequest
-	(*PageResponse)(nil),             // 17: caliber.v1.PageResponse
+	(*DeleteRoleRequest)(nil),        // 10: caliber.v1.DeleteRoleRequest
+	(*DeleteRoleResponse)(nil),       // 11: caliber.v1.DeleteRoleResponse
+	(*ListRolesRequest)(nil),         // 12: caliber.v1.ListRolesRequest
+	(*ListRolesResponse)(nil),        // 13: caliber.v1.ListRolesResponse
+	(Seniority)(0),                   // 14: caliber.v1.Seniority
+	(*SalaryBand)(nil),               // 15: caliber.v1.SalaryBand
+	(RoleStatus)(0),                  // 16: caliber.v1.RoleStatus
+	(*timestamppb.Timestamp)(nil),    // 17: google.protobuf.Timestamp
+	(*PageRequest)(nil),              // 18: caliber.v1.PageRequest
+	(*PageResponse)(nil),             // 19: caliber.v1.PageResponse
 }
 var file_caliber_v1_role_proto_depIdxs = []int32{
 	0,  // 0: caliber.v1.Rubric.competencies:type_name -> caliber.v1.Competency
-	12, // 1: caliber.v1.RoleSpec.seniority:type_name -> caliber.v1.Seniority
-	13, // 2: caliber.v1.RoleSpec.salary_band:type_name -> caliber.v1.SalaryBand
-	14, // 3: caliber.v1.Role.status:type_name -> caliber.v1.RoleStatus
+	14, // 1: caliber.v1.RoleSpec.seniority:type_name -> caliber.v1.Seniority
+	15, // 2: caliber.v1.RoleSpec.salary_band:type_name -> caliber.v1.SalaryBand
+	16, // 3: caliber.v1.Role.status:type_name -> caliber.v1.RoleStatus
 	2,  // 4: caliber.v1.Role.spec:type_name -> caliber.v1.RoleSpec
 	1,  // 5: caliber.v1.Role.rubric:type_name -> caliber.v1.Rubric
-	15, // 6: caliber.v1.Role.created_at:type_name -> google.protobuf.Timestamp
+	17, // 6: caliber.v1.Role.created_at:type_name -> google.protobuf.Timestamp
 	3,  // 7: caliber.v1.GenerateRoleSpecResponse.role:type_name -> caliber.v1.Role
 	3,  // 8: caliber.v1.GetRoleResponse.role:type_name -> caliber.v1.Role
 	2,  // 9: caliber.v1.UpdateRoleSpecRequest.spec:type_name -> caliber.v1.RoleSpec
 	1,  // 10: caliber.v1.UpdateRoleSpecRequest.rubric:type_name -> caliber.v1.Rubric
 	3,  // 11: caliber.v1.UpdateRoleSpecResponse.role:type_name -> caliber.v1.Role
-	16, // 12: caliber.v1.ListRolesRequest.page:type_name -> caliber.v1.PageRequest
+	18, // 12: caliber.v1.ListRolesRequest.page:type_name -> caliber.v1.PageRequest
 	3,  // 13: caliber.v1.ListRolesResponse.roles:type_name -> caliber.v1.Role
-	17, // 14: caliber.v1.ListRolesResponse.page:type_name -> caliber.v1.PageResponse
+	19, // 14: caliber.v1.ListRolesResponse.page:type_name -> caliber.v1.PageResponse
 	4,  // 15: caliber.v1.RoleService.GenerateRoleSpec:input_type -> caliber.v1.GenerateRoleSpecRequest
 	6,  // 16: caliber.v1.RoleService.GetRole:input_type -> caliber.v1.GetRoleRequest
 	8,  // 17: caliber.v1.RoleService.UpdateRoleSpec:input_type -> caliber.v1.UpdateRoleSpecRequest
-	10, // 18: caliber.v1.RoleService.ListRoles:input_type -> caliber.v1.ListRolesRequest
-	5,  // 19: caliber.v1.RoleService.GenerateRoleSpec:output_type -> caliber.v1.GenerateRoleSpecResponse
-	7,  // 20: caliber.v1.RoleService.GetRole:output_type -> caliber.v1.GetRoleResponse
-	9,  // 21: caliber.v1.RoleService.UpdateRoleSpec:output_type -> caliber.v1.UpdateRoleSpecResponse
-	11, // 22: caliber.v1.RoleService.ListRoles:output_type -> caliber.v1.ListRolesResponse
-	19, // [19:23] is the sub-list for method output_type
-	15, // [15:19] is the sub-list for method input_type
+	10, // 18: caliber.v1.RoleService.DeleteRole:input_type -> caliber.v1.DeleteRoleRequest
+	12, // 19: caliber.v1.RoleService.ListRoles:input_type -> caliber.v1.ListRolesRequest
+	5,  // 20: caliber.v1.RoleService.GenerateRoleSpec:output_type -> caliber.v1.GenerateRoleSpecResponse
+	7,  // 21: caliber.v1.RoleService.GetRole:output_type -> caliber.v1.GetRoleResponse
+	9,  // 22: caliber.v1.RoleService.UpdateRoleSpec:output_type -> caliber.v1.UpdateRoleSpecResponse
+	11, // 23: caliber.v1.RoleService.DeleteRole:output_type -> caliber.v1.DeleteRoleResponse
+	13, // 24: caliber.v1.RoleService.ListRoles:output_type -> caliber.v1.ListRolesResponse
+	20, // [20:25] is the sub-list for method output_type
+	15, // [15:20] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
 	15, // [15:15] is the sub-list for extension extendee
 	0,  // [0:15] is the sub-list for field type_name
@@ -863,7 +952,7 @@ func file_caliber_v1_role_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_caliber_v1_role_proto_rawDesc), len(file_caliber_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

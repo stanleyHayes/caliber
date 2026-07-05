@@ -87,6 +87,18 @@ func (r *RoleRepo) Update(ctx context.Context, rl *role.Role) error {
 	return nil
 }
 
+// Delete removes an existing role; returns NotFound if it does not exist.
+func (r *RoleRepo) Delete(ctx context.Context, id kernel.ID) error {
+	n, err := r.q.DeleteRole(ctx, id.String())
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return kernel.NotFound("postgres: role not found")
+	}
+	return nil
+}
+
 // ListOpen lists non-closed roles (the applyable pool), newest first.
 func (r *RoleRepo) ListOpen(ctx context.Context, page kernel.Page) ([]*role.Role, int64, error) {
 	rows, err := r.q.ListOpenRoles(ctx, sqlcdb.ListOpenRolesParams{

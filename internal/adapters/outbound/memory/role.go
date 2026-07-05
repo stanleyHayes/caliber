@@ -60,6 +60,24 @@ func (r *RoleRepo) Update(_ context.Context, rl *role.Role) error {
 	return nil
 }
 
+// Delete removes a role by id. NOTE: unlike the Postgres adapter (whose schema
+// declares ON DELETE CASCADE on matches/interviews/applications), this in-memory
+// dev adapter does NOT cascade to dependents — role-scoped matches, interviews,
+// and applications are left orphaned, so on the dev/demo stack a deleted role's
+// interview becomes unresumable/unreadable (roles.ByID returns NotFound). Known
+// limitation of the in-memory path; the durable Postgres path is the source of
+// truth. A proper cross-backend fix would archive (soft-delete) the role or add a
+// role-scoped eraser port that both backends implement.
+func (r *RoleRepo) Delete(_ context.Context, id kernel.ID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.items[id]; !ok {
+		return kernel.NotFound("memory: role not found")
+	}
+	delete(r.items, id)
+	return nil
+}
+
 // ListOpen lists non-closed roles (the applyable pool), newest first.
 func (r *RoleRepo) ListOpen(_ context.Context, page kernel.Page) ([]*role.Role, int64, error) {
 	r.mu.RLock()

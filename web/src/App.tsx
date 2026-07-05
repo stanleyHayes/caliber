@@ -26,6 +26,7 @@ const InterviewPage = lazy(() => import('./pages/InterviewPage').then((m) => ({ 
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const RadarPage = lazy(() => import('./pages/RadarPage').then((m) => ({ default: m.RadarPage })));
 const RolesPage = lazy(() => import('./pages/RolesPage').then((m) => ({ default: m.RolesPage })));
+const RoleDetailPage = lazy(() => import('./pages/RoleDetailPage').then((m) => ({ default: m.RoleDetailPage })));
 const CandidateProfilePage = lazy(() =>
   import('./pages/CandidateProfilePage').then((m) => ({ default: m.CandidateProfilePage })),
 );
@@ -70,6 +71,7 @@ export function AppRoutes() {
                 <Route path="/app" element={<DashboardPage />} />
                 <Route path="/roles" element={<RolesPage />} />
                 <Route path="/roles/new" element={<EmployerFlowPage />} />
+                <Route path="/roles/:roleId" element={<RoleDetailPage />} />
                 <Route element={<RequireCandidate />}>
                   <Route path="/interview" element={<InterviewPage />} />
                 </Route>

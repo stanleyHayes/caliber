@@ -82,6 +82,9 @@ describe('RolesPage', () => {
     expect(screen.getByText('Accra')).toBeInTheDocument();
     expect(screen.getByText('Full-time')).toBeInTheDocument();
     expect(screen.getByText('1 competency')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View Senior Go Engineer details' })).toHaveAttribute('href', '/roles/role-1');
+    // Employers don't screen candidates — the roles row must not expose an
+    // interview shortcut (spec persona split: Flow B is candidate-only).
     expect(screen.queryByRole('link', { name: 'Interview' })).not.toBeInTheDocument();
   });
 

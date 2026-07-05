@@ -1,14 +1,14 @@
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
-import { Alert, Box, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, Stack, Typography } from '@mui/material';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 
 import { PageControls } from '../components/PageControls';
 import { PageBackButton } from '../components/PageBackButton';
 import { PermissionRedirect } from '../components/PermissionRedirect';
 import { CardListSkeleton } from '../components/Skeletons';
 import { roleStatusLabel, seniorityLabel } from '../lib/format';
-import { canManageRoles, canScreenSelf } from '../lib/permissions';
+import { canManageRoles } from '../lib/permissions';
 import { useRoles } from '../query/flow';
 import { useAuthStore } from '../stores/auth';
 import { fonts } from '../theme/tokens';
@@ -26,7 +26,6 @@ export function RolesPage() {
   const employerId = useAuthStore((s) => s.user?.id);
   const role = useAuthStore((s) => s.user?.role);
   const canUseRoles = canManageRoles(role);
-  const showInterviewAction = canScreenSelf(role);
   const [page, setPage] = useState(1);
   const roles = useRoles(canUseRoles ? employerId : undefined, page, PAGE_SIZE);
 
@@ -36,7 +35,7 @@ export function RolesPage() {
 
   return (
     <Stack spacing={4} sx={{ maxWidth: 960, mx: 'auto' }}>
-      <PageBackButton />
+      <PageBackButton fallbackTo="/app" label="Back to dashboard" alwaysFallback />
       <Stack direction="row" spacing={2} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
         <Stack spacing={1} sx={{ flexGrow: 1 }}>
           <Typography variant="h1" component="h1" sx={{ fontSize: 42, lineHeight: 1.05 }}>
@@ -44,7 +43,7 @@ export function RolesPage() {
           </Typography>
           <Typography color="text.secondary">Every role you have described, with its spec and rubric.</Typography>
         </Stack>
-        <Button component={Link} to="/roles/new" variant="contained">
+        <Button component={RouterLink} to="/roles/new" variant="contained">
           Describe a role
         </Button>
       </Stack>
@@ -80,66 +79,76 @@ export function RolesPage() {
                   },
                 }}
               >
-                <CardContent sx={{ p: { xs: 2.25, sm: 3 }, '&:last-child': { pb: { xs: 2.25, sm: 3 } } }}>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 2, sm: 3 }} sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}>
-                    <Box
-                      aria-hidden
-                      sx={{
-                        display: { xs: 'none', sm: 'block' },
-                        width: 4,
-                        alignSelf: 'stretch',
-                        borderRadius: '999px',
-                        bgcolor: r.status === 'ROLE_STATUS_OPEN' ? 'primary.main' : 'divider',
-                      }}
-                    />
-                    <Stack spacing={1.35} sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Chip
-                        size="small"
-                        label={roleStatusLabel[r.status]}
-                        color={r.status === 'ROLE_STATUS_OPEN' ? 'primary' : 'default'}
-                        variant={r.status === 'ROLE_STATUS_OPEN' ? 'filled' : 'outlined'}
-                        sx={{ ...roleChipSx, alignSelf: 'flex-start', fontWeight: 800, height: 26 }}
-                      />
-                      <Typography
-                        variant="h5"
-                        component="h2"
+                <CardActionArea
+                  component={RouterLink}
+                  to={`/roles/${r.id}`}
+                  aria-label={`View ${title} details`}
+                  sx={{ display: 'block', color: 'inherit', textAlign: 'left' }}
+                >
+                  <CardContent sx={{ p: { xs: 2.25, sm: 3 }, '&:last-child': { pb: { xs: 2.25, sm: 3 } } }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 2, sm: 3 }} sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}>
+                      <Box
+                        aria-hidden
                         sx={{
-                          fontFamily: fonts.body,
-                          fontSize: 24,
-                          fontWeight: 800,
-                          lineHeight: 1.15,
-                          letterSpacing: 0,
-                          color: 'text.primary',
+                          display: { xs: 'none', sm: 'block' },
+                          width: 4,
+                          alignSelf: 'stretch',
+                          borderRadius: '999px',
+                          bgcolor: r.status === 'ROLE_STATUS_OPEN' ? 'primary.main' : 'divider',
                         }}
-                      >
-                        {title}
-                      </Typography>
-                      <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-                        <Chip size="small" label={seniorityLabel[r.spec.seniority]} sx={roleChipSx} />
-                        {r.spec.location && <Chip size="small" variant="outlined" label={r.spec.location} sx={roleChipSx} />}
-                        {r.spec.availability && <Chip size="small" variant="outlined" label={r.spec.availability} sx={roleChipSx} />}
+                      />
+                      <Stack spacing={1.35} sx={{ flexGrow: 1, minWidth: 0 }}>
                         <Chip
                           size="small"
-                          variant="outlined"
-                          label={`${competencyCount} ${competencyCount === 1 ? 'competency' : 'competencies'}`}
-                          sx={roleChipSx}
+                          label={roleStatusLabel[r.status]}
+                          color={r.status === 'ROLE_STATUS_OPEN' ? 'primary' : 'default'}
+                          variant={r.status === 'ROLE_STATUS_OPEN' ? 'filled' : 'outlined'}
+                          sx={{ ...roleChipSx, alignSelf: 'flex-start', fontWeight: 800, height: 26 }}
                         />
+                        <Typography
+                          variant="h5"
+                          component="h2"
+                          sx={{
+                            fontFamily: fonts.body,
+                            fontSize: 24,
+                            fontWeight: 800,
+                            lineHeight: 1.15,
+                            letterSpacing: 0,
+                            color: 'text.primary',
+                          }}
+                        >
+                          {title}
+                        </Typography>
+                        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                          <Chip size="small" label={seniorityLabel[r.spec.seniority]} sx={roleChipSx} />
+                          {r.spec.location && <Chip size="small" variant="outlined" label={r.spec.location} sx={roleChipSx} />}
+                          {r.spec.availability && <Chip size="small" variant="outlined" label={r.spec.availability} sx={roleChipSx} />}
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={`${competencyCount} ${competencyCount === 1 ? 'competency' : 'competencies'}`}
+                            sx={roleChipSx}
+                          />
+                        </Stack>
+                      </Stack>
+                      <Stack
+                        direction="row"
+                        spacing={0.75}
+                        sx={{
+                          alignItems: 'center',
+                          alignSelf: { xs: 'flex-start', sm: 'center' },
+                          color: 'primary.main',
+                          fontWeight: 850,
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: 850 }}>
+                          View details
+                        </Typography>
+                        <ArrowForwardRounded fontSize="small" aria-hidden="true" />
                       </Stack>
                     </Stack>
-                    {showInterviewAction && (
-                      <Button
-                        component={Link}
-                        to={`/interview?roleId=${r.id}`}
-                        variant="outlined"
-                        size="medium"
-                        endIcon={<ArrowForwardRounded fontSize="small" />}
-                        sx={{ alignSelf: { xs: 'stretch', sm: 'center' }, minHeight: 44, borderRadius: '8px', px: 2.25, fontWeight: 800 }}
-                      >
-                        Interview
-                      </Button>
-                    )}
-                  </Stack>
-                </CardContent>
+                  </CardContent>
+                </CardActionArea>
               </Card>
             );
           })}

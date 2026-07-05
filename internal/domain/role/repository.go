@@ -11,6 +11,7 @@ type RoleRepository interface { //nolint:revive // domain name fixed by the role
 	Create(ctx context.Context, r *Role) error
 	ByID(ctx context.Context, id kernel.ID) (*Role, error)
 	Update(ctx context.Context, r *Role) error
+	Delete(ctx context.Context, id kernel.ID) error
 	ListByEmployer(ctx context.Context, employerID kernel.ID, page kernel.Page) ([]*Role, int64, error)
 	// ListOpen lists roles available to apply to (any status except closed),
 	// newest first, paginated — the pool a candidate agent scans.

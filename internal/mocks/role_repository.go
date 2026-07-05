@@ -71,6 +71,20 @@ func (mr *MockRoleRepositoryMockRecorder) Create(ctx, r any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRoleRepository)(nil).Create), ctx, r)
 }
 
+// Delete mocks base method.
+func (m *MockRoleRepository) Delete(ctx context.Context, id kernel.ID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockRoleRepositoryMockRecorder) Delete(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRoleRepository)(nil).Delete), ctx, id)
+}
+
 // ListByEmployer mocks base method.
 func (m *MockRoleRepository) ListByEmployer(ctx context.Context, employerID kernel.ID, page kernel.Page) ([]*role.Role, int64, error) {
 	m.ctrl.T.Helper()

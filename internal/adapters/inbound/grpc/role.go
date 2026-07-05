@@ -95,6 +95,28 @@ func (s *RoleServer) UpdateRoleSpec(
 	return &caliberv1.UpdateRoleSpecResponse{Role: roleToProto(r)}, nil
 }
 
+// DeleteRole removes a role owned by the authenticated employer/recruiter.
+func (s *RoleServer) DeleteRole(
+	ctx context.Context,
+	req *caliberv1.DeleteRoleRequest,
+) (*caliberv1.DeleteRoleResponse, error) {
+	principal, err := RequirePermission(ctx, authz.PermManageRoles)
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	existing, err := s.editor.Get(ctx, kernel.ID(req.GetRoleId()))
+	if err != nil {
+		return nil, errToStatus(err)
+	}
+	if existing.EmployerID.String() != principal.UserID.String() {
+		return nil, errToStatus(kernel.Forbidden("auth: may only delete your own roles"))
+	}
+	if err := s.editor.Delete(ctx, kernel.ID(req.GetRoleId())); err != nil {
+		return nil, errToStatus(err)
+	}
+	return &caliberv1.DeleteRoleResponse{}, nil
+}
+
 // ListRoles returns a page of roles. With employer_id it is employer-scoped;
 // without employer_id it returns the applyable role pool for interview selection.
 func (s *RoleServer) ListRoles(ctx context.Context, req *caliberv1.ListRolesRequest) (*caliberv1.ListRolesResponse, error) {

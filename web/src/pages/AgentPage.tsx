@@ -1,4 +1,4 @@
-import { Alert, Box, Divider, Stack, Typography } from '@mui/material';
+import { Alert, Box, Chip, Divider, Stack, Typography } from '@mui/material';
 import { useState } from 'react';
 
 import { ApiError } from '../api/types';
@@ -12,6 +12,7 @@ import { WakeUpCard } from '../components/agent/WakeUpCard';
 import { canRunAgent } from '../lib/permissions';
 import { useApplications, useTimeAdvance } from '../query/agent';
 import { useAuthStore } from '../stores/auth';
+import { fonts } from '../theme/tokens';
 
 const APPLICATIONS_PAGE_SIZE = 20;
 
@@ -29,6 +30,7 @@ export function AgentPage() {
   const [applicationsPage, setApplicationsPage] = useState(1);
   const advance = useTimeAdvance(candidateId);
   const applications = useApplications(candidateId, applicationsPage, APPLICATIONS_PAGE_SIZE);
+  const applicationTotal = applications.data?.page?.totalItems ?? applications.data?.applications.length ?? 0;
 
   if (!canUseAgent) {
     return <PermissionRedirect />;
@@ -56,8 +58,32 @@ export function AgentPage() {
 
       <Divider />
 
-      <Stack spacing={2}>
-        <Typography variant="h6" component="h2">Applications</Typography>
+      <Stack spacing={2.25}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1.5}
+          useFlexGap
+          sx={{ alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between' }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              variant="h5"
+              component="h2"
+              sx={{ fontFamily: fonts.body, fontWeight: 850, letterSpacing: 0, lineHeight: 1.12 }}
+            >
+              Applications
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Submissions and drafts prepared from your verified profile.
+            </Typography>
+          </Box>
+          <Chip
+            size="small"
+            label={`${applicationTotal} tracked`}
+            variant="outlined"
+            sx={{ borderRadius: '999px', fontFamily: fonts.body, fontWeight: 800, height: 30 }}
+          />
+        </Stack>
         {applications.isPending && candidateId ? (
           <CardListSkeleton count={2} />
         ) : applications.isError ? (

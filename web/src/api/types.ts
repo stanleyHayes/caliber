@@ -118,6 +118,10 @@ export interface GenerateRoleResponse {
   availableMatches: number;
 }
 
+export interface RoleResponse {
+  role: Role;
+}
+
 export interface MatchBreakdownItem {
   competency: string;
   score: number; // 0..5

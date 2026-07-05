@@ -7,6 +7,7 @@ import { fonts } from '../theme/tokens';
 type PageBackButtonProps = {
   fallbackTo?: string;
   label?: string;
+  alwaysFallback?: boolean;
 };
 
 function fromStatePath(state: unknown, currentPath: string): string | null {
@@ -44,12 +45,17 @@ function BackButtonView({ label, onClick }: { label: string; onClick: () => void
   );
 }
 
-function RouterBackButton({ fallbackTo, label }: Required<PageBackButtonProps>) {
+function RouterBackButton({ fallbackTo, label, alwaysFallback }: Required<PageBackButtonProps>) {
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
 
   const onClick = () => {
+    if (alwaysFallback) {
+      navigate(fallbackTo, { replace: true });
+      return;
+    }
+
     const from = fromStatePath(location.state, currentPath);
     if (from) {
       navigate(from);
@@ -67,7 +73,7 @@ function RouterBackButton({ fallbackTo, label }: Required<PageBackButtonProps>) 
   return <BackButtonView label={label} onClick={onClick} />;
 }
 
-export function PageBackButton({ fallbackTo = '/app', label = 'Back' }: PageBackButtonProps) {
+export function PageBackButton({ fallbackTo = '/app', label = 'Back', alwaysFallback = false }: PageBackButtonProps) {
   const inRouter = useInRouterContext();
 
   if (!inRouter) {
@@ -75,7 +81,7 @@ export function PageBackButton({ fallbackTo = '/app', label = 'Back' }: PageBack
       <BackButtonView
         label={label}
         onClick={() => {
-          if (window.history.length > 1) {
+          if (!alwaysFallback && window.history.length > 1) {
             window.history.back();
           } else {
             window.location.assign(fallbackTo);
@@ -85,5 +91,5 @@ export function PageBackButton({ fallbackTo = '/app', label = 'Back' }: PageBack
     );
   }
 
-  return <RouterBackButton fallbackTo={fallbackTo} label={label} />;
+  return <RouterBackButton fallbackTo={fallbackTo} label={label} alwaysFallback={alwaysFallback} />;
 }

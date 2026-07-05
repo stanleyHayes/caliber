@@ -62,6 +62,15 @@ func (e *SpecEditor) Update(ctx context.Context, roleID kernel.ID, spec role.Rol
 	return r, nil
 }
 
+// Delete removes a role and any dependent role-scoped records via repository
+// semantics (Postgres uses ON DELETE CASCADE for matches/interviews/applications).
+func (e *SpecEditor) Delete(ctx context.Context, roleID kernel.ID) error {
+	if roleID.IsZero() {
+		return kernel.Invalid("roles: role id is required")
+	}
+	return e.roles.Delete(ctx, roleID)
+}
+
 // List returns a page of an employer's roles, newest first, with the total.
 func (e *SpecEditor) List(ctx context.Context, employerID kernel.ID, page kernel.Page) ([]*role.Role, int64, error) {
 	if employerID.IsZero() {

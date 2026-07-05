@@ -16,6 +16,7 @@ import { NotFoundPage } from './NotFoundPage';
 import { ProfilePage } from './ProfilePage';
 import { RadarPage } from './RadarPage';
 import { RegisterPage } from './RegisterPage';
+import { RoleDetailPage } from './RoleDetailPage';
 import { RolesPage } from './RolesPage';
 
 // Benign defaults so every page renders its main content (and its <h1>) rather
@@ -30,9 +31,11 @@ vi.mock('../query/auth', () => ({ useMe: query, useLogin: mutation, useRegister:
 vi.mock('../query/flow', () => ({
   useRoles: query,
   useOpenRoles: query,
+  useRole: query,
   useGenerateRole: mutation,
   useShortlist: query,
   useUpdateRole: mutation,
+  useDeleteRole: mutation,
   useRecordRejection: mutation,
 }));
 vi.mock('../query/talent', () => ({ useProfile: query, useCreateProfile: mutation }));
@@ -74,6 +77,7 @@ const PAGES: [string, ComponentType, UserRole?][] = [
   ['RegisterPage', RegisterPage],
   ['NotFoundPage', NotFoundPage],
   ['RolesPage', RolesPage],
+  ['RoleDetailPage', RoleDetailPage],
   ['ProfilePage', ProfilePage, 'USER_ROLE_CANDIDATE'],
   ['AgentPage', AgentPage, 'USER_ROLE_CANDIDATE'],
   ['DashboardPage', DashboardPage],
