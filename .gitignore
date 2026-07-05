@@ -10,6 +10,7 @@
 !.env.example
 !.env.staging.example
 !.env.production.example
+credentials.txt
 
 # Go
 /vendor/
