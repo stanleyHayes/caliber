@@ -63,7 +63,7 @@ var registry = mustLoad([]reg{
 	{IDInterviewQuestion, "v1", "files/interview_question/v1.txt", 512},
 	{IDInterviewReport, "v1", "files/interview_report/v1.txt", 1024},
 	{IDAgentAssess, "v1", "files/agent_assess/v1.txt", 768},
-	{IDCVExtract, "v1", "files/cv_extract/v1.txt", 1024},
+	{IDCVExtract, "v1", "files/cv_extract/v1.txt", 4096},
 	{IDShortlistScore, "v1", "files/shortlist_score/v1.txt", 1024},
 	{IDRoleSpec, "v1", "files/role_spec/v1.txt", 1024},
 })

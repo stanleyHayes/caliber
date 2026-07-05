@@ -199,10 +199,9 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 	// Use the raw provider (dev/Claude) rather than the guarded/audited facade
 	// for seeding: we are generating fixtures, not serving user traffic, and
 	// the rate/concurrency guard would otherwise throttle a batch run.
-	seedLLM := newLLMProvider(cfg, log)
 	seedEmbedder := BuildEmbedder(cfg, log)
 	if cfg.SeedGenerated {
-		gen := seed.NewGenerator(authadapter.NewArgon2idHasher(), seedLLM, time.Now, seed.WithGeneratorEmbedder(seedEmbedder))
+		gen := seed.NewGenerator(authadapter.NewArgon2idHasher(), newLLMProvider(cfg, log), time.Now, seed.WithGeneratorEmbedder(seedEmbedder))
 		res, err := gen.Generate(ctx, seedRepos)
 		if err != nil {
 			return fmt.Errorf("generated demo seed: %w", err)
@@ -213,10 +212,15 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 		return nil
 	}
 
+	// Pre-run interview/agent fixtures don't need a real model — use the fast,
+	// deterministic dev provider so boot stays quick and doesn't spend real API
+	// budget on demo data every restart. Runtime traffic and the vector embedder
+	// still use the configured providers (matching needs one embedding space).
+	fixtureLLM := llm.NewDev()
 	res, err := seed.Load(ctx, seedRepos, authadapter.NewArgon2idHasher(), time.Now(),
 		seed.WithEmbedder(seedEmbedder),
-		seed.WithPreRunInterviews(seedLLM),
-		seed.WithPreSeededAgentState(seedLLM, repos.Apps),
+		seed.WithPreRunInterviews(fixtureLLM),
+		seed.WithPreSeededAgentState(fixtureLLM, repos.Apps),
 	)
 	if err != nil {
 		return fmt.Errorf("demo seed: %w", err)
@@ -232,7 +236,7 @@ func SeedDemo(ctx context.Context, cfg config.Config, repos Repositories, log *s
 // effective values loaded from env vars; these constants are the fallback when
 // a zero value slips through (e.g., tests that build a bare Config{}).
 const (
-	llmMaxTokensCap   = 2048
+	llmMaxTokensCap   = 4096
 	llmMaxConcurrency = 8
 	llmRatePerSecond  = 20
 	llmRateBurst      = 40

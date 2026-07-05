@@ -60,8 +60,8 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.LLMRateBurst != 40 {
 		t.Errorf("LLMRateBurst = %d, want 40", cfg.LLMRateBurst)
 	}
-	if cfg.LLMMaxTokens != 2048 {
-		t.Errorf("LLMMaxTokens = %d, want 2048", cfg.LLMMaxTokens)
+	if cfg.LLMMaxTokens != 4096 {
+		t.Errorf("LLMMaxTokens = %d, want 4096", cfg.LLMMaxTokens)
 	}
 }
 
@@ -210,7 +210,7 @@ func TestLoadParsesLLMGuardrailValues(t *testing.T) {
 	t.Setenv("CALIBER_LLM_MAX_CONCURRENCY", "64")
 	t.Setenv("CALIBER_LLM_RATE_PER_SECOND", "200")
 	t.Setenv("CALIBER_LLM_RATE_BURST", "400")
-	t.Setenv("CALIBER_LLM_MAX_TOKENS", "4096")
+	t.Setenv("CALIBER_LLM_MAX_TOKENS", "8000")
 
 	cfg, err := Load()
 	if err != nil {
@@ -225,8 +225,8 @@ func TestLoadParsesLLMGuardrailValues(t *testing.T) {
 	if cfg.LLMRateBurst != 400 {
 		t.Errorf("LLMRateBurst = %d, want 400", cfg.LLMRateBurst)
 	}
-	if cfg.LLMMaxTokens != 4096 {
-		t.Errorf("LLMMaxTokens = %d, want 4096", cfg.LLMMaxTokens)
+	if cfg.LLMMaxTokens != 8000 {
+		t.Errorf("LLMMaxTokens = %d, want 8000", cfg.LLMMaxTokens)
 	}
 }
 

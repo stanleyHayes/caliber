@@ -158,7 +158,7 @@ func Load() (Config, error) {
 		LLMMaxConcurrency:     getint("CALIBER_LLM_MAX_CONCURRENCY", 8),
 		LLMRatePerSecond:      getfloat("CALIBER_LLM_RATE_PER_SECOND", 20),
 		LLMRateBurst:          getint("CALIBER_LLM_RATE_BURST", 40),
-		LLMMaxTokens:          getint("CALIBER_LLM_MAX_TOKENS", 2048),
+		LLMMaxTokens:          getint("CALIBER_LLM_MAX_TOKENS", 4096),
 		LLMBudgetUSD:          getfloat("CALIBER_LLM_BUDGET_USD", 0),
 		RetentionWindow:       getdur("CALIBER_RETENTION_WINDOW", 0),
 		RetentionCron:         getenv("CALIBER_RETENTION_CRON", "@daily"),
