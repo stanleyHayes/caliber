@@ -112,6 +112,10 @@ services:
         sync: false            # >=32 bytes, unique per env (secret-rotation.md)
       - key: CALIBER_CORS_ORIGINS
         sync: false            # e.g. https://projectcaliber.app (Vercel origin)
+      - key: CALIBER_FIELD_ENCRYPTION_KEY
+        sync: false            # base64 32-byte AES-256 key — candidate PII at rest (CAL-117);
+                               # without it, PII is stored in plaintext. Rotate per
+                               # docs/runbooks/key-rotation.md.
 
   # ---------------------------------------------------------------------------
   # Worker (Asynq consumer). Built from deploy/Dockerfile.worker. No inbound
@@ -153,3 +157,6 @@ services:
         sync: false
       - key: CALIBER_JWT_SECRET
         sync: false
+      - key: CALIBER_FIELD_ENCRYPTION_KEY
+        sync: false            # SAME key as the api — the worker also reads/writes
+                               # candidate PII (interview scoring, retention sweep).

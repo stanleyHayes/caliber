@@ -25,6 +25,7 @@ so promoting a build across environments changes only configuration, never code.
 | `CALIBER_REDIS_URL` | local / unset | staging Redis | prod Redis |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | unset → deterministic dev provider | staging keys | prod keys |
 | `CALIBER_JWT_SECRET` | unset → ephemeral dev secret | staging secret (≥32B) | prod secret (≥32B) |
+| `CALIBER_FIELD_ENCRYPTION_KEY` | unset → PII stored plaintext | staging key (base64 32B) | prod key (base64 32B) — **required** for candidate PII at rest (CAL-117); wired on api + worker |
 | `CALIBER_CORS_ORIGINS` | localhost | staging origins | prod origins (required) |
 | `CALIBER_LOG_LEVEL` | `debug`/`info` | `info` | `info` |
 | gRPC reflection | on | on | **off** (`!IsProd`) |
