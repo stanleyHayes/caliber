@@ -75,8 +75,11 @@
     "signInLink": "Se connecter"
   },
   "notFound": {
-    "heading": "Page non trouvée",
-    "message": "Cette page n'existe pas.",
-    "backHome": "Retour à l'accueil"
+    "eyebrow": "Erreur 404 · Aucun enregistrement",
+    "heading": "Cette page n'est pas dans la chaîne de preuves.",
+    "message": "La route demandée n'a aucun enregistrement — elle a peut-être été déplacée, ou n'a jamais existé. Chaque page Caliber renvoie à une source ; pas celle-ci.",
+    "routeLabel": "Route demandée",
+    "backHome": "Retour à l'aperçu",
+    "signIn": "Se connecter"
   }
 }

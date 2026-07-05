@@ -24,7 +24,7 @@ describe('i18n configuration', () => {
   it('can switch to Twi and return translated strings', async () => {
     await i18n.changeLanguage('tw');
     expect(i18n.t('nav.signIn')).toBe('Kɔ mu');
-    expect(i18n.t('notFound.backHome')).toBe('San kɔ fie');
+    expect(i18n.t('notFound.backHome')).toBe('San kɔ overview');
     // Reset to avoid leaking state into later tests.
     await i18n.changeLanguage(DEFAULT_LOCALE);
   });
@@ -32,7 +32,7 @@ describe('i18n configuration', () => {
   it('can switch to French and return translated strings', async () => {
     await i18n.changeLanguage('fr');
     expect(i18n.t('nav.signIn')).toBe('Se connecter');
-    expect(i18n.t('notFound.backHome')).toBe("Retour à l'accueil");
+    expect(i18n.t('notFound.backHome')).toBe("Retour à l'aperçu");
     await i18n.changeLanguage(DEFAULT_LOCALE);
   });
 });

@@ -1,7 +1,7 @@
 import { Box, Skeleton } from '@mui/material';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { AnalyticsProvider } from './analytics/provider';
 import { AppShell } from './components/AppShell';
@@ -39,6 +39,16 @@ function RouteFallback() {
 }
 
 /**
+ * Redirects unknown paths to the canonical /404 route while preserving the
+ * originally-requested path in navigation state, so the NotFound page can show
+ * the visitor exactly which route had no record.
+ */
+function NotFoundRedirect() {
+  const { pathname, search } = useLocation();
+  return <Navigate to="/404" replace state={{ from: `${pathname}${search}` }} />;
+}
+
+/**
  * AppRoutes is the route tree shared between the client (CSR) and the build-time
  * prerenderer (SSR). It does not include the router or global providers so the
  * two entry points can supply the appropriate implementations.
@@ -64,7 +74,7 @@ export function AppRoutes() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/404" element={<NotFoundPage />} />
-              <Route path="*" element={<Navigate to="/404" replace />} />
+              <Route path="*" element={<NotFoundRedirect />} />
             </Route>
           </Routes>
         </Suspense>

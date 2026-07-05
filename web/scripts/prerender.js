@@ -31,7 +31,7 @@ const PUBLIC_ROUTES = [
   { path: '/', title: 'Project Caliber', snippet: 'Hire on evidence' },
   { path: '/login', title: 'Sign in', snippet: 'Welcome back' },
   { path: '/register', title: 'Create your account', snippet: 'Passwords must be at least 12 characters' },
-  { path: '/404', title: 'Page not found', snippet: 'Not found' },
+  { path: '/404', title: 'Page not found', snippet: 'evidence chain' },
 ];
 
 function setupDomEnvironment() {

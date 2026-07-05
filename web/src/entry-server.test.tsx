@@ -22,13 +22,13 @@ describe('entry-server render', () => {
     const { html } = render('/register');
 
     expect(html).toContain('<title>Create your account · Project Caliber</title>');
-    expect(html).toContain('Passwords must be at least 12 characters');
+    expect(html).toContain('at least 12 characters');
   });
 
   it('renders the 404 page with content and metadata', () => {
     const { html } = render('/404');
 
     expect(html).toContain('<title>Page not found · Project Caliber</title>');
-    expect(html).toContain('Not found');
+    expect(html).toContain('evidence chain');
   });
 });

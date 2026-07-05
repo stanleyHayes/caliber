@@ -75,8 +75,11 @@
     "signInLink": "Sign in"
   },
   "notFound": {
-    "heading": "Not found",
-    "message": "That page does not exist.",
-    "backHome": "Back home"
+    "eyebrow": "Error 404 · No matching record",
+    "heading": "This page isn't in the evidence chain.",
+    "message": "The route you asked for has no record on file — it may have moved, or it never existed. Every Caliber page traces back to a source; this one doesn't.",
+    "routeLabel": "Requested route",
+    "backHome": "Back to overview",
+    "signIn": "Sign in"
   }
 }

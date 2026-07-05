@@ -75,8 +75,11 @@
     "signInLink": "Kɔ mu"
   },
   "notFound": {
-    "heading": "Ennhu",
-    "message": "Nkrataa no nni hɔ.",
-    "backHome": "San kɔ fie"
+    "eyebrow": "Mfomso 404 · Kyerɛwtohɔ biara nni hɔ",
+    "heading": "Saa krataa yi nni adanse chain no mu.",
+    "message": "Ɔkwan a wobisae no nni kyerɛwtohɔ biara — ebia wɔatu akɔ baabi, anaa na enni hɔ da. Caliber krataa biara san kɔ farebae bi so; oyi de, ɛnte saa.",
+    "routeLabel": "Ɔkwan a wɔbisae",
+    "backHome": "San kɔ overview",
+    "signIn": "Kɔ mu"
   }
 }

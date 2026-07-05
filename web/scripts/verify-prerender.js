@@ -15,7 +15,7 @@ const CHECKS = [
   { path: '/', file: 'index.html', title: 'Project Caliber', snippet: 'Hire on evidence' },
   { path: '/login', file: 'login/index.html', title: 'Sign in', snippet: 'Welcome back' },
   { path: '/register', file: 'register/index.html', title: 'Create your account', snippet: 'Choose your workspace role' },
-  { path: '/404', file: '404/index.html', title: 'Page not found', snippet: 'Not found' },
+  { path: '/404', file: '404/index.html', title: 'Page not found', snippet: 'evidence chain' },
 ];
 
 let failed = false;
