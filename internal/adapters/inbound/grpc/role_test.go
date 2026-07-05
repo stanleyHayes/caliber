@@ -141,6 +141,33 @@ func TestListRolesHandler(t *testing.T) {
 	assert.Equal(t, int64(2), resp.GetPage().GetTotalItems())
 }
 
+func TestListOpenRolesForCandidateInterviewPicker(t *testing.T) {
+	srv := newServer()
+	emp := kernel.NewID()
+	for _, txt := range []string{"Go engineer Accra", "Frontend engineer Kumasi"} {
+		_, err := srv.GenerateRoleSpec(asEmployer(context.Background(), emp),
+			&caliberv1.GenerateRoleSpecRequest{EmployerId: emp.String(), FreeText: txt})
+		require.NoError(t, err)
+	}
+
+	resp, err := srv.ListRoles(asCandidate(context.Background(), kernel.NewID()),
+		&caliberv1.ListRolesRequest{Page: &caliberv1.PageRequest{Page: 1, PageSize: 10}})
+
+	require.NoError(t, err)
+	assert.Len(t, resp.GetRoles(), 2)
+	assert.Equal(t, int64(2), resp.GetPage().GetTotalItems())
+}
+
+func TestListOpenRolesRequiresAuthenticatedUser(t *testing.T) {
+	_, err := newServer().ListRoles(context.Background(), &caliberv1.ListRolesRequest{})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestListOpenRolesRejectsReviewer(t *testing.T) {
+	_, err := newServer().ListRoles(asEmployer(context.Background(), kernel.NewID()), &caliberv1.ListRolesRequest{})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
 func TestRoleWritesRequireReviewer(t *testing.T) {
 	srv := newServer()
 	emp := kernel.NewID()

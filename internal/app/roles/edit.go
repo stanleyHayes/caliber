@@ -70,6 +70,11 @@ func (e *SpecEditor) List(ctx context.Context, employerID kernel.ID, page kernel
 	return e.roles.ListByEmployer(ctx, employerID, page)
 }
 
+// ListOpen returns applyable roles, newest first, with the total.
+func (e *SpecEditor) ListOpen(ctx context.Context, page kernel.Page) ([]*role.Role, int64, error) {
+	return e.roles.ListOpen(ctx, page)
+}
+
 func (e *SpecEditor) embed(ctx context.Context, r *role.Role) error {
 	if e.embedder == nil {
 		return nil

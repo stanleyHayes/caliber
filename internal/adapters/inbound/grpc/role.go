@@ -6,6 +6,7 @@ import (
 	"github.com/xcreativs/caliber/internal/app/roles"
 	"github.com/xcreativs/caliber/internal/domain/authz"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
+	"github.com/xcreativs/caliber/internal/domain/role"
 	caliberv1 "github.com/xcreativs/caliber/internal/gen/caliber/v1"
 )
 
@@ -94,14 +95,28 @@ func (s *RoleServer) UpdateRoleSpec(
 	return &caliberv1.UpdateRoleSpecResponse{Role: roleToProto(r)}, nil
 }
 
-// ListRoles returns a page of an employer's roles.
+// ListRoles returns a page of roles. With employer_id it is employer-scoped;
+// without employer_id it returns the applyable role pool for interview selection.
 func (s *RoleServer) ListRoles(ctx context.Context, req *caliberv1.ListRolesRequest) (*caliberv1.ListRolesResponse, error) {
-	// An employer lists only their own roles (CAL-116 IDOR guard).
-	if err := requireSelfEmployer(ctx, req.GetEmployerId(), authz.PermManageRoles); err != nil {
-		return nil, errToStatus(err)
-	}
 	page := pageFromProto(req.GetPage())
-	roles, total, err := s.editor.List(ctx, kernel.ID(req.GetEmployerId()), page)
+
+	var (
+		roles []*role.Role
+		total int64
+		err   error
+	)
+	if req.GetEmployerId() == "" {
+		if err := requireOpenRoleListAccess(ctx); err != nil {
+			return nil, errToStatus(err)
+		}
+		roles, total, err = s.editor.ListOpen(ctx, page)
+	} else {
+		// An employer lists only their own roles (CAL-116 IDOR guard).
+		if err := requireSelfEmployer(ctx, req.GetEmployerId(), authz.PermManageRoles); err != nil {
+			return nil, errToStatus(err)
+		}
+		roles, total, err = s.editor.List(ctx, kernel.ID(req.GetEmployerId()), page)
+	}
 	if err != nil {
 		return nil, errToStatus(err)
 	}
@@ -110,4 +125,9 @@ func (s *RoleServer) ListRoles(ctx context.Context, req *caliberv1.ListRolesRequ
 		out = append(out, roleToProto(r))
 	}
 	return &caliberv1.ListRolesResponse{Roles: out, Page: pageResponseToProto(page, total)}, nil
+}
+
+func requireOpenRoleListAccess(ctx context.Context) error {
+	_, err := RequirePermission(ctx, authz.PermScreenSelf)
+	return err
 }
