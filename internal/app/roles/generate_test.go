@@ -11,7 +11,6 @@ import (
 	"github.com/xcreativs/caliber/internal/app/roles"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
-	"github.com/xcreativs/caliber/internal/domain/salary"
 	"github.com/xcreativs/caliber/internal/mocks"
 
 	"github.com/stretchr/testify/assert"
@@ -159,11 +158,12 @@ func TestGeneratePreservesExplicitSalaryBand(t *testing.T) {
 	assert.InDelta(t, 2000.0, saved.Spec.SalaryBand.High, 0.001)
 }
 
-func TestGenerateFillsMissingSalaryFromMarket(t *testing.T) {
+func TestGenerateLeavesMissingSalaryBlank(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	llm := mocks.NewMockLLMClient(ctrl)
 	repo := mocks.NewMockRoleRepository(ctrl)
-	// A valid spec with NO salary_band -> the realism fallback fills a Ghana band.
+	// A valid spec with NO salary_band -> the band is left blank rather than
+	// fabricating one; the UI shows "Not specified" and matching skips the salary gate.
 	llm.EXPECT().Complete(gomock.Any(), gomock.Any()).Return(app.LLMResponse{
 		Text: `{"title":"Backend Engineer","location":"Accra","seniority":"senior","rubric":[{"name":"Go","weight":1,"must_have":true}]}`,
 	}, nil)
@@ -176,6 +176,5 @@ func TestGenerateFillsMissingSalaryFromMarket(t *testing.T) {
 	_, err := roles.NewSpecGenerator(llm, repo, fixedClock()).Generate(context.Background(), kernel.NewID(), "senior Go engineer")
 	require.NoError(t, err)
 	require.NotNil(t, saved)
-	assert.False(t, saved.Spec.SalaryBand.IsZero(), "a blank band is filled, not left empty")
-	assert.Equal(t, salary.Lookup("Backend Engineer", role.SenioritySenior), saved.Spec.SalaryBand)
+	assert.True(t, saved.Spec.SalaryBand.IsZero(), "a blank band is left blank, not fabricated")
 }

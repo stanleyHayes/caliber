@@ -10,7 +10,6 @@ import (
 	"github.com/xcreativs/caliber/internal/domain/guard"
 	"github.com/xcreativs/caliber/internal/domain/kernel"
 	"github.com/xcreativs/caliber/internal/domain/role"
-	"github.com/xcreativs/caliber/internal/domain/salary"
 )
 
 // MaxFreeTextLen bounds the free-text hiring need (CAL-111): it is untrusted
@@ -81,11 +80,9 @@ func (g *SpecGenerator) Generate(ctx context.Context, employerID kernel.ID, free
 		return nil, err
 	}
 	spec, rubric := toDomain(parsed)
-	if spec.SalaryBand.IsZero() {
-		// Realism fallback (CAL-039): a generated spec with no compensation gets a
-		// plausible Ghana-market band rather than being left blank.
-		spec.SalaryBand = salary.Lookup(spec.Title, spec.Seniority)
-	}
+	// No salary fallback: when the hiring need states no budget the band is left
+	// blank (the UI shows "Not specified" and matching skips the salary gate)
+	// rather than fabricating a figure the employer never gave.
 	r, err := role.NewRole(employerID, spec, rubric, g.now())
 	if err != nil {
 		return nil, err
