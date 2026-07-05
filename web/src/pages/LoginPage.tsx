@@ -18,6 +18,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const passwordResetHref = `mailto:support@projectcaliber.app?subject=${encodeURIComponent(t('auth.passwordResetSubject'))}`;
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,31 +61,38 @@ export function LoginPage() {
               required
               fullWidth
             />
-            <TextField
-              label={t('auth.password')}
-              type={showPassword ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-              fullWidth
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
-                        onClick={() => setShowPassword((s) => !s)}
-                        onMouseDown={(e) => e.preventDefault()}
-                        edge="end"
-                      >
-                        {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
+            <Stack spacing={0.75}>
+              <TextField
+                label={t('auth.password')}
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                fullWidth
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                          onClick={() => setShowPassword((s) => !s)}
+                          onMouseDown={(e) => e.preventDefault()}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <MuiLink href={passwordResetHref} underline="hover" variant="body2" sx={{ fontWeight: 700 }}>
+                  {t('auth.forgotPassword')}
+                </MuiLink>
+              </Box>
+            </Stack>
           </Stack>
           <DotsButton type="submit" variant="contained" size="large" loading={login.isPending}>
             {t('auth.submitSignIn')}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { confidenceLabel, passportLabel, pct, shortId, verdictColor } from './format';
+import { confidenceLabel, passportLabel, pct, roleStatusLabel, shortId, verdictColor } from './format';
 
 describe('format helpers', () => {
   it('pct rounds a 0..1 ratio to a whole percentage', () => {
@@ -17,6 +17,7 @@ describe('format helpers', () => {
   it('maps enum values to human labels', () => {
     expect(confidenceLabel.CONFIDENCE_HIGH).toBe('High');
     expect(passportLabel.PASSPORT_STATUS_SCREENED).toBe('Screened');
+    expect(roleStatusLabel.ROLE_STATUS_OPEN).toBe('Open');
   });
 
   it('maps verdicts to MUI chip colors', () => {

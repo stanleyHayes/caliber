@@ -29,6 +29,7 @@ describe('ProfileView', () => {
   it('surfaces the evidence quote when present (no-fabrication: claims cite their source)', () => {
     render(<ProfileView profile={profile} />);
     expect(screen.getByText('“built payment services in Go”')).toBeInTheDocument();
+    expect(screen.getByText('Source: CV §2')).toBeInTheDocument();
   });
 
   it('omits the evidence line for a competency with no quote rather than inventing one', () => {

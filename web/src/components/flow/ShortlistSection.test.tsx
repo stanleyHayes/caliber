@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ShortlistResponse } from '../../api/types';
@@ -9,9 +10,14 @@ import { ShortlistSection } from './ShortlistSection';
 const shortlist = vi.fn();
 vi.mock('../../api/flow', () => ({ flowApi: { shortlist: (...args: unknown[]) => shortlist(...args) } }));
 
+// ShortlistSection links candidate ids to /candidates/:id, so it needs a Router.
 function renderWithClient(node: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
+  return render(
+    <MemoryRouter>
+      <QueryClientProvider client={client}>{node}</QueryClientProvider>
+    </MemoryRouter>,
+  );
 }
 
 const response: ShortlistResponse = {

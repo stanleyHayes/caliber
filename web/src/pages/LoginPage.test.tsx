@@ -59,4 +59,12 @@ describe('LoginPage', () => {
     renderPage();
     expect(screen.getByRole('link', { name: 'Create one' })).toHaveAttribute('href', '/register');
   });
+
+  it('offers a password reset contact link', () => {
+    renderPage();
+    expect(screen.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute(
+      'href',
+      'mailto:support@projectcaliber.app?subject=Caliber%20password%20reset%20request',
+    );
+  });
 });

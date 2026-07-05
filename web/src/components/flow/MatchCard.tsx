@@ -6,10 +6,12 @@ import {
   Chip,
   Divider,
   LinearProgress,
+  Link as MuiLink,
   Stack,
   Tooltip,
   Typography,
 } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 
 import type { Match } from '../../api/types';
 import { confidenceColor, confidenceLabel, pct, shortId } from '../../lib/format';
@@ -26,7 +28,13 @@ export function MatchCard({ match, rank }: { match: Match; rank: number }) {
               <Typography variant="overline" color="text.secondary">
                 #{rank} · candidate
               </Typography>
-              <Typography sx={{ fontFamily: fonts.mono }}>{shortId(match.candidateId)}</Typography>
+              <MuiLink
+                component={RouterLink}
+                to={`/candidates/${match.candidateId}`}
+                sx={{ fontFamily: fonts.mono, fontWeight: 600, width: 'fit-content' }}
+              >
+                {shortId(match.candidateId)}
+              </MuiLink>
             </Stack>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
               {match.thinEvidence && (

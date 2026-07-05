@@ -3,7 +3,7 @@ import type { ComponentType } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { User } from '../api/types';
+import type { User, UserRole } from '../api/types';
 import { useAuthStore } from '../stores/auth';
 
 import { AgentPage } from './AgentPage';
@@ -29,6 +29,7 @@ const { query, mutation } = vi.hoisted(() => ({
 vi.mock('../query/auth', () => ({ useMe: query, useLogin: mutation, useRegister: mutation }));
 vi.mock('../query/flow', () => ({
   useRoles: query,
+  useOpenRoles: query,
   useGenerateRole: mutation,
   useShortlist: query,
   useUpdateRole: mutation,
@@ -67,18 +68,18 @@ const user: User = {
   createdAt: '2026-01-01T00:00:00Z',
 };
 
-const PAGES: [string, ComponentType][] = [
+const PAGES: [string, ComponentType, UserRole?][] = [
   ['LandingPage', LandingPage],
   ['LoginPage', LoginPage],
   ['RegisterPage', RegisterPage],
   ['NotFoundPage', NotFoundPage],
   ['RolesPage', RolesPage],
-  ['ProfilePage', ProfilePage],
-  ['AgentPage', AgentPage],
+  ['ProfilePage', ProfilePage, 'USER_ROLE_CANDIDATE'],
+  ['AgentPage', AgentPage, 'USER_ROLE_CANDIDATE'],
   ['DashboardPage', DashboardPage],
   ['RadarPage', RadarPage],
   ['EmployerFlowPage', EmployerFlowPage],
-  ['InterviewPage', InterviewPage],
+  ['InterviewPage', InterviewPage, 'USER_ROLE_CANDIDATE'],
 ];
 
 beforeEach(() => {
@@ -92,7 +93,8 @@ afterEach(() => {
 });
 
 describe('heading hierarchy (CAL-126)', () => {
-  it.each(PAGES)('%s exposes exactly one top-level <h1>', (_name, Page) => {
+  it.each(PAGES)('%s exposes exactly one top-level <h1>', (_name, Page, role) => {
+    useAuthStore.setState({ user: { ...user, role: role ?? user.role } });
     render(
       <MemoryRouter>
         <Page />
@@ -105,7 +107,8 @@ describe('heading hierarchy (CAL-126)', () => {
     expect(h1s[0]).toHaveTextContent(/\S/);
   });
 
-  it.each(PAGES)('%s does not skip heading levels', (_name, Page) => {
+  it.each(PAGES)('%s does not skip heading levels', (_name, Page, role) => {
+    useAuthStore.setState({ user: { ...user, role: role ?? user.role } });
     render(
       <MemoryRouter>
         <Page />

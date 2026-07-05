@@ -7,7 +7,9 @@ import {
   type GetPoolResponse,
   type SupplyDemandItem,
   type TimeToShortlistMetric,
+  type User,
 } from '../api/types';
+import { useAuthStore } from '../stores/auth';
 import { RadarPage } from './RadarPage';
 
 type Q<T> = { isPending: boolean; isError: boolean; error: unknown; data?: T };
@@ -24,8 +26,16 @@ vi.mock('../query/radar', () => ({
 }));
 
 const ok = <T,>(data: T): Q<T> => ({ isPending: false, isError: false, error: null, data });
+const employer: User = {
+  id: 'emp-1',
+  email: 'boss@acme.com',
+  role: 'USER_ROLE_EMPLOYER',
+  name: 'Boss',
+  createdAt: '2026-01-01T00:00:00Z',
+};
 
 beforeEach(() => {
+  useAuthStore.setState({ user: employer });
   ttslResult = ok({ metric: { baselineHours: 40, currentHours: 4, improvementFactor: 10 } });
   supplyResult = ok({ items: [{ roleFamily: 'Backend', openRoles: 3, availableCandidates: 12, gap: -9 }] });
   poolResult = ok({
@@ -45,7 +55,11 @@ beforeEach(() => {
     page: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
   });
 });
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  useAuthStore.getState().clear();
+  localStorage.clear();
+});
 
 describe('RadarPage', () => {
   it('renders the four radar panels from their data', () => {

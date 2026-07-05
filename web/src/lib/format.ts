@@ -4,6 +4,7 @@ import type {
   ContestStatus,
   InterviewVerdict,
   PassportStatus,
+  RoleStatus,
   Seniority,
 } from '../api/types';
 
@@ -15,6 +16,13 @@ export const seniorityLabel: Record<Seniority, string> = {
   SENIORITY_MID: 'Mid',
   SENIORITY_SENIOR: 'Senior',
   SENIORITY_LEAD: 'Lead',
+};
+
+export const roleStatusLabel: Record<RoleStatus, string> = {
+  ROLE_STATUS_UNSPECIFIED: 'Unknown',
+  ROLE_STATUS_DRAFT: 'Draft',
+  ROLE_STATUS_OPEN: 'Open',
+  ROLE_STATUS_CLOSED: 'Closed',
 };
 
 export const confidenceLabel: Record<Confidence, string> = {

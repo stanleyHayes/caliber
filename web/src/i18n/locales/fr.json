@@ -62,6 +62,8 @@
     "password": "Mot de passe",
     "showPassword": "Afficher le mot de passe",
     "hidePassword": "Masquer le mot de passe",
+    "forgotPassword": "Mot de passe oublié ?",
+    "passwordResetSubject": "Demande de réinitialisation du mot de passe Caliber",
     "fullName": "Nom complet",
     "role": "Je suis…",
     "roleEmployer": "Employeur",

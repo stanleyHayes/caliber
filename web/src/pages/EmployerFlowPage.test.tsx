@@ -98,11 +98,10 @@ describe('EmployerFlowPage', () => {
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
   });
 
-  it('does not generate when the user is missing or the brief is empty', () => {
+  it('does not render the role form when the user is missing', () => {
     useAuthStore.getState().clear();
     renderPage();
-    fireEvent.change(screen.getByPlaceholderText(/senior Go backend engineer/i), { target: { value: 'a brief' } });
-    fireEvent.click(screen.getByRole('button', { name: /Generate spec/ }));
+    expect(screen.queryByPlaceholderText(/senior Go backend engineer/i)).not.toBeInTheDocument();
     expect(generateMutate).not.toHaveBeenCalled();
   });
 

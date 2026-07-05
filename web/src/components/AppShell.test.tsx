@@ -30,6 +30,12 @@ const user: User = {
   createdAt: '2026-01-01T00:00:00Z',
 };
 
+const employer: User = {
+  ...user,
+  role: 'USER_ROLE_EMPLOYER',
+  name: 'Boss Mensah',
+};
+
 beforeEach(() => {
   logoutMock.mockReset();
   useAuthStore.getState().clear();
@@ -63,10 +69,10 @@ describe('AppShell', () => {
     expect(screen.getByText('Caliber').closest('a')).toHaveAttribute('href', '/');
   });
 
-  it('shows the signed-in nav with an Aura-style account menu and points the brand to the app', () => {
+  it('shows candidate account controls without reviewer-only navigation', () => {
     useAuthStore.setState({ accessToken: 'access', user });
     renderShell();
-    expect(screen.getByRole('link', { name: 'Radar' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Radar' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Account menu' })).toBeInTheDocument();
     expect(screen.queryByText('Sign out')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Sign in' })).not.toBeInTheDocument();
@@ -79,6 +85,15 @@ describe('AppShell', () => {
     expect(screen.getByRole('menuitem', { name: /Talent Passport/i })).toHaveAttribute('href', '/profile');
     fireEvent.click(screen.getByRole('menuitem', { name: /Sign out/i }));
     expect(logoutMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows reviewer-only radar navigation to an employer', () => {
+    useAuthStore.setState({ accessToken: 'access', user: employer });
+    renderShell();
+    expect(screen.getByRole('link', { name: 'Radar' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+    expect(screen.getByRole('menuitem', { name: /Talent Radar/i })).toHaveAttribute('href', '/radar');
   });
 
   it('always exposes a skip-to-main-content link for keyboard users', () => {

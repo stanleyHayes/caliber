@@ -62,6 +62,8 @@
     "password": "Password",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
+    "forgotPassword": "Forgot password?",
+    "passwordResetSubject": "Caliber password reset request",
     "fullName": "Full name",
     "role": "I am a…",
     "roleEmployer": "Employer",

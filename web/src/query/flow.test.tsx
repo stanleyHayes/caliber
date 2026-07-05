@@ -7,6 +7,7 @@ import { flowApi } from '../api/flow';
 import type { GenerateRoleResponse, ListRolesResponse, RecordRejectionResponse, Role, ShortlistResponse } from '../api/types';
 import {
   useGenerateRole,
+  useOpenRoles,
   useRecordRejection,
   useRoles,
   useShortlist,
@@ -36,6 +37,7 @@ vi.mock('../api/flow', () => ({
   flowApi: {
     recordRejection: vi.fn(),
     generateRole: vi.fn(),
+    listOpenRoles: vi.fn(),
     listRoles: vi.fn(),
     updateRole: vi.fn(),
     shortlist: vi.fn(),
@@ -97,6 +99,16 @@ describe('useRoles', () => {
     const { result } = renderHook(() => useRoles(undefined), { wrapper: createWrapper() });
     expect(result.current.isLoading).toBe(false);
     expect(result.current.fetchStatus).toBe('idle');
+  });
+
+  it('lists open roles for interview selection', async () => {
+    const response: ListRolesResponse = { roles: [role] };
+    vi.mocked(flowApi.listOpenRoles).mockResolvedValue(response);
+
+    const { result } = renderHook(() => useOpenRoles(1, 12), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(response);
+    expect(flowApi.listOpenRoles).toHaveBeenCalledWith(1, 12);
   });
 });
 

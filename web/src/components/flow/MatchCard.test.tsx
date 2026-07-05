@@ -1,8 +1,16 @@
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Match } from '../../api/types';
 import { MatchCard } from './MatchCard';
+
+// MatchCard links the candidate id to /candidates/:id, so it needs a Router.
+const wrap = (match: Match, rank = 1) => (
+  <MemoryRouter>
+    <MatchCard match={match} rank={rank} />
+  </MemoryRouter>
+);
 
 // MatchCard embeds DeclineCandidate, which uses useRecordRejection.
 vi.mock('../../query/flow', () => ({
@@ -26,7 +34,7 @@ const baseMatch: Match = {
 
 describe('MatchCard', () => {
   it('renders the explainable match: fit score, confidence, rationale, and per-competency breakdown', () => {
-    render(<MatchCard match={baseMatch} rank={1} />);
+    render(wrap(baseMatch));
     expect(screen.getByText('87%')).toBeInTheDocument();
     expect(screen.getByText('High')).toBeInTheDocument();
     expect(screen.getByText('Strong backend fit with production Go experience.')).toBeInTheDocument();
@@ -37,10 +45,10 @@ describe('MatchCard', () => {
   });
 
   it('flags thin evidence only when the match is sparsely supported', () => {
-    const { rerender } = render(<MatchCard match={baseMatch} rank={1} />);
+    const { rerender } = render(wrap(baseMatch));
     expect(screen.queryByText('thin evidence')).not.toBeInTheDocument();
 
-    rerender(<MatchCard match={{ ...baseMatch, thinEvidence: true }} rank={1} />);
+    rerender(wrap({ ...baseMatch, thinEvidence: true }));
     expect(screen.getByText('thin evidence')).toBeInTheDocument();
   });
 });

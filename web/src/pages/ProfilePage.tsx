@@ -6,8 +6,11 @@ import { MyContestsList } from '../components/contest/MyContestsList';
 import { DeleteAccount } from '../components/privacy/DeleteAccount';
 import { DotsButton } from '../components/DotsButton';
 import { PageControls } from '../components/PageControls';
+import { PageBackButton } from '../components/PageBackButton';
+import { PermissionRedirect } from '../components/PermissionRedirect';
 import { ProfileView } from '../components/talent/ProfileView';
 import { downloadTextFile } from '../lib/download';
+import { canManageProfile } from '../lib/permissions';
 import { useMyContests } from '../query/contest';
 import { useExportMyData } from '../query/privacy';
 import { useCreateProfile, useProfile } from '../query/talent';
@@ -34,11 +37,13 @@ async function fileToBase64(file: File): Promise<string> {
 }
 
 export function ProfilePage() {
-  const candidateId = useAuthStore((s) => s.user?.id);
+  const user = useAuthStore((s) => s.user);
+  const canUseProfile = canManageProfile(user?.role);
+  const candidateId = canUseProfile ? user?.id : undefined;
   const profile = useProfile(candidateId);
   const create = useCreateProfile(candidateId);
   const [contestsPage, setContestsPage] = useState(1);
-  const contests = useMyContests(Boolean(candidateId), contestsPage, CONTESTS_PAGE_SIZE);
+  const contests = useMyContests(Boolean(candidateId && canUseProfile), contestsPage, CONTESTS_PAGE_SIZE);
   const dataExport = useExportMyData();
   const [cv, setCv] = useState('');
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -84,8 +89,13 @@ export function ProfilePage() {
   const existing = profile.data?.profile ?? create.data?.profile;
   const notFound = profile.error instanceof ApiError && profile.error.status === 404;
 
+  if (!canUseProfile) {
+    return <PermissionRedirect />;
+  }
+
   return (
-    <Stack spacing={4} sx={{ maxWidth: 760, mx: 'auto' }}>
+    <Stack spacing={4} sx={{ maxWidth: 1040, mx: 'auto' }}>
+      <PageBackButton />
       <Stack spacing={1}>
         <Typography variant="h3" component="h1">Talent Passport</Typography>
         <Typography color="text.secondary">

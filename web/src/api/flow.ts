@@ -19,6 +19,8 @@ export const flowApi = {
     apiFetch<ListRolesResponse>(
       `/v1/roles?employer_id=${encodeURIComponent(employerId)}&page.page=${page}&page.page_size=${pageSize}`,
     ),
+  listOpenRoles: (page = 1, pageSize = 20) =>
+    apiFetch<ListRolesResponse>(`/v1/roles?page.page=${page}&page.page_size=${pageSize}`),
   updateRole: (roleId: string, spec: RoleSpec, rubric: Rubric) =>
     apiFetch<{ role: Role }>(`/v1/roles/${encodeURIComponent(roleId)}`, {
       method: 'PATCH',

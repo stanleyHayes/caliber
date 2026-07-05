@@ -29,6 +29,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import type { UserRole } from '../api/types';
+import { canViewDashboard } from '../lib/permissions';
 import { useLogout } from '../query/auth';
 import { useAuthStore } from '../stores/auth';
 import { fonts } from '../theme/tokens';
@@ -87,6 +88,7 @@ export function AppShell() {
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null);
   const accountMenuOpen = Boolean(accountAnchor);
   const closeAccountMenu = () => setAccountAnchor(null);
+  const showRadar = Boolean(accessToken && canViewDashboard(user?.role));
   const roleDestination =
     user?.role === 'USER_ROLE_CANDIDATE'
       ? {
@@ -191,7 +193,7 @@ export function AppShell() {
               columnGap: 1,
             }}
           >
-            {accessToken && (
+            {showRadar && (
               <Button component={Link} to="/radar" color="inherit" size="small">
                 {t('nav.radar')}
               </Button>
@@ -277,9 +279,11 @@ export function AppShell() {
                   >
                     <AccountMenuRow Icon={roleDestination.Icon} title={roleDestination.title} description={roleDestination.description} />
                   </MenuItem>
-                  <MenuItem component={Link} to="/radar" onClick={closeAccountMenu} sx={{ alignItems: 'flex-start', gap: 1.5, p: 1.5 }}>
-                    <AccountMenuRow Icon={RadarRounded} title={t('nav.accountRadarTitle')} description={t('nav.accountRadarBody')} />
-                  </MenuItem>
+                  {showRadar && (
+                    <MenuItem component={Link} to="/radar" onClick={closeAccountMenu} sx={{ alignItems: 'flex-start', gap: 1.5, p: 1.5 }}>
+                      <AccountMenuRow Icon={RadarRounded} title={t('nav.accountRadarTitle')} description={t('nav.accountRadarBody')} />
+                    </MenuItem>
+                  )}
                   <Divider />
                   <MenuItem
                     disabled={logout.isPending}

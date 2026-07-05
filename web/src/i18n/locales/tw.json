@@ -62,6 +62,8 @@
     "password": "Password",
     "showPassword": "Kyerɛ password",
     "hidePassword": "Fa password sie",
+    "forgotPassword": "Wo werɛ afi password?",
+    "passwordResetSubject": "Caliber password reset request",
     "fullName": "Din a edi mu",
     "role": "Me yɛ…",
     "roleEmployer": "Wɔn a wɔbɔ adwuma",

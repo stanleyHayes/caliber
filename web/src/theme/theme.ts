@@ -25,12 +25,12 @@ export const theme = createTheme({
   shape: { borderRadius: 10 },
   typography: {
     fontFamily: fonts.body,
-    h1: { fontFamily: fonts.title, fontWeight: 600, letterSpacing: '-0.02em' },
-    h2: { fontFamily: fonts.title, fontWeight: 600, letterSpacing: '-0.02em' },
-    h3: { fontFamily: fonts.title, fontWeight: 600 },
-    h4: { fontFamily: fonts.title, fontWeight: 600 },
-    h5: { fontFamily: fonts.title },
-    h6: { fontFamily: fonts.title },
+    h1: { fontFamily: fonts.title, fontWeight: 600, letterSpacing: 0 },
+    h2: { fontFamily: fonts.title, fontWeight: 600, letterSpacing: 0 },
+    h3: { fontFamily: fonts.body, fontWeight: 800, letterSpacing: 0 },
+    h4: { fontFamily: fonts.body, fontWeight: 800, letterSpacing: 0 },
+    h5: { fontFamily: fonts.body, fontWeight: 800, letterSpacing: 0 },
+    h6: { fontFamily: fonts.body, fontWeight: 800, letterSpacing: 0 },
     button: { textTransform: 'none', fontWeight: 600 },
   },
 });

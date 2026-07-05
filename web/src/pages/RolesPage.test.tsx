@@ -73,15 +73,16 @@ describe('RolesPage', () => {
     expect(screen.getByText(/No roles yet/i)).toBeInTheDocument();
   });
 
-  it('lists a role with its seniority, location, competency count, and an interview link', () => {
+  it('lists a role with its seniority, location, and competency count', () => {
     rolesResult = { isPending: false, isError: false, error: null, data: { roles: [role] } };
     renderPage();
     expect(useRolesMock).toHaveBeenCalledWith('emp-1', 1, 20);
     expect(screen.getByRole('heading', { name: 'Senior Go Engineer' })).toBeInTheDocument();
     expect(screen.getByText('Senior')).toBeInTheDocument();
     expect(screen.getByText('Accra')).toBeInTheDocument();
-    expect(screen.getByText('1 competencies')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Interview' })).toHaveAttribute('href', '/interview?roleId=role-1');
+    expect(screen.getByText('Full-time')).toBeInTheDocument();
+    expect(screen.getByText('1 competency')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Interview' })).not.toBeInTheDocument();
   });
 
   it('requests the selected server page when paginating roles', () => {

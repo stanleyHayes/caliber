@@ -4,10 +4,13 @@ import { Link as RouterLink } from 'react-router-dom';
 
 import type { GenerateRoleResponse } from '../api/types';
 import { DotsButton } from '../components/DotsButton';
+import { PageBackButton } from '../components/PageBackButton';
+import { PermissionRedirect } from '../components/PermissionRedirect';
 import { RoleEditor } from '../components/flow/RoleEditor';
 import { RoleSpecCard } from '../components/flow/RoleSpecCard';
 import { RubricCard } from '../components/flow/RubricCard';
 import { ShortlistSection } from '../components/flow/ShortlistSection';
+import { canManageRoles, canScreenSelf } from '../lib/permissions';
 import { useGenerateRole } from '../query/flow';
 import { useAuthStore } from '../stores/auth';
 
@@ -16,6 +19,8 @@ const PLACEHOLDER =
 
 export function EmployerFlowPage() {
   const user = useAuthStore((s) => s.user);
+  const canUseFlow = canManageRoles(user?.role);
+  const showInterviewAction = canScreenSelf(user?.role);
   const generate = useGenerateRole();
   const [text, setText] = useState('');
   const [result, setResult] = useState<GenerateRoleResponse | null>(null);
@@ -32,8 +37,13 @@ export function EmployerFlowPage() {
     );
   };
 
+  if (!canUseFlow) {
+    return <PermissionRedirect />;
+  }
+
   return (
     <Stack spacing={4} sx={{ maxWidth: 820, mx: 'auto' }}>
+      <PageBackButton />
       <Stack spacing={1}>
         <Typography variant="h3" component="h1">Describe the role</Typography>
         <Typography color="text.secondary">
@@ -93,9 +103,11 @@ export function EmployerFlowPage() {
           ) : (
             <>
               <Stack direction="row" spacing={1} useFlexGap sx={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                <Button component={RouterLink} to={`/interview?roleId=${result.role.id}`} variant="text">
-                  Run a screening interview
-                </Button>
+                {showInterviewAction && (
+                  <Button component={RouterLink} to={`/interview?roleId=${result.role.id}`} variant="text">
+                    Run a screening interview
+                  </Button>
+                )}
                 <Button variant="outlined" onClick={() => setEditing(true)}>
                   Refine spec &amp; rubric
                 </Button>

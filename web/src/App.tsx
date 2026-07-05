@@ -6,6 +6,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { AnalyticsProvider } from './analytics/provider';
 import { AppShell } from './components/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { RequireCandidate } from './components/RequireCandidate';
 import { RouteSeo } from './components/RouteSeo';
 import { SessionBootstrap } from './components/SessionBootstrap';
 import { LandingPage } from './pages/LandingPage';
@@ -25,6 +26,9 @@ const InterviewPage = lazy(() => import('./pages/InterviewPage').then((m) => ({ 
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const RadarPage = lazy(() => import('./pages/RadarPage').then((m) => ({ default: m.RadarPage })));
 const RolesPage = lazy(() => import('./pages/RolesPage').then((m) => ({ default: m.RolesPage })));
+const CandidateProfilePage = lazy(() =>
+  import('./pages/CandidateProfilePage').then((m) => ({ default: m.CandidateProfilePage })),
+);
 
 function RouteFallback() {
   return (
@@ -66,8 +70,11 @@ export function AppRoutes() {
                 <Route path="/app" element={<DashboardPage />} />
                 <Route path="/roles" element={<RolesPage />} />
                 <Route path="/roles/new" element={<EmployerFlowPage />} />
-                <Route path="/interview" element={<InterviewPage />} />
+                <Route element={<RequireCandidate />}>
+                  <Route path="/interview" element={<InterviewPage />} />
+                </Route>
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/candidates/:candidateId" element={<CandidateProfilePage />} />
                 <Route path="/agent" element={<AgentPage />} />
                 <Route path="/radar" element={<RadarPage />} />
               </Route>

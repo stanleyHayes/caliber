@@ -6,7 +6,10 @@ import { ApplicationsList } from '../components/agent/ApplicationsList';
 import { CardListSkeleton } from '../components/Skeletons';
 import { DotsButton } from '../components/DotsButton';
 import { PageControls } from '../components/PageControls';
+import { PageBackButton } from '../components/PageBackButton';
+import { PermissionRedirect } from '../components/PermissionRedirect';
 import { WakeUpCard } from '../components/agent/WakeUpCard';
+import { canRunAgent } from '../lib/permissions';
 import { useApplications, useTimeAdvance } from '../query/agent';
 import { useAuthStore } from '../stores/auth';
 
@@ -20,13 +23,20 @@ function errorMessage(err: unknown): string {
 }
 
 export function AgentPage() {
-  const candidateId = useAuthStore((s) => s.user?.id);
+  const user = useAuthStore((s) => s.user);
+  const canUseAgent = canRunAgent(user?.role);
+  const candidateId = canUseAgent ? user?.id : undefined;
   const [applicationsPage, setApplicationsPage] = useState(1);
   const advance = useTimeAdvance(candidateId);
   const applications = useApplications(candidateId, applicationsPage, APPLICATIONS_PAGE_SIZE);
 
+  if (!canUseAgent) {
+    return <PermissionRedirect />;
+  }
+
   return (
     <Stack spacing={4} sx={{ maxWidth: 760, mx: 'auto' }}>
+      <PageBackButton />
       <Stack spacing={1}>
         <Typography variant="h3" component="h1">Your job-search agent</Typography>
         <Typography color="text.secondary">

@@ -31,6 +31,16 @@ export function useRoles(employerId: string | undefined, page = 1, pageSize = 20
   });
 }
 
+export function useOpenRoles(page = 1, pageSize = 20, enabled = true) {
+  return useQuery({
+    queryKey: ['openRoles', page, pageSize],
+    queryFn: () => flowApi.listOpenRoles(page, pageSize),
+    enabled,
+    retry: 0,
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useUpdateRole() {
   return useMutation({
     mutationFn: ({ roleId, spec, rubric }: { roleId: string; spec: RoleSpec; rubric: Rubric }) =>
