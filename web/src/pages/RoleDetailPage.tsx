@@ -144,7 +144,7 @@ export function RoleDetailPage() {
                 }}
                 sx={{ minHeight: 44, borderRadius: '8px', fontWeight: 800 }}
               >
-                Delete role
+                Archive role
               </Button>
             </Stack>
           )}
@@ -215,15 +215,16 @@ export function RoleDetailPage() {
         fullWidth
         maxWidth="xs"
       >
-        <DialogTitle>Delete role?</DialogTitle>
+        <DialogTitle>Archive role?</DialogTitle>
         <DialogContent>
           <Stack spacing={1.5}>
             <Typography>
-              Delete {role ? roleTitle(role) : 'this role'} and its role-scoped shortlist, interviews, and applications.
+              Archive {role ? roleTitle(role) : 'this role'}? It leaves the candidate pool, but its shortlist,
+              screening report cards, and applications are preserved.
             </Typography>
             {deleteRole.isError && (
               <Alert severity="error">
-                {deleteRole.error instanceof Error ? deleteRole.error.message : 'Could not delete this role.'}
+                {deleteRole.error instanceof Error ? deleteRole.error.message : 'Could not archive this role.'}
               </Alert>
             )}
           </Stack>
@@ -233,7 +234,7 @@ export function RoleDetailPage() {
             Cancel
           </Button>
           <DotsButton color="error" variant="contained" loading={deleteRole.isPending} onClick={onDelete}>
-            Delete role
+            Archive role
           </DotsButton>
         </DialogActions>
       </Dialog>

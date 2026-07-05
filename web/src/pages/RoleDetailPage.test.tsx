@@ -92,7 +92,7 @@ describe('RoleDetailPage', () => {
     expect(screen.getAllByText('Remote').length).toBeGreaterThan(0);
     expect(screen.getByText('2 competencies')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refine role' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete role' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archive role' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Scoring rubric' })).toBeInTheDocument();
   });
 
@@ -109,8 +109,8 @@ describe('RoleDetailPage', () => {
     deleteMutate.mockImplementation((_roleId: string, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.());
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete role' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete role' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Archive role' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Archive role' }));
 
     expect(deleteMutate).toHaveBeenCalledWith('role-1', expect.objectContaining({ onSuccess: expect.any(Function) }));
     expect(screen.getByText('Roles index')).toBeInTheDocument();
@@ -124,7 +124,7 @@ describe('RoleDetailPage', () => {
     // role.employerId is 'emp-1' — this reviewer isn't the owner, so the
     // destructive controls are hidden (mirrors the backend ownership guard).
     expect(screen.queryByRole('button', { name: 'Refine role' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete role' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive role' })).not.toBeInTheDocument();
   });
 
   it('redirects users without role-management permission', () => {

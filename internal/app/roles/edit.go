@@ -62,13 +62,20 @@ func (e *SpecEditor) Update(ctx context.Context, roleID kernel.ID, spec role.Rol
 	return r, nil
 }
 
-// Delete removes a role and any dependent role-scoped records via repository
-// semantics (Postgres uses ON DELETE CASCADE for matches/interviews/applications).
+// Delete soft-deletes a role by archiving it (Close): the role is removed from
+// the candidate open-pool (ListOpen excludes closed roles) but its screening
+// report cards, matches, and applications are preserved rather than hard-deleted
+// (audit/DPA) — and dependents are never orphaned on the in-memory dev stack.
 func (e *SpecEditor) Delete(ctx context.Context, roleID kernel.ID) error {
 	if roleID.IsZero() {
 		return kernel.Invalid("roles: role id is required")
 	}
-	return e.roles.Delete(ctx, roleID)
+	r, err := e.roles.ByID(ctx, roleID)
+	if err != nil {
+		return err
+	}
+	r.Close()
+	return e.roles.Update(ctx, r)
 }
 
 // List returns a page of an employer's roles, newest first, with the total.

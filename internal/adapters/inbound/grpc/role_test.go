@@ -134,8 +134,11 @@ func TestDeleteRoleHandler(t *testing.T) {
 	_, err := srv.DeleteRole(asEmployer(context.Background(), emp), &caliberv1.DeleteRoleRequest{RoleId: role.GetId()})
 	require.NoError(t, err)
 
-	_, err = srv.GetRole(asEmployer(context.Background(), emp), &caliberv1.GetRoleRequest{RoleId: role.GetId()})
-	assert.Equal(t, codes.NotFound, status.Code(err))
+	// Soft-delete: the role is archived (Closed) and preserved, not hard-deleted,
+	// so its screening/report-card/application history survives.
+	got, err := srv.GetRole(asEmployer(context.Background(), emp), &caliberv1.GetRoleRequest{RoleId: role.GetId()})
+	require.NoError(t, err)
+	assert.Equal(t, caliberv1.RoleStatus_ROLE_STATUS_CLOSED, got.GetRole().GetStatus())
 }
 
 func TestDeleteRoleRejectsOtherEmployer(t *testing.T) {
