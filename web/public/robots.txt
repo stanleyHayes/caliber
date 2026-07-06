@@ -9,4 +9,4 @@ Disallow: /profile
 Disallow: /agent
 Disallow: /radar
 
-Sitemap: https://projectcaliber.app/sitemap.xml
+Sitemap: https://calibergh.vercel.app/sitemap.xml

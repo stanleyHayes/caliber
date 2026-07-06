@@ -111,7 +111,7 @@ services:
       - key: CALIBER_JWT_SECRET
         sync: false            # >=32 bytes, unique per env (secret-rotation.md)
       - key: CALIBER_CORS_ORIGINS
-        sync: false            # e.g. https://projectcaliber.app (Vercel origin)
+        sync: false            # the Vercel origin, e.g. https://calibergh.vercel.app
       - key: CALIBER_FIELD_ENCRYPTION_KEY
         sync: false            # base64 32-byte AES-256 key — candidate PII at rest (CAL-117);
                                # without it, PII is stored in plaintext. Rotate per

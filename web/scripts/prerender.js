@@ -34,10 +34,14 @@ const PUBLIC_ROUTES = [
   { path: '/404', title: 'Page not found', snippet: 'evidence chain' },
 ];
 
+// Canonical origin for the prerender DOM's window.location; matches the SEO base
+// (VITE_SITE_URL), defaulting to the current Vercel deployment URL.
+const SITE_ORIGIN = (process.env.VITE_SITE_URL ?? 'https://calibergh.vercel.app').replace(/\/$/, '');
+
 function setupDomEnvironment() {
   const { window } = new JSDOM(
     '<!DOCTYPE html><html lang="en"><head></head><body></body></html>',
-    { url: 'https://projectcaliber.app/', pretendToBeVisual: true },
+    { url: `${SITE_ORIGIN}/`, pretendToBeVisual: true },
   );
 
   // JSDOM supplies localStorage, document and window; polyfill the few APIs that

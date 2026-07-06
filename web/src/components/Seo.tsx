@@ -1,9 +1,7 @@
 import { SUPPORTED_LOCALES } from '../i18n/config';
 import { serializeJsonLd } from '../lib/jsonld';
+import { SITE_URL } from '../lib/site';
 
-// Project's canonical production origin (no trailing slash). The POC has no live
-// domain yet; this documents intent and is overridden by a real host at deploy.
-const SITE_URL = 'https://projectcaliber.app';
 const SITE_NAME = 'Project Caliber';
 
 export type SeoProps = {

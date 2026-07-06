@@ -5,6 +5,10 @@ interface ImportMetaEnv {
   // set to the backend origin in production.
   readonly VITE_API_URL?: string;
 
+  // Canonical site origin for SEO (canonical URLs, OG tags). Build-time;
+  // defaults to the current Vercel deployment URL when unset.
+  readonly VITE_SITE_URL?: string;
+
   // Analytics & Search Console (CAL-128). All optional; disabled by default.
   /** Plausible data-domain. Enables Plausible pageview + event tracking. */
   readonly VITE_PLAUSIBLE_DOMAIN?: string;

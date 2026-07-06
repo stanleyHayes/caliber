@@ -11,7 +11,7 @@ describe('Seo', () => {
     const desc = document.head.querySelector('meta[name="description"]');
     expect(desc?.getAttribute('content')).toBe('Access your Caliber account.');
     const canonical = document.head.querySelector('link[rel="canonical"]');
-    expect(canonical?.getAttribute('href')).toBe('https://projectcaliber.app/login');
+    expect(canonical?.getAttribute('href')).toBe('https://calibergh.vercel.app/login');
   });
 
   it('keeps private routes out of the index', async () => {
@@ -32,9 +32,9 @@ describe('Seo', () => {
       expect(hreflangs).toContain('fr');
       expect(hreflangs).toContain('x-default');
       const enLink = links.find((l) => l.getAttribute('hreflang') === 'en');
-      expect(enLink?.getAttribute('href')).toBe('https://projectcaliber.app/login?lng=en');
+      expect(enLink?.getAttribute('href')).toBe('https://calibergh.vercel.app/login?lng=en');
       const xDefault = links.find((l) => l.getAttribute('hreflang') === 'x-default');
-      expect(xDefault?.getAttribute('href')).toBe('https://projectcaliber.app/login');
+      expect(xDefault?.getAttribute('href')).toBe('https://calibergh.vercel.app/login');
     });
   });
 

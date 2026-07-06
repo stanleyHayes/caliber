@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom';
 
 import { getAnalyticsConfig } from '../analytics/config';
+import { SITE_URL } from '../lib/site';
 import { Seo } from './Seo';
 
 const ORG_JSON_LD = {
@@ -8,7 +9,7 @@ const ORG_JSON_LD = {
   '@type': 'Organization',
   name: 'Project Caliber',
   description: 'Explainable, bias-safe talent intelligence for Ghana and West Africa.',
-  url: 'https://projectcaliber.app',
+  url: SITE_URL,
 };
 
 type Meta = { title: string; description: string; noindex?: boolean };

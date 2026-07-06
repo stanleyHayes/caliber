@@ -82,7 +82,8 @@ environment. Values are baked in at build time, so a change requires a redeploy.
 
 | Var | Production | Preview (staging) | Development | Notes |
 |---|---|---|---|---|
-| `VITE_API_URL` | prod API origin (e.g. `https://api.projectcaliber.app`) | staging API origin (e.g. `https://api.staging.projectcaliber.app`) | empty (Vite dev proxy forwards `/v1` same-origin) | Backend base URL; consumed by `web/src/api/client.ts` / `interview.ts`. |
+| `VITE_API_URL` | prod API origin (the Render `caliber-api` URL, e.g. `https://caliber-api.onrender.com`) | staging API origin | empty (Vite dev proxy forwards `/v1` same-origin) | Backend base URL; consumed by `web/src/api/client.ts` / `interview.ts`. The API's `CALIBER_CORS_ORIGINS` must include this deployment's origin (`https://calibergh.vercel.app`). |
+| `VITE_SITE_URL` | this deployment's origin (`https://calibergh.vercel.app`) | preview origin | unset → defaults to `https://calibergh.vercel.app` | Canonical origin for SEO (canonical/OG/hreflang) + prerender base; `web/src/components/Seo.tsx`. |
 | `VITE_PLAUSIBLE_DOMAIN` | prod data-domain (optional) | staging domain (optional) | unset | Analytics off when blank (CAL-128). |
 | `VITE_PLAUSIBLE_SCRIPT_URL` | optional override | optional override | unset | Defaults to plausible.io. |
 | `VITE_PLAUSIBLE_API_URL` | optional override | optional override | unset | Defaults to plausible.io. |
