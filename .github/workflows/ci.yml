@@ -106,7 +106,7 @@ jobs:
           echo "{\"total_app_coverage\":\"$(go tool cover -func=coverage.app.out | awk '/^total:/ {print $3}')\",\"generated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > coverage-report.json
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: go-coverage-report
           path: coverage-report.json
@@ -223,7 +223,7 @@ jobs:
 
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: web/playwright-report/
