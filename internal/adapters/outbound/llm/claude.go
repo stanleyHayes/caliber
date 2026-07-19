@@ -16,24 +16,36 @@ const defaultMaxTokens = 4096
 // Claude is an app.LLMClient backed by the Anthropic Messages API. Default model
 // is claude-opus-4-8 (overridable). All model access in the platform routes
 // through the app.LLMClient port, so this is the only place the SDK is touched.
+//
+// Because it speaks the Anthropic Messages API, it also drives any
+// Anthropic-compatible gateway: point WithBaseURL at the gateway and authenticate
+// with WithAuthToken (bearer) instead of WithAPIKey. That is how the platform runs
+// on Kimi/Moonshot (https://api.moonshot.ai/anthropic) with no adapter changes.
 type Claude struct {
 	client anthropic.Client
 	model  string
 }
 
 type claudeConfig struct {
-	apiKey  string
-	baseURL string
-	model   string
+	apiKey    string
+	authToken string
+	baseURL   string
+	model     string
 }
 
 // ClaudeOption configures the Claude adapter.
 type ClaudeOption func(*claudeConfig)
 
-// WithAPIKey sets the Anthropic API key.
+// WithAPIKey sets the Anthropic API key, sent as the x-api-key header.
 func WithAPIKey(k string) ClaudeOption { return func(c *claudeConfig) { c.apiKey = k } }
 
-// WithBaseURL overrides the API base URL (used in tests).
+// WithAuthToken sets a bearer credential, sent as the Authorization: Bearer
+// header. Anthropic-compatible gateways such as Kimi/Moonshot authenticate this
+// way instead of with x-api-key.
+func WithAuthToken(t string) ClaudeOption { return func(c *claudeConfig) { c.authToken = t } }
+
+// WithBaseURL overrides the API base URL (empty keeps the default
+// api.anthropic.com). Set it to run against an Anthropic-compatible provider.
 func WithBaseURL(u string) ClaudeOption { return func(c *claudeConfig) { c.baseURL = u } }
 
 // WithModel overrides the model id (ignored when empty).
@@ -55,6 +67,9 @@ func NewClaude(opts ...ClaudeOption) *Claude {
 	var reqOpts []option.RequestOption
 	if cfg.apiKey != "" {
 		reqOpts = append(reqOpts, option.WithAPIKey(cfg.apiKey))
+	}
+	if cfg.authToken != "" {
+		reqOpts = append(reqOpts, option.WithAuthToken(cfg.authToken))
 	}
 	if cfg.baseURL != "" {
 		reqOpts = append(reqOpts, option.WithBaseURL(cfg.baseURL))

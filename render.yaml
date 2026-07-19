@@ -1,11 +1,14 @@
 # =============================================================================
 # Project Caliber — Render Blueprint (Infrastructure as Code, CAL-150)
 #
-# Codifies the BACKEND only: managed Postgres (pgvector), a managed Key-Value
-# (Redis) store, and the `api` (web) + `worker` services built from the
-# existing deploy/Dockerfile.{api,worker}. The FRONTEND is deployed to Vercel
-# and is codified separately (CAL-152); local topology lives in
-# docker-compose.yml. See docs/infrastructure.md for the full map + apply steps.
+# Codifies the BACKEND on Render: a managed Key-Value (Redis) store and the `api`
+# (web) + `worker` services built from the existing deploy/Dockerfile.{api,worker}.
+# The database is EXTERNAL: a free Neon Postgres (pgvector), not a Render managed
+# DB — Render's free Postgres expires after 30 days, whereas Neon's free tier is
+# permanent, so CALIBER_DATABASE_URL is set as a secret pointing at Neon (see the
+# DATABASE section below). The FRONTEND is deployed to Vercel and is codified
+# separately (CAL-152); local topology lives in docker-compose.yml. See
+# docs/infrastructure.md for the full map + apply steps.
 #
 # HONESTY / VALIDATION NOTE
 #   This file cannot be applied or validated inside the build sandbox. Render's
@@ -18,34 +21,36 @@
 # SECRETS
 #   Real secrets are NEVER stored here. Values wired with `sync: false` are set
 #   once per environment in the Render dashboard / secret store and rotated per
-#   docs/runbooks/secret-rotation.md. The DB and Redis connection strings are
-#   injected by Render via fromDatabase / fromService and never hand-entered.
+#   docs/runbooks/secret-rotation.md. The Redis URL is injected by Render via
+#   fromService; the DB DSN (external Neon) is a `sync: false` secret set in the
+#   dashboard — never hand-entered here.
 #   Per-env value templates: .env.staging.example / .env.production.example;
 #   the full tunable list is .env.example; env topology is docs/environments.md.
 #
+# DATABASE (external — Neon)
+#   The app is Postgres + pgvector and swaps hosts by connection string alone, so
+#   the DB is NOT a Render managed database. Create a free Neon project
+#   (https://neon.tech), enable pgvector is automatic — our goose migration
+#   00001_extensions.sql runs `CREATE EXTENSION IF NOT EXISTS vector`), and set the
+#   CALIBER_DATABASE_URL secret on BOTH services below to Neon's connection string.
+#   IMPORTANT DSN rules:
+#     • include ?sslmode=require (Neon requires TLS);
+#     • use Neon's DIRECT (non-pooled) endpoint, not the -pooler host — pgx
+#       prepared statements + the optional hnsw.ef_search hook don't work behind a
+#       transaction pooler.
+#   To revert to a Render managed DB instead: add back a `databases:` block with a
+#   `- name: caliber-postgres` (plan: basic-256mb — free expires in 30 days) and
+#   change the two CALIBER_DATABASE_URL entries to
+#   `fromDatabase: {name: caliber-postgres, property: connectionString}`.
+#
 # MIGRATIONS
-#   Schema migrations are NOT run by the api/worker at boot. They run as a
-#   pre-deploy step from deploy/Dockerfile.migrate (goose), which bakes in
-#   db/migrations and sets CALIBER_MIGRATIONS_DIR. This Blueprint declares that
-#   step via `preDeployCommand` on the api service (Render runs it against the
-#   about-to-be-deployed image before shifting traffic). If the account's plan
-#   does not support preDeploy, run the migrate image as an explicit CD step
-#   instead — see docs/infrastructure.md § Migrations.
+#   Schema migrations are NOT run by the api/worker at boot. Run them with goose
+#   from deploy/Dockerfile.migrate (`/migrate up`) against CALIBER_DATABASE_URL.
+#   On the api's FREE plan Render does not run pre-deploy commands, so run the
+#   migrate image once as a one-off job before first boot (and after any new
+#   migration). On a PAID api plan you can re-enable the `preDeployCommand` below
+#   to migrate automatically each deploy. See docs/infrastructure.md § Migrations.
 # =============================================================================
-
-databases:
-  # Managed Postgres with the pgvector extension (embeddings live here).
-  # NOTE: enabling pgvector may require a post-provision `CREATE EXTENSION vector`
-  # (our goose migrations already run `CREATE EXTENSION IF NOT EXISTS vector`, so
-  # the extension is created idempotently on first migrate). Confirm the chosen
-  # Postgres version ships pgvector on Render before applying.
-  - name: caliber-postgres
-    databaseName: caliber
-    user: caliber
-    plan: basic-256mb          # VALIDATE: pick a real current Render plan
-    postgresMajorVersion: "17" # matches pgvector/pgvector:pg17 used locally
-    region: oregon             # VALIDATE: keep DB + services in one region
-    ipAllowList: []            # empty = only Render internal network may connect
 
 services:
   # ---------------------------------------------------------------------------
@@ -54,7 +59,9 @@ services:
   # ---------------------------------------------------------------------------
   - type: redis
     name: caliber-redis
-    plan: starter              # VALIDATE: pick a real current Render plan
+    plan: free                 # free Key Value (25MB, NO persistence). Fine for a POC:
+                               # queued jobs are lost on a restart and enqueue fails if
+                               # the 25MB fills. Move to a paid plan for durable queues.
     region: oregon             # must match the DB + app services' region
     ipAllowList: []            # empty = only Render internal network may connect
     maxmemoryPolicy: noeviction # Asynq requires jobs are never evicted
@@ -65,18 +72,26 @@ services:
   # ---------------------------------------------------------------------------
   - type: web
     name: caliber-api
-    runtime: image
+    runtime: docker            # build the image from the Dockerfile below.
+                               # (runtime: image is only for pulling a PREBUILT image
+                               # from a registry and forbids dockerfilePath/dockerContext.)
     region: oregon
-    plan: starter              # VALIDATE: pick a real current Render plan
+    plan: free                 # free web service. NOTE: spins down after ~15 min idle,
+                               # so the first request after idle cold-starts (can take
+                               # up to a minute). Bump to starter to keep it always-on.
     dockerfilePath: ./deploy/Dockerfile.api
     dockerContext: .
     healthCheckPath: /readyz   # httpserver router.go: r.Get("/readyz", ...)
-    # Pre-deploy DB migration step (goose) using the migrate image's binary.
-    # VALIDATE: on Render, preDeployCommand runs inside the SERVICE image, which
-    # does not contain /migrate or db/migrations. If that is the case, drop this
-    # line and run deploy/Dockerfile.migrate as a separate CD job instead
-    # (docs/infrastructure.md § Migrations). Kept here to document the intent.
-    preDeployCommand: "/migrate up"
+    # Pre-deploy DB migration step (goose). DISABLED because the api is on the free
+    # plan and Render does NOT run pre-deploy commands on free instances. On free,
+    # run migrations once as a one-off job from the migrate image before first boot
+    # (Render dashboard → Jobs, or `render jobs create` with deploy/Dockerfile.migrate
+    # running `/migrate up`); the api's /readyz will stay red until the schema exists.
+    # If you move the api to a PAID plan, uncomment the line below to migrate
+    # automatically on each deploy. VALIDATE first: preDeployCommand runs inside the
+    # SERVICE image — confirm it contains /migrate + db/migrations, else keep using
+    # the separate migrate job (docs/infrastructure.md § Migrations).
+    # preDeployCommand: "/migrate up"
     envVars:
       - key: CALIBER_ENV
         value: production
@@ -87,11 +102,11 @@ services:
         value: ":10000"        # VALIDATE against Render's injected $PORT
       - key: CALIBER_GRPC_ADDR
         value: ":9090"
-      # DB + Redis URLs are injected by Render — never hand-entered.
+      # Redis URL is injected by Render; the DB URL is the EXTERNAL Neon DSN (set
+      # once in the dashboard, see the DATABASE header for the DSN rules).
       - key: CALIBER_DATABASE_URL
-        fromDatabase:
-          name: caliber-postgres
-          property: connectionString
+        sync: false            # Neon Postgres DSN — include ?sslmode=require and use
+                               # Neon's DIRECT (non-pooled) endpoint.
       - key: CALIBER_REDIS_URL
         fromService:
           type: redis
@@ -124,9 +139,12 @@ services:
   # ---------------------------------------------------------------------------
   - type: worker
     name: caliber-worker
-    runtime: image
+    runtime: docker            # build from the Dockerfile below (not a prebuilt image).
     region: oregon
-    plan: starter              # VALIDATE: pick a real current Render plan
+    plan: starter              # background workers have NO free tier on Render, so this
+                               # is the cheapest option. (If you want a zero-cost demo,
+                               # you can drop the worker and run screening synchronously,
+                               # but async scoring/retention needs this process.)
     dockerfilePath: ./deploy/Dockerfile.worker
     dockerContext: .
     envVars:
@@ -136,11 +154,10 @@ services:
         value: info
       - key: CALIBER_WORKER_METRICS_ADDR
         value: ":8081"
-      # Same managed DB + Redis as the api service (injected by Render).
+      # Same external Neon DB + Render Redis as the api service. Set
+      # CALIBER_DATABASE_URL to the SAME Neon DSN you set on the api.
       - key: CALIBER_DATABASE_URL
-        fromDatabase:
-          name: caliber-postgres
-          property: connectionString
+        sync: false            # Neon Postgres DSN (see the DATABASE header).
       - key: CALIBER_REDIS_URL
         fromService:
           type: redis

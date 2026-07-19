@@ -39,8 +39,16 @@ type Config struct {
 	// small latency cost. Applied per pooled connection.
 	HNSWEfSearch int
 
-	AnthropicAPIKey string // Claude
-	AnthropicModel  string // Claude model id (default claude-opus-4-8)
+	AnthropicAPIKey string // Claude / Anthropic API key (sent as x-api-key)
+	// AnthropicAuthToken is a bearer credential (Authorization: Bearer) for
+	// Anthropic-compatible gateways that don't use x-api-key — e.g. Kimi/Moonshot.
+	// Set this instead of AnthropicAPIKey when pointing AnthropicBaseURL at one.
+	AnthropicAuthToken string
+	// AnthropicBaseURL overrides the model API base URL. Empty = the first-party
+	// Anthropic API. Set it (e.g. https://api.moonshot.ai/anthropic) to run the
+	// platform on any Anthropic-compatible provider without code changes.
+	AnthropicBaseURL string
+	AnthropicModel   string // model id (default claude-opus-4-8; e.g. kimi-k3 on Kimi)
 	// LLMCheapModel optionally routes mechanical operations (e.g. CV extraction)
 	// to a cheaper model (CAL-159 model-tier routing). Empty = all ops use the
 	// default model.
@@ -136,6 +144,8 @@ func Load() (Config, error) {
 		RedisURL:                   os.Getenv("CALIBER_REDIS_URL"),
 		HNSWEfSearch:               getint("CALIBER_HNSW_EF_SEARCH", 0),
 		AnthropicAPIKey:            os.Getenv("ANTHROPIC_API_KEY"),
+		AnthropicAuthToken:         os.Getenv("ANTHROPIC_AUTH_TOKEN"),
+		AnthropicBaseURL:           strings.TrimRight(strings.TrimSpace(os.Getenv("ANTHROPIC_BASE_URL")), "/"),
 		AnthropicModel:             getenv("CALIBER_ANTHROPIC_MODEL", "claude-opus-4-8"),
 		LLMCheapModel:              getenv("CALIBER_LLM_CHEAP_MODEL", ""),
 		OpenAIAPIKey:               os.Getenv("OPENAI_API_KEY"),
@@ -247,7 +257,6 @@ func (c Config) Validate() []string {
 	required := map[string]string{
 		"CALIBER_DATABASE_URL": c.DatabaseURL,
 		"CALIBER_REDIS_URL":    c.RedisURL,
-		"ANTHROPIC_API_KEY":    c.AnthropicAPIKey,
 		"OPENAI_API_KEY":       c.OpenAIAPIKey,
 		"CALIBER_JWT_SECRET":   c.JWTSecret,
 	}
@@ -255,6 +264,12 @@ func (c Config) Validate() []string {
 		if strings.TrimSpace(val) == "" {
 			missing = append(missing, name)
 		}
+	}
+	// The LLM credential is satisfied by EITHER the x-api-key (first-party
+	// Anthropic) OR a bearer token (Anthropic-compatible gateways like Kimi). Only
+	// one is needed; report the x-api-key name when neither is set.
+	if strings.TrimSpace(c.AnthropicAPIKey) == "" && strings.TrimSpace(c.AnthropicAuthToken) == "" {
+		missing = append(missing, "ANTHROPIC_API_KEY")
 	}
 	if c.IsProd() && len(c.AllowedOrigins) == 0 {
 		missing = append(missing, corsOriginsEnv)

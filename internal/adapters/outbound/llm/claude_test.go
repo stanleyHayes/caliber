@@ -33,6 +33,31 @@ func TestClaudeCompleteConcatenatesText(t *testing.T) {
 	assert.Equal(t, "hello world", resp.Text)
 }
 
+// TestClaudeAuthTokenSendsBearer pins the Kimi/Moonshot path: WithAuthToken must
+// authenticate with Authorization: Bearer and NOT send an x-api-key header.
+func TestClaudeAuthTokenSendsBearer(t *testing.T) {
+	var gotAuth, gotAPIKey string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotAPIKey = r.Header.Get("X-Api-Key")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id":"msg_1","type":"message","role":"assistant","model":"kimi-k3",
+			"content":[{"type":"text","text":"ok"}],
+			"stop_reason":"end_turn","stop_sequence":null,
+			"usage":{"input_tokens":1,"output_tokens":1}
+		}`))
+	}))
+	defer srv.Close()
+
+	c := NewClaude(WithAuthToken("moonshot-key"), WithBaseURL(srv.URL), WithModel("kimi-k3"))
+	resp, err := c.Complete(context.Background(), app.LLMRequest{Prompt: "hi"})
+	require.NoError(t, err)
+	assert.Equal(t, "ok", resp.Text)
+	assert.Equal(t, "Bearer moonshot-key", gotAuth)
+	assert.Empty(t, gotAPIKey, "x-api-key must not be sent when using a bearer token")
+}
+
 func TestClaudeCompleteError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)

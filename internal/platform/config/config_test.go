@@ -154,13 +154,29 @@ func TestValidateReportsMissingSecrets(t *testing.T) {
 	clearCORSOriginsEnv(t)
 	for _, k := range []string{
 		"CALIBER_DATABASE_URL", "CALIBER_REDIS_URL",
-		"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CALIBER_JWT_SECRET",
+		"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "CALIBER_JWT_SECRET",
 	} {
 		t.Setenv(k, "")
 	}
 	cfg, _ := Load()
 	if got := cfg.Validate(); len(got) != 5 {
 		t.Errorf("Validate() reported %d missing (%v), want 5", len(got), got)
+	}
+}
+
+// TestValidateAcceptsAuthTokenAsLLMCredential is the Kimi/Anthropic-compatible
+// path: a bearer token satisfies the LLM-credential requirement on its own, so
+// the stack boots with ANTHROPIC_API_KEY left blank.
+func TestValidateAcceptsAuthTokenAsLLMCredential(t *testing.T) {
+	cfg := Config{
+		DatabaseURL:        "postgres://x",
+		RedisURL:           "redis://x",
+		OpenAIAPIKey:       "sk-embed",
+		JWTSecret:          "secret",
+		AnthropicAuthToken: "moonshot-key",
+	}
+	if missing := cfg.Validate(); len(missing) != 0 {
+		t.Fatalf("Validate() = %v, want none (a bearer token satisfies the LLM credential)", missing)
 	}
 }
 

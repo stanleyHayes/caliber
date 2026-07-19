@@ -322,7 +322,7 @@ func BuildLLM(
 }
 
 func modelLabel(cfg config.Config) string {
-	if cfg.AnthropicAPIKey != "" {
+	if cfg.AnthropicAPIKey != "" || cfg.AnthropicAuthToken != "" {
 		return cfg.AnthropicModel
 	}
 	return "dev"
@@ -330,11 +330,25 @@ func modelLabel(cfg config.Config) string {
 
 //nolint:ireturn,nolintlint // provider selection intentionally returns the app.LLMClient port.
 func newLLMProvider(cfg config.Config, log *slog.Logger) app.LLMClient {
-	if cfg.AnthropicAPIKey != "" {
-		log.Info("llm provider selected", "provider", "claude", "model", cfg.AnthropicModel)
-		return llm.NewClaude(llm.WithAPIKey(cfg.AnthropicAPIKey), llm.WithModel(cfg.AnthropicModel))
+	// A real provider is configured when either credential is present: the
+	// first-party Anthropic x-api-key, or a bearer token for an
+	// Anthropic-compatible gateway (e.g. Kimi/Moonshot). Base URL is empty for the
+	// former and points at the gateway for the latter.
+	if cfg.AnthropicAPIKey != "" || cfg.AnthropicAuthToken != "" {
+		opts := []llm.ClaudeOption{llm.WithModel(cfg.AnthropicModel), llm.WithBaseURL(cfg.AnthropicBaseURL)}
+		provider := "claude"
+		if cfg.AnthropicAuthToken != "" {
+			// Prefer the bearer token so a stray x-api-key isn't sent alongside it.
+			opts = append(opts, llm.WithAuthToken(cfg.AnthropicAuthToken))
+			provider = "anthropic-compatible"
+		} else {
+			opts = append(opts, llm.WithAPIKey(cfg.AnthropicAPIKey))
+		}
+		// base_url is not a secret; log it to make the active provider obvious.
+		log.Info("llm provider selected", "provider", provider, "model", cfg.AnthropicModel, "base_url", cfg.AnthropicBaseURL)
+		return llm.NewClaude(opts...)
 	}
-	log.Warn("ANTHROPIC_API_KEY not set; using deterministic dev LLM")
+	log.Warn("no LLM credential set (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN); using deterministic dev LLM")
 	return llm.NewDev()
 }
 
