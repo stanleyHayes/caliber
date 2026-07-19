@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -302,9 +303,9 @@ func (r *RateLimiter) clientIP(ctx context.Context) string {
 	// trusted proxy. Entries to its left are client-supplied and must not be
 	// trusted, so a spoofed left-most token cannot forge a fresh bucket (CAL-120).
 	chain := forwardedForChain(ctx)
-	for i := len(chain) - 1; i >= 0; i-- {
-		if !r.peerIsTrusted(chain[i]) {
-			return chain[i]
+	for _, hop := range slices.Backward(chain) {
+		if !r.peerIsTrusted(hop) {
+			return hop
 		}
 	}
 	// No untrusted hop found (empty/all-trusted chain): fall back to the peer.

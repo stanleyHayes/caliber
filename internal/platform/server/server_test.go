@@ -168,7 +168,7 @@ func TestBuildRouterWithMetricsOnly(t *testing.T) {
 
 	// Without a verifier (local dev) /metrics stays open.
 	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
@@ -184,10 +184,10 @@ func TestBuildRouterGatesOperatorEndpoints(t *testing.T) {
 
 	// /debug/ai-quality: no bearer -> 401; valid operator bearer -> 200.
 	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/debug/ai-quality", nil))
+	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/debug/ai-quality", nil))
 	assert.Equal(t, http.StatusUnauthorized, rec.Code, "/debug/ai-quality must require auth when a verifier is set")
 
-	req := httptest.NewRequest(http.MethodGet, "/debug/ai-quality", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/debug/ai-quality", nil)
 	req.Header.Set("Authorization", "Bearer valid")
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -195,7 +195,7 @@ func TestBuildRouterGatesOperatorEndpoints(t *testing.T) {
 
 	// /metrics stays open for the Prometheus scraper even with a verifier set.
 	rec = httptest.NewRecorder()
-	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil))
 	assert.Equal(t, http.StatusOK, rec.Code, "/metrics is not gated behind user auth (network-protected)")
 }
 
