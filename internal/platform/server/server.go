@@ -33,6 +33,15 @@ type runConfig struct {
 	verifier         app.TokenService
 	metrics          http.Handler
 	aiQualityMetrics http.Handler
+	onListen         func(Addrs)
+}
+
+// Addrs reports the concrete network addresses the server bound. With an
+// ephemeral port (":0") the actual port is only known after binding, so callers
+// read it here instead of assuming the configured value.
+type Addrs struct {
+	HTTP string
+	GRPC string
 }
 
 // WithAsynqmon mounts the Asynqmon monitoring UI at the given path, protected by
@@ -57,6 +66,14 @@ func WithMetrics(handler http.Handler) Option {
 // /metrics serves Prometheus exposition format.
 func WithAIQualityMetrics(handler http.Handler) Option {
 	return func(c *runConfig) { c.aiQualityMetrics = handler }
+}
+
+// WithListenCallback registers fn to be invoked once both listeners are bound
+// (before serving begins), with their concrete addresses. It is the supported
+// way to discover an OS-assigned port when HTTPAddr/GRPCAddr use ":0" — e.g. in
+// tests, which bind ephemeral ports to avoid colliding with other processes.
+func WithListenCallback(fn func(Addrs)) Option {
+	return func(c *runConfig) { c.onListen = fn }
 }
 
 // Run starts the gRPC server and REST gateway, blocks until ctx is cancelled,
@@ -111,6 +128,30 @@ func operatorGuard(verifier app.TokenService) []func(http.Handler) http.Handler 
 	}
 }
 
+// listeners binds the gRPC and HTTP listeners and derives the gateway dial
+// target from the gRPC listener's ACTUAL port, so an ephemeral ":0" bind still
+// resolves (loopback is correct — the gateway dials the same-process gRPC
+// server; a fixed port yields the same "localhost:<port>" as before). It closes
+// what it opened on failure.
+func listeners(ctx context.Context, cfg config.Config) (net.Listener, net.Listener, string, error) {
+	var lc net.ListenConfig
+	grpcLis, err := lc.Listen(ctx, "tcp", cfg.GRPCAddr)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	_, grpcPort, err := net.SplitHostPort(grpcLis.Addr().String())
+	if err != nil {
+		_ = grpcLis.Close()
+		return nil, nil, "", err
+	}
+	httpLis, err := lc.Listen(ctx, "tcp", cfg.HTTPAddr)
+	if err != nil {
+		_ = grpcLis.Close()
+		return nil, nil, "", err
+	}
+	return grpcLis, httpLis, grpcadapter.DialTarget(":" + grpcPort), nil
+}
+
 // RunWithOptions starts the server with the supplied optional configuration.
 // It is exported so tests and wiring can mount extra HTTP surfaces such as the
 // Asynqmon dashboard (CAL-028).
@@ -125,21 +166,21 @@ func RunWithOptions(
 	//nolint:contextcheck // stream auth derives ctx from the live ServerStream at call time (grpc wrapper pattern)
 	grpcSrv := grpcadapter.NewGRPCServer(svc)
 
-	var lc net.ListenConfig
-	lis, err := lc.Listen(ctx, "tcp", cfg.GRPCAddr)
+	grpcLis, httpLis, dialTarget, err := listeners(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	go func() {
-		log.Info("grpc server listening", "addr", cfg.GRPCAddr)
-		if serveErr := grpcSrv.Serve(lis); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
+		log.Info("grpc server listening", "addr", grpcLis.Addr().String())
+		if serveErr := grpcSrv.Serve(grpcLis); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
 			log.Error("grpc serve failed", "err", serveErr)
 		}
 	}()
 
 	mux := runtime.NewServeMux()
-	if err = grpcadapter.RegisterGateway(ctx, mux, grpcadapter.DialTarget(cfg.GRPCAddr)); err != nil {
+	if err = grpcadapter.RegisterGateway(ctx, mux, dialTarget); err != nil {
 		grpcSrv.GracefulStop()
+		_ = httpLis.Close()
 		return err
 	}
 
@@ -147,17 +188,17 @@ func RunWithOptions(
 	for _, opt := range opts {
 		opt(&runCfg)
 	}
-
-	r := buildRouter(mux, cfg, log, readiness, runCfg)
+	if runCfg.onListen != nil {
+		runCfg.onListen(Addrs{HTTP: httpLis.Addr().String(), GRPC: grpcLis.Addr().String()})
+	}
 
 	httpSrv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           r,
+		Handler:           buildRouter(mux, cfg, log, readiness, runCfg),
 		ReadHeaderTimeout: shutdownTimeout,
 	}
 	go func() {
-		log.Info("http gateway listening", "addr", cfg.HTTPAddr)
-		if serveErr := httpSrv.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		log.Info("http gateway listening", "addr", httpLis.Addr().String())
+		if serveErr := httpSrv.Serve(httpLis); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			log.Error("http serve failed", "err", serveErr)
 		}
 	}()

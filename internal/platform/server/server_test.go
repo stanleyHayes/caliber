@@ -3,12 +3,14 @@ package server
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	grpcadapter "github.com/xcreativs/caliber/internal/adapters/inbound/grpc"
+	"github.com/xcreativs/caliber/internal/adapters/inbound/httpserver"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/xcreativs/caliber/internal/app"
@@ -21,18 +23,14 @@ import (
 )
 
 func TestRunServesHealthThenShutsDown(t *testing.T) {
-	cfg := config.Config{
-		Env: "dev", LogLevel: "error",
-		HTTPAddr: "127.0.0.1:18080", GRPCAddr: "127.0.0.1:19090",
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- Run(ctx, cfg, logging.New("error"), grpcadapter.Services{}) }()
+	base := startServer(ctx, t, done, nil)
 
 	var resp *http.Response
 	var err error
 	for range 100 {
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:18080/healthz", nil)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+"/healthz", nil)
 		resp, err = http.DefaultClient.Do(req)
 		if err == nil {
 			break
@@ -55,20 +53,14 @@ func TestRunServesHealthThenShutsDown(t *testing.T) {
 }
 
 func TestRunServesReadyzWithInjectedChecks(t *testing.T) {
-	cfg := config.Config{
-		Env: "dev", LogLevel: "error",
-		HTTPAddr: "127.0.0.1:18081", GRPCAddr: "127.0.0.1:19091",
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() {
-		done <- Run(ctx, cfg, logging.New("error"), grpcadapter.Services{}, readyFunc(func(context.Context) error { return nil }))
-	}()
+	base := startServer(ctx, t, done, []httpserver.ReadinessChecker{readyFunc(func(context.Context) error { return nil })})
 
 	var resp *http.Response
 	var err error
 	for range 100 {
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:18081/readyz", nil)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+"/readyz", nil)
 		resp, err = http.DefaultClient.Do(req)
 		if err == nil {
 			break
@@ -91,10 +83,6 @@ func TestRunServesReadyzWithInjectedChecks(t *testing.T) {
 }
 
 func TestRunWithMetricsAndAsynqmon(t *testing.T) {
-	cfg := config.Config{
-		Env: "dev", LogLevel: "error",
-		HTTPAddr: "127.0.0.1:18082", GRPCAddr: "127.0.0.1:19092",
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -110,19 +98,16 @@ func TestRunWithMetricsAndAsynqmon(t *testing.T) {
 	})
 
 	done := make(chan error, 1)
-	go func() {
-		opts := []Option{
-			WithMetrics(metrics),
-			WithAsynqmon("/asynqmon", asynq, &fakeTokenService{role: identity.RoleEmployer}),
-		}
-		done <- RunWithOptions(ctx, cfg, logging.New("error"), grpcadapter.Services{}, nil, opts)
-	}()
+	base := startServer(ctx, t, done, nil,
+		WithMetrics(metrics),
+		WithAsynqmon("/asynqmon", asynq, &fakeTokenService{role: identity.RoleEmployer}),
+	)
 
 	waitForOK := func(path string) {
 		var resp *http.Response
 		var err error
 		for range 100 {
-			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:18082"+path, nil)
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+path, nil)
 			req.Header.Set("Authorization", "Bearer valid-token")
 			resp, err = http.DefaultClient.Do(req)
 			if err == nil && resp.StatusCode == http.StatusOK {
@@ -161,6 +146,23 @@ func TestRunWithMetricsAndAsynqmon(t *testing.T) {
 	}
 }
 
+// TestRunReturnsErrorWhenHTTPPortTaken covers the Run wrapper and the HTTP-bind
+// failure path: gRPC binds on an ephemeral port, but the HTTP listener can't take
+// an already-occupied port, so Run tears the gRPC server back down and returns.
+func TestRunReturnsErrorWhenHTTPPortTaken(t *testing.T) {
+	var lc net.ListenConfig
+	occupied, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = occupied.Close() }()
+
+	cfg := config.Config{
+		Env: "dev", LogLevel: "error",
+		HTTPAddr: occupied.Addr().String(), GRPCAddr: "127.0.0.1:0",
+	}
+	err = Run(context.Background(), cfg, logging.New("error"), grpcadapter.Services{})
+	require.Error(t, err, "Run must return when the HTTP port cannot be bound")
+}
+
 func TestBuildRouterWithMetricsOnly(t *testing.T) {
 	metrics := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r := buildRouter(runtime.NewServeMux(), config.Config{Env: "dev"}, nil, nil, runConfig{metrics: metrics})
@@ -197,6 +199,36 @@ func TestBuildRouterGatesOperatorEndpoints(t *testing.T) {
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil))
 	assert.Equal(t, http.StatusOK, rec.Code, "/metrics is not gated behind user auth (network-protected)")
+}
+
+// startServer runs the API on OS-assigned ephemeral ports (":0") to avoid
+// fixed-port collisions with other processes on a shared machine, and returns
+// its HTTP base URL (e.g. "http://127.0.0.1:54321"). The Run error is delivered
+// on done at shutdown.
+func startServer(
+	ctx context.Context,
+	t *testing.T,
+	done chan<- error,
+	readiness []httpserver.ReadinessChecker,
+	opts ...Option,
+) string {
+	t.Helper()
+	cfg := config.Config{
+		Env: "dev", LogLevel: "error",
+		HTTPAddr: "127.0.0.1:0", GRPCAddr: "127.0.0.1:0",
+	}
+	addrCh := make(chan string, 1)
+	opts = append(opts, WithListenCallback(func(a Addrs) { addrCh <- a.HTTP }))
+	go func() {
+		done <- RunWithOptions(ctx, cfg, logging.New("error"), grpcadapter.Services{}, readiness, opts)
+	}()
+	select {
+	case addr := <-addrCh:
+		return "http://" + addr
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not report its listen address in time")
+		return ""
+	}
 }
 
 type readyFunc func(context.Context) error
