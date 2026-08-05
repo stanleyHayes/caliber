@@ -137,7 +137,7 @@ func Load() (Config, error) {
 	c := Config{
 		Env:                        env,
 		LogLevel:                   getenv("CALIBER_LOG_LEVEL", "info"),
-		HTTPAddr:                   getenv("CALIBER_HTTP_ADDR", ":8080"),
+		HTTPAddr:                   getHTTPAddr(),
 		GRPCAddr:                   getenv("CALIBER_GRPC_ADDR", ":9090"),
 		AllowedOrigins:             allowedOrigins,
 		DatabaseURL:                os.Getenv("CALIBER_DATABASE_URL"),
@@ -199,6 +199,16 @@ func loadObservabilityConfig(c *Config) {
 	c.ServiceName = getenv("CALIBER_SERVICE_NAME", "caliber-api")
 	c.ServiceVersion = getenv("CALIBER_SERVICE_VERSION", "dev")
 	c.MetricsAddr = getenv("CALIBER_WORKER_METRICS_ADDR", ":8081")
+}
+
+func getHTTPAddr() string {
+	if addr := strings.TrimSpace(os.Getenv("CALIBER_HTTP_ADDR")); addr != "" {
+		return addr
+	}
+	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
+		return ":" + port
+	}
+	return ":8080"
 }
 
 // loadLokiConfig fills the Loki log-shipping fields from the environment.

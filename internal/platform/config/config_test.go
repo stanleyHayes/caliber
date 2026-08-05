@@ -18,6 +18,7 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	t.Setenv("CALIBER_ENV", "")
 	t.Setenv("CALIBER_LOG_LEVEL", "")
 	t.Setenv("CALIBER_WORKER_CONCURRENCY", "")
+	t.Setenv("PORT", "")
 	clearCORSOriginsEnv(t)
 
 	cfg, err := Load()
@@ -62,6 +63,21 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	}
 	if cfg.LLMMaxTokens != 4096 {
 		t.Errorf("LLMMaxTokens = %d, want 4096", cfg.LLMMaxTokens)
+	}
+}
+
+func TestLoadUsesPortEnvWhenHTTPAddrUnset(t *testing.T) {
+	t.Setenv("CALIBER_HTTP_ADDR", "")
+	t.Setenv("PORT", "8081")
+	t.Setenv("CALIBER_ENV", "")
+	clearCORSOriginsEnv(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.HTTPAddr != ":8081" {
+		t.Fatalf("HTTPAddr = %q, want :8081", cfg.HTTPAddr)
 	}
 }
 
