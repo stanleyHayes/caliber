@@ -1,6 +1,6 @@
 import { Box, Skeleton } from '@mui/material';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Suspense, lazy } from 'react';
+import { Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { AnalyticsProvider } from './analytics/provider';
@@ -9,6 +9,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { RequireCandidate } from './components/RequireCandidate';
 import { RouteSeo } from './components/RouteSeo';
 import { SessionBootstrap } from './components/SessionBootstrap';
+import { lazyRoute } from './lib/lazyRoute';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -19,15 +20,26 @@ import { queryClient } from './query/client';
 // pipeline can render them without awaiting async chunks (CAL-121).
 // Authenticated app routes are lazy-loaded to reduce the initial JS bundle
 // and improve LCP/INP on the public landing experience (CAL-125).
-const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
-const AgentPage = lazy(() => import('./pages/AgentPage').then((m) => ({ default: m.AgentPage })));
-const EmployerFlowPage = lazy(() => import('./pages/EmployerFlowPage').then((m) => ({ default: m.EmployerFlowPage })));
-const InterviewPage = lazy(() => import('./pages/InterviewPage').then((m) => ({ default: m.InterviewPage })));
-const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
-const RadarPage = lazy(() => import('./pages/RadarPage').then((m) => ({ default: m.RadarPage })));
-const RolesPage = lazy(() => import('./pages/RolesPage').then((m) => ({ default: m.RolesPage })));
-const RoleDetailPage = lazy(() => import('./pages/RoleDetailPage').then((m) => ({ default: m.RoleDetailPage })));
-const CandidateProfilePage = lazy(() =>
+// lazyRoute reloads once if a deploy replaced hashed chunks mid-session.
+const DashboardPage = lazyRoute(() =>
+  import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+);
+const AgentPage = lazyRoute(() => import('./pages/AgentPage').then((m) => ({ default: m.AgentPage })));
+const EmployerFlowPage = lazyRoute(() =>
+  import('./pages/EmployerFlowPage').then((m) => ({ default: m.EmployerFlowPage })),
+);
+const InterviewPage = lazyRoute(() =>
+  import('./pages/InterviewPage').then((m) => ({ default: m.InterviewPage })),
+);
+const ProfilePage = lazyRoute(() =>
+  import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+);
+const RadarPage = lazyRoute(() => import('./pages/RadarPage').then((m) => ({ default: m.RadarPage })));
+const RolesPage = lazyRoute(() => import('./pages/RolesPage').then((m) => ({ default: m.RolesPage })));
+const RoleDetailPage = lazyRoute(() =>
+  import('./pages/RoleDetailPage').then((m) => ({ default: m.RoleDetailPage })),
+);
+const CandidateProfilePage = lazyRoute(() =>
   import('./pages/CandidateProfilePage').then((m) => ({ default: m.CandidateProfilePage })),
 );
 
