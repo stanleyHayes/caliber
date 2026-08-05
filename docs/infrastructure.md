@@ -50,15 +50,19 @@ Codifies, for the backend only:
 - **Injected (never hand-entered):** `CALIBER_DATABASE_URL` via
   `fromDatabase: caliber-postgres` and `CALIBER_REDIS_URL` via
   `fromService: caliber-redis` — both use `property: connectionString`.
-- **Real secrets (`sync: false`):** `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
-  `CALIBER_JWT_SECRET`, and (api only) `CALIBER_CORS_ORIGINS`. These are set once
-  per environment in the Render dashboard / secret store and rotated per
-  [runbooks/secret-rotation.md](runbooks/secret-rotation.md). Value shapes:
+- **Real secrets (`sync: false`):** `ANTHROPIC_API_KEY` (or
+  `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_BASE_URL` for a compatible gateway),
+  `OPENAI_API_KEY`, `CALIBER_JWT_SECRET`, `CALIBER_FIELD_ENCRYPTION_KEY` (and
+  optional `CALIBER_FIELD_ENCRYPTION_KEY_PREVIOUS` during rotation). These are
+  set once per environment in the Render dashboard / secret store and rotated
+  per [runbooks/secret-rotation.md](runbooks/secret-rotation.md). Value shapes:
   [`.env.staging.example`](../.env.staging.example) /
   [`.env.production.example`](../.env.production.example); full tunable list:
   [`.env.example`](../.env.example).
-- **Non-secret config** (`CALIBER_ENV`, `CALIBER_LOG_LEVEL`, addresses) is set
-  inline in the Blueprint.
+- **Non-secret config** is set inline in the Blueprint: `CALIBER_ENV=prod`
+  (canonical; `"production"` is also accepted by `IsProd()`),
+  `CALIBER_LOG_LEVEL`, addresses, `CALIBER_CORS_ORIGINS` (exact SPA origin —
+  must be `https://…`, not `http://`), seed flags, and retention schedule.
 
 A Blueprint declares **one** environment's resources. Staging and production are
 separate Render environments (own DB, Redis, and secrets — no sharing, per
@@ -72,16 +76,14 @@ Migrations do **not** run at api/worker boot. They run from
 `CALIBER_MIGRATIONS_DIR` set), against `CALIBER_DATABASE_URL`, **before** new
 app code serves traffic:
 
-1. `render.yaml` declares a `preDeployCommand: "/migrate up"` on `caliber-api`
-   to document the intent. **Validate this:** Render runs `preDeployCommand`
-   inside the *service* image, which is the api image — not the migrate image —
-   so `/migrate` and `db/migrations` may not be present there. If so, drop the
-   `preDeployCommand` and instead run the migrate image as an explicit CD job
-   (e.g. a GitHub Actions step, or a Render one-off job) that builds/pulls
-   `deploy/Dockerfile.migrate` and runs `/migrate up` against the environment's
-   `CALIBER_DATABASE_URL` ahead of the app deploy.
-2. Either way the ordering is: **migrate → deploy api/worker**, so schema is
-   ready before traffic shifts.
+1. `deploy/Dockerfile.api` ships `/migrate` and `/db/migrations`. With the api
+   on the **starter** plan, `render.yaml` sets `preDeployCommand: "/migrate up"`
+   so every deploy migrates before traffic shifts. Dedicated
+   `deploy/Dockerfile.migrate` remains for CD/local/one-off use.
+2. Postgres is on **basic-256mb** (lowest paid tier above free) so pgvector and
+   durable schema are available; free Postgres is insufficient for this stack.
+3. Ordering is always **migrate → serve traffic**, otherwise Login fails with
+   `relation "users" does not exist` (SQLSTATE 42P01).
 
 ## How to apply
 

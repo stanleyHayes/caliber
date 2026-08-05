@@ -337,7 +337,16 @@ func TestIsProd(t *testing.T) {
 	if !(Config{Env: "prod"}).IsProd() {
 		t.Error("IsProd() = false for env=prod, want true")
 	}
+	if !(Config{Env: "production"}).IsProd() {
+		t.Error("IsProd() = false for env=production, want true")
+	}
+	if !(Config{Env: "PROD"}).IsProd() {
+		t.Error("IsProd() = false for env=PROD, want true")
+	}
 	if (Config{Env: "dev"}).IsProd() {
 		t.Error("IsProd() = true for env=dev, want false")
+	}
+	if (Config{Env: "staging"}).IsProd() {
+		t.Error("IsProd() = true for env=staging, want false")
 	}
 }

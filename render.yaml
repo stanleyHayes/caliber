@@ -20,8 +20,10 @@
 #   Real secrets are NEVER stored here. Values wired with `sync: false` are set
 #   once per environment in the Render dashboard / secret store and rotated per
 #   docs/runbooks/secret-rotation.md. The Redis URL and Database connection
-#   string are injected by Render via fromService/fromDatabase; API keys and JWT
-#   secrets are `sync: false` secrets set in the dashboard — never hand-entered here.
+#   string are injected by Render via fromService/fromDatabase; API keys, JWT
+#   secret, and field-encryption key are `sync: false`. Non-secret config
+#   (CALIBER_ENV=prod, CALIBER_CORS_ORIGINS https SPA origin, seed/retention) is
+#   set inline — CORS is NOT a secret; wrong scheme (http vs https) breaks the SPA.
 #   Per-env value templates: .env.staging.example / .env.production.example;
 #   the full tunable list is .env.example; env topology is docs/environments.md.
 #
@@ -75,31 +77,41 @@ services:
                                # (runtime: image is only for pulling a PREBUILT image
                                # from a registry and forbids dockerfilePath/dockerContext.)
     region: oregon
-    plan: free                 # free web service. NOTE: spins down after ~15 min idle,
-                               # so the first request after idle cold-starts (can take
-                               # up to a minute). Bump to starter to keep it always-on.
+    plan: starter              # first paid web tier above free — keeps the service
+                               # always-on and allows preDeployCommand (free skips it).
     dockerfilePath: ./deploy/Dockerfile.api
     dockerContext: .
     healthCheckPath: /readyz   # httpserver router.go: r.Get("/readyz", ...)
-    # Pre-deploy DB migration step (goose). DISABLED because the api is on the free
-    # plan and Render does NOT run pre-deploy commands on free instances. On free,
-    # run migrations once as a one-off job from the migrate image before first boot
-    # (Render dashboard → Jobs, or `render jobs create` with deploy/Dockerfile.migrate
-    # running `/migrate up`); the api's /readyz will stay red until the schema exists.
-    # If you move the api to a PAID plan, uncomment the line below to migrate
-    # automatically on each deploy. VALIDATE first: preDeployCommand runs inside the
-    # SERVICE image — confirm it contains /migrate + db/migrations, else keep using
-    # the separate migrate job (docs/infrastructure.md § Migrations).
-    # preDeployCommand: "/migrate up"
+    # Goose migrations before traffic. The api image ships /migrate + /db/migrations
+    # (deploy/Dockerfile.api). Requires a paid plan — free web services skip this.
+    preDeployCommand: "/migrate up"
     envVars:
+      # Must be "prod" (not "production") — Config.IsProd() gates CORS-required,
+      # field-encryption-required, HSTS, and gRPC-reflection-off on this value.
       - key: CALIBER_ENV
-        value: production
+        value: prod
       - key: CALIBER_LOG_LEVEL
         value: info
+      - key: CALIBER_SERVICE_NAME
+        value: caliber-api
       # Render injects $PORT for the public HTTP listener. If CALIBER_HTTP_ADDR is
       # unset, the API binds to that port automatically.
       - key: CALIBER_GRPC_ADDR
         value: ":9090"
+      # Exact-origin CORS allowlist (CAL-114). Public SPA origin — not a secret.
+      # Scheme must be https to match the Vercel deployment; http:// will fail
+      # browser preflight from https://calibergh.vercel.app.
+      - key: CALIBER_CORS_ORIGINS
+        value: https://calibergh.vercel.app
+      # Prod posture: no demo seed; retention sweep on (matches .env.production.example).
+      - key: CALIBER_SEED_DEMO
+        value: "false"
+      - key: CALIBER_SEED_GENERATED
+        value: "false"
+      - key: CALIBER_RETENTION_WINDOW
+        value: 8760h
+      - key: CALIBER_RETENTION_CRON
+        value: "@daily"
       # Database URL is injected by Render; Redis URL is injected from the service.
       - key: CALIBER_DATABASE_URL
         fromDatabase:
@@ -119,16 +131,23 @@ services:
       # ---- Real secrets: set in the Render dashboard, never in the repo ----
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Optional Anthropic-compatible gateway (Kimi/Moonshot). Leave blank when
+      # using first-party Anthropic via ANTHROPIC_API_KEY.
+      - key: ANTHROPIC_AUTH_TOKEN
+        sync: false
+      - key: ANTHROPIC_BASE_URL
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: CALIBER_JWT_SECRET
         sync: false            # >=32 bytes, unique per env (secret-rotation.md)
-      - key: CALIBER_CORS_ORIGINS
-        sync: false            # the Vercel origin, e.g. https://calibergh.vercel.app
       - key: CALIBER_FIELD_ENCRYPTION_KEY
         sync: false            # base64 32-byte AES-256 key — candidate PII at rest (CAL-117);
                                # without it, PII is stored in plaintext. Rotate per
                                # docs/runbooks/key-rotation.md.
+      # Rotation only — set during key migration, then clear (key-rotation.md).
+      - key: CALIBER_FIELD_ENCRYPTION_KEY_PREVIOUS
+        sync: false
 
   # ---------------------------------------------------------------------------
   # Worker (Asynq consumer). Built from deploy/Dockerfile.worker. No inbound
@@ -147,11 +166,17 @@ services:
     dockerContext: .
     envVars:
       - key: CALIBER_ENV
-        value: production
+        value: prod
       - key: CALIBER_LOG_LEVEL
         value: info
+      - key: CALIBER_SERVICE_NAME
+        value: caliber-worker
       - key: CALIBER_WORKER_METRICS_ADDR
         value: ":8081"
+      - key: CALIBER_RETENTION_WINDOW
+        value: 8760h
+      - key: CALIBER_RETENTION_CRON
+        value: "@daily"
       # Same managed Render DB + Redis as the api service.
       - key: CALIBER_DATABASE_URL
         fromDatabase:
@@ -169,6 +194,10 @@ services:
       # same model keys and JWT secret as the api. CORS is api-only.
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: ANTHROPIC_AUTH_TOKEN
+        sync: false
+      - key: ANTHROPIC_BASE_URL
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: CALIBER_JWT_SECRET
@@ -176,3 +205,5 @@ services:
       - key: CALIBER_FIELD_ENCRYPTION_KEY
         sync: false            # SAME key as the api — the worker also reads/writes
                                # candidate PII (interview scoring, retention sweep).
+      - key: CALIBER_FIELD_ENCRYPTION_KEY_PREVIOUS
+        sync: false

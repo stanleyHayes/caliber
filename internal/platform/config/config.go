@@ -221,7 +221,15 @@ func loadLokiConfig(c *Config) {
 }
 
 // IsProd reports whether the process runs in a production-like environment.
-func (c Config) IsProd() bool { return strings.EqualFold(c.Env, "prod") }
+// Accepts both "prod" (canonical) and "production" (common Blueprint/alias slip).
+func (c Config) IsProd() bool {
+	switch strings.ToLower(strings.TrimSpace(c.Env)) {
+	case "prod", "production":
+		return true
+	default:
+		return false
+	}
+}
 
 // ProdSafetyIssues reports configuration that is present but must never run in
 // production — dev/local endpoints promoted from a lower environment, which would
@@ -392,14 +400,16 @@ func corsOriginsValue() (string, string) {
 }
 
 func defaultCORSAllowedOrigins(env string) []string {
-	if strings.EqualFold(env, "prod") {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "prod", "production":
 		return nil
-	}
-	return []string{
-		"http://localhost:5173",
-		"http://127.0.0.1:5173",
-		"http://localhost:4173",
-		"http://127.0.0.1:4173",
+	default:
+		return []string{
+			"http://localhost:5173",
+			"http://127.0.0.1:5173",
+			"http://localhost:4173",
+			"http://127.0.0.1:4173",
+		}
 	}
 }
 

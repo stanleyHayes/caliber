@@ -5,9 +5,15 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
+# Bake migrate into the api image so free-tier one-off jobs can run
+# `/migrate up` (Render does not run preDeployCommand on free web services).
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/api /api
+COPY --from=build /out/migrate /migrate
+COPY db/migrations /db/migrations
+ENV CALIBER_MIGRATIONS_DIR=/db/migrations
 EXPOSE 8080 9090
 USER nonroot:nonroot
 ENTRYPOINT ["/api"]
