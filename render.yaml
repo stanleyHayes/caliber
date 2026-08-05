@@ -26,7 +26,7 @@
 #   the full tunable list is .env.example; env topology is docs/environments.md.
 #
 # DATABASE (managed Render PostgreSQL)
-#   Render will provision a PostgreSQL 16 instance with pgvector extension enabled.
+#   Render will provision a PostgreSQL 18 instance with pgvector extension enabled.
 #   The CALIBER_DATABASE_URL is injected automatically via fromDatabase.
 #   MIGRATIONS: Schema migrations are run as a one-off job before first boot
 #   (Render dashboard → Jobs, or `render jobs create` with deploy/Dockerfile.migrate
@@ -42,13 +42,13 @@
 
 databases:
   # ---------------------------------------------------------------------------
-  # Managed PostgreSQL 16 database with pgvector extension.
+  # Managed PostgreSQL 18 database with pgvector extension.
   # Free plan expires after 30 days; upgrade to starter or higher for production.
   # ---------------------------------------------------------------------------
   - name: caliber-postgres
     plan: free                     # free tier (expires in 30 days); upgrade for prod
     region: oregon                 # must match the app services' region
-    postgresMajorVersion: "16"
+    postgresMajorVersion: "18"
     databaseName: caliber
     # pgvector extension enablement: the migration 00001_extensions.sql will
     # run `CREATE EXTENSION IF NOT EXISTS vector` to ensure it's available.
@@ -159,130 +159,6 @@ services:
         fromDatabase:
           name: caliber-postgres
           property: connectionString
-      - key: CALIBER_REDIS_URL
-        fromService:
-          type: redis
-          name: caliber-redis
-          property: connectionString
-      # CALIBER_SERVICE_VERSION: Render injects RENDER_GIT_COMMIT automatically;
-      # set it in the dashboard if version correlation is needed (see api note).
-      # ---- Real secrets: set in the Render dashboard, never in the repo ----
-      # The worker runs the AI orchestration + retention sweep, so it needs the
-      # same model keys and JWT secret as the api. CORS is api-only.
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: CALIBER_JWT_SECRET
-        sync: false
-      - key: CALIBER_FIELD_ENCRYPTION_KEY
-        sync: false            # SAME key as the api — the worker also reads/writes
-                               # candidate PII (interview scoring, retention sweep).
-
-  # ---------------------------------------------------------------------------
-  # Managed Key-Value (Redis) store — Asynq queue + rate-limit/cache backing.
-  # Render models Redis as a `redis` service type (a.k.a. "Key Value").
-  # ---------------------------------------------------------------------------
-  - type: redis
-    name: caliber-redis
-    plan: free                 # free Key Value (25MB, NO persistence). Fine for a POC:
-                               # queued jobs are lost on a restart and enqueue fails if
-                               # the 25MB fills. Move to a paid plan for durable queues.
-    region: oregon             # must match the DB + app services' region
-    ipAllowList: []            # empty = only Render internal network may connect
-    maxmemoryPolicy: noeviction # Asynq requires jobs are never evicted
-
-  # ---------------------------------------------------------------------------
-  # API (REST gateway + gRPC + health). Built from deploy/Dockerfile.api.
-  # /readyz and /healthz are served on the HTTP port (CALIBER_HTTP_ADDR).
-  # ---------------------------------------------------------------------------
-  - type: web
-    name: caliber-api
-    runtime: docker            # build the image from the Dockerfile below.
-                               # (runtime: image is only for pulling a PREBUILT image
-                               # from a registry and forbids dockerfilePath/dockerContext.)
-    region: oregon
-    plan: free                 # free web service. NOTE: spins down after ~15 min idle,
-                               # so the first request after idle cold-starts (can take
-                               # up to a minute). Bump to starter to keep it always-on.
-    dockerfilePath: ./deploy/Dockerfile.api
-    dockerContext: .
-    healthCheckPath: /readyz   # httpserver router.go: r.Get("/readyz", ...)
-    # Pre-deploy DB migration step (goose). DISABLED because the api is on the free
-    # plan and Render does NOT run pre-deploy commands on free instances. On free,
-    # run migrations once as a one-off job from the migrate image before first boot
-    # (Render dashboard → Jobs, or `render jobs create` with deploy/Dockerfile.migrate
-    # running `/migrate up`); the api's /readyz will stay red until the schema exists.
-    # If you move the api to a PAID plan, uncomment the line below to migrate
-    # automatically on each deploy. VALIDATE first: preDeployCommand runs inside the
-    # SERVICE image — confirm it contains /migrate + db/migrations, else keep using
-    # the separate migrate job (docs/infrastructure.md § Migrations).
-    # preDeployCommand: "/migrate up"
-    envVars:
-      - key: CALIBER_ENV
-        value: production
-      - key: CALIBER_LOG_LEVEL
-        value: info
-      # Render injects $PORT for the public HTTP listener. If CALIBER_HTTP_ADDR is
-      # unset, the API binds to that port automatically.
-      - key: CALIBER_GRPC_ADDR
-        value: ":9090"
-      # Redis URL is injected by Render; the DB URL is the EXTERNAL Neon DSN (set
-      # once in the dashboard, see the DATABASE header for the DSN rules).
-      - key: CALIBER_DATABASE_URL
-        sync: false            # Neon Postgres DSN — include ?sslmode=require and use
-                               # Neon's DIRECT (non-pooled) endpoint.
-      - key: CALIBER_REDIS_URL
-        fromService:
-          type: redis
-          name: caliber-redis
-          property: connectionString
-      # Build/version correlation for traces + Report Card provenance. Render
-      # injects the deploy's commit SHA as the built-in RENDER_GIT_COMMIT env
-      # var automatically (Blueprint cannot interpolate it into another var, and
-      # fromService.property only exposes host/port/connectionString — not the
-      # commit). Set CALIBER_SERVICE_VERSION in the dashboard to RENDER_GIT_COMMIT
-      # if version correlation is needed, otherwise it defaults to "dev" in code.
-      # ---- Real secrets: set in the Render dashboard, never in the repo ----
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: CALIBER_JWT_SECRET
-        sync: false            # >=32 bytes, unique per env (secret-rotation.md)
-      - key: CALIBER_CORS_ORIGINS
-        sync: false            # the Vercel origin, e.g. https://calibergh.vercel.app
-      - key: CALIBER_FIELD_ENCRYPTION_KEY
-        sync: false            # base64 32-byte AES-256 key — candidate PII at rest (CAL-117);
-                               # without it, PII is stored in plaintext. Rotate per
-                               # docs/runbooks/key-rotation.md.
-
-  # ---------------------------------------------------------------------------
-  # Worker (Asynq consumer). Built from deploy/Dockerfile.worker. No inbound
-  # HTTP; exposes Prometheus metrics on CALIBER_WORKER_METRICS_ADDR (:8081).
-  # Modeled as a background worker (no public port / health check).
-  # ---------------------------------------------------------------------------
-  - type: worker
-    name: caliber-worker
-    runtime: docker            # build from the Dockerfile below (not a prebuilt image).
-    region: oregon
-    plan: starter              # background workers have NO free tier on Render, so this
-                               # is the cheapest option. (If you want a zero-cost demo,
-                               # you can drop the worker and run screening synchronously,
-                               # but async scoring/retention needs this process.)
-    dockerfilePath: ./deploy/Dockerfile.worker
-    dockerContext: .
-    envVars:
-      - key: CALIBER_ENV
-        value: production
-      - key: CALIBER_LOG_LEVEL
-        value: info
-      - key: CALIBER_WORKER_METRICS_ADDR
-        value: ":8081"
-      # Same external Neon DB + Render Redis as the api service. Set
-      # CALIBER_DATABASE_URL to the SAME Neon DSN you set on the api.
-      - key: CALIBER_DATABASE_URL
-        sync: false            # Neon Postgres DSN (see the DATABASE header).
       - key: CALIBER_REDIS_URL
         fromService:
           type: redis
