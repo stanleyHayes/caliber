@@ -46,7 +46,7 @@ databases:
   # Free plan expires after 30 days; upgrade to starter or higher for production.
   # ---------------------------------------------------------------------------
   - name: caliber-postgres
-    plan: free                     # free tier (expires in 30 days); upgrade for prod
+    plan: starter                  # paid tier; avoids free-tier blueprint limits
     region: oregon                 # must match the app services' region
     postgresMajorVersion: "18"
     databaseName: caliber
@@ -60,9 +60,7 @@ services:
   # ---------------------------------------------------------------------------
   - type: redis
     name: caliber-redis
-    plan: free                 # free Key Value (25MB, NO persistence). Fine for a POC:
-                               # queued jobs are lost on a restart and enqueue fails if
-                               # the 25MB fills. Move to a paid plan for durable queues.
+    plan: starter              # paid tier; avoids free-tier blueprint limits
     region: oregon             # must match the DB + app services' region
     ipAllowList: []            # empty = only Render internal network may connect
     maxmemoryPolicy: noeviction # Asynq requires jobs are never evicted
