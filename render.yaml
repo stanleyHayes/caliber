@@ -50,9 +50,7 @@ databases:
     region: oregon                 # must match the app services' region
     postgresMajorVersion: "16"
     databaseName: caliber
-    userEmail: "{% raw %}{{ env.RENDER_USER_EMAIL }}{% endraw %}"
-    # pgvector extension enablement (may require explicit syntax; validate against
-    # current Render Blueprint spec). The migration 00001_extensions.sql will also
+    # pgvector extension enablement: the migration 00001_extensions.sql will
     # run `CREATE EXTENSION IF NOT EXISTS vector` to ensure it's available.
 
 services:
