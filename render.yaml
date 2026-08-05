@@ -43,10 +43,10 @@
 databases:
   # ---------------------------------------------------------------------------
   # Managed PostgreSQL 18 database with pgvector extension.
-  # Free plan expires after 30 days; upgrade to starter or higher for production.
+  # Basic-256mb is the first paid tier above Free on Render Postgres.
   # ---------------------------------------------------------------------------
   - name: caliber-postgres
-    plan: starter                  # paid tier; avoids free-tier blueprint limits
+    plan: basic-256mb              # lowest paid Postgres tier above free
     region: oregon                 # must match the app services' region
     postgresMajorVersion: "18"
     databaseName: caliber
